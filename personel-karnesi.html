@@ -394,11 +394,11 @@ async function initIslemAccess(){
     document.querySelectorAll('.sunum-only').forEach(el => { if (sunumAuthorized) el.classList.remove('sunum-only'); });
     document.querySelectorAll('.excel-only').forEach(el => { if (excelAuthorized) el.classList.remove('excel-only'); });
 
-    if (islemAuthorized || yetkiAuthorized){
+    if (islemAuthorized || yetkiAuthorized || sunumAuthorized){
       writeTokenClient = google.accounts.oauth2.initTokenClient({
         client_id: OAUTH_CLIENT_ID,
         scope: WRITE_SCOPE,
-        callback: () => {} // performIslemSave / Yetki Atama kaydında dinamik olarak değiştirilir
+        callback: () => {} // performIslemSave / Yetki Atama kaydında ve sunum fotoğrafı çekerken dinamik olarak değiştirilir
       });
     }
     if (islemAuthorized){
@@ -423,6 +423,33 @@ function ensureWriteToken(){
     };
     writeTokenClient.requestAccessToken({ prompt: 'consent' });
   });
+}
+
+// Sunum oluştururken personel fotoğrafını (Drive'da saklı) pptxgenjs'e gömebilmek için
+// veri (base64) olarak çeker. drive.google.com/thumbnail adresi tarayıcıdan doğrudan
+// indirilemiyor (CORS engelli) - bu yüzden Drive API'nin kendisi (googleapis.com) üzerinden,
+// zaten var olan yazma yetkili token ile "alt=media" olarak çekiyoruz; bu uç nokta CORS'a izin verir.
+async function fetchDrivePhotoAsDataUrl(fotoUrl){
+  if (!fotoUrl) return null;
+  const m = fotoUrl.match(/[?&]id=([^&]+)/);
+  if (!m) return null;
+  const fileId = m[1];
+  try {
+    const token = await ensureWriteToken();
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch(e){
+    return null; // sessizce vazgeç - fotoğrafsız sunum yine üretilsin
+  }
 }
 
 function colToLetter(index){
@@ -848,7 +875,10 @@ async function generatePresentation(selectedYears){
     const s = pres.addSlide();
     s.background = { color: DARK };
     if (p.fotoUrl){
-      try { s.addImage({ path: p.fotoUrl, x: 0.6, y: 0.6, w: 1.3, h: 1.3, rounding: true }); } catch(e){}
+      try {
+        const dataUrl = await fetchDrivePhotoAsDataUrl(p.fotoUrl);
+        if (dataUrl) s.addImage({ data: dataUrl, x: 0.6, y: 0.6, w: 1.3, h: 1.3, rounding: true });
+      } catch(e){}
     }
     s.addText('ALO 144 · PERSONEL KARNESİ', { x: 0.6, y: 2.7, w: 10, h: 0.4, fontFace: 'Consolas', fontSize: 13, color: ACCENT, bold: true, charSpacing: 2 });
     s.addText(p.adSoyad, { x: 0.6, y: 3.15, w: 11.5, h: 0.9, fontFace: 'Georgia', fontSize: 32, color: WHITE, bold: true });
