@@ -877,7 +877,7 @@ async function generatePresentation(selectedYears){
     if (p.fotoUrl){
       try {
         const dataUrl = await fetchDrivePhotoAsDataUrl(p.fotoUrl);
-        if (dataUrl) s.addImage({ data: dataUrl, x: 0.6, y: 0.6, w: 1.3, h: 1.3, rounding: true });
+        if (dataUrl) s.addImage({ data: dataUrl, x: 0.6, y: 0.6, w: 1.3, h: 1.3, rounding: true, sizing: { type: 'cover', w: 1.3, h: 1.3 } });
       } catch(e){}
     }
     s.addText('ALO 144 · PERSONEL KARNESİ', { x: 0.6, y: 2.7, w: 10, h: 0.4, fontFace: 'Consolas', fontSize: 13, color: ACCENT, bold: true, charSpacing: 2 });
@@ -1011,7 +1011,7 @@ async function generatePresentation(selectedYears){
             { type: 'line', data: [{ name: 'Lokasyon Ort.', labels: allLabels, values: allLok }], options: { chartColors: ['5B9CF6'] } },
           ], {
             x: chartX, y: chartY, w: chartW, h: chartH,
-            showLegend: true, legendPos: 'b', legendFontSize: 8,
+            showLegend: true, legendPos: 'b', legendFontSize: 8, legendColor: 'FFFFFF',
             catAxisLabelFontSize: 7, valAxisLabelFontSize: 8, catAxisLabelColor: 'FFFFFF', valAxisLabelColor: 'FFFFFF',
           });
         } catch(e){}
