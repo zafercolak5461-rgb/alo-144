@@ -912,7 +912,7 @@ async function generatePresentation(selectedYears){
       y += cardH + 0.08;
     });
 
-    // 2) Yıllık Özet - tablo, TÜM yıllar (sol yarım)
+    // 2) Yıllık Özet - tablo, TÜM yıllar (üst SOL blok)
     y += 0.06;
     const tblY = y;
     s.addText('Yıllık Özet', { x: 0.4, y, w: 3, h: 0.24, fontFace: 'Georgia', fontSize: 11, color: WHITE, bold: true });
@@ -929,32 +929,37 @@ async function generatePresentation(selectedYears){
       [{ text:'Lokasyon', options:{ bold:true, color:WHITE, fontSize:9 } }, ...lokVals.map(v => ({ text: fmtKarneVal(v), options:{ align:'center', color:'8FA3C9', fontSize:9 } }))],
     ];
     s.addTable(tblRows, { x: 0.4, y, w: 5.3, border: { type:'solid', color:'2A3A5C', pt:0.5 }, fontFace:'Consolas', rowH:0.24, fill:{ color:'1C2944' } });
-    y += 0.24 * 3 + 0.14;
+    const tableBottomY = y + 0.24 * 3;
 
-    // 3) Halkalar - tablonun ALTINDA, SEÇİLİ her yıl için bir tane, SABİT boyutta (kaç yıl
-    // olursa olsun aynı büyüklük), sadece diziliş (1 yıl=ortada, 2=yan yana, 3=yan yana...) değişir.
-    let gaugeBottomY = y;
+    // 3) Halkalar - tablonun SAĞINDA (aynı üst satırda), SEÇİLİ her yıl için bir tane,
+    // SABİT boyutta (kaç yıl olursa olsun aynı büyüklük), sadece diziliş değişir.
+    const gaugeColX = 0.4 + 5.3 + 0.25; // tablonun sağı + boşluk
+    const gaugeAreaW = 12.5 - gaugeColX;
+    let gaugeBottomY = tblY;
     if (selectedYears.length){
-      s.addText('Yıllık Ortalama (Seçili Yıllar)', { x: 0.4, y, w: 5, h: 0.22, fontFace: 'Georgia', fontSize: 10.5, color: WHITE, bold: true });
-      y += 0.26;
-      const gaugeAreaW = 5.3, gaugeGap = 0.15;
+      let gy = tblY;
+      s.addText('Yıllık Ortalama (Seçili Yıllar)', { x: gaugeColX, y: gy, w: gaugeAreaW, h: 0.22, fontFace: 'Georgia', fontSize: 10.5, color: WHITE, bold: true });
+      gy += 0.26;
+      const gaugeGap = 0.15;
       const FIXED_GAUGE_W = 1.5; // sabit halka genişliği - yıl sayısı arttıkça küçülmez
       const gaugeW = FIXED_GAUGE_W;
       const gaugeH = gaugeW * 0.5;
       const rowW = selectedYears.length * gaugeW + (selectedYears.length - 1) * gaugeGap;
-      const rowStartX = 0.4 + Math.max(0, (gaugeAreaW - rowW) / 2); // sığdığı sürece ortalanır
+      const rowStartX = gaugeColX + Math.max(0, (gaugeAreaW - rowW) / 2); // sığdığı sürece ortalanır
       selectedYears.forEach((yr, gi) => {
         const idx = allYears.indexOf(yr);
         const val = kisiVals[idx], lok = lokVals[idx];
         const gx = rowStartX + gi * (gaugeW + gaugeGap);
-        pptGaugeArc(s, gx, y, gaugeW, gaugeH, metric.category, val, lok);
-        s.addText(fmtKarneVal(val), { x: gx, y: y + gaugeH*0.32, w: gaugeW, h: 0.24, align:'center', fontFace:'Georgia', fontSize:11, bold:true, color:WHITE });
-        s.addText(String(yr), { x: gx, y: y + gaugeH + 0.02, w: gaugeW, h: 0.18, align:'center', fontFace:'Consolas', fontSize:7.5, color:'8FA3C9' });
+        pptGaugeArc(s, gx, gy, gaugeW, gaugeH, metric.category, val, lok);
+        s.addText(fmtKarneVal(val), { x: gx, y: gy + gaugeH*0.32, w: gaugeW, h: 0.24, align:'center', fontFace:'Georgia', fontSize:11, bold:true, color:WHITE });
+        s.addText(String(yr), { x: gx, y: gy + gaugeH + 0.02, w: gaugeW, h: 0.18, align:'center', fontFace:'Consolas', fontSize:7.5, color:'8FA3C9' });
       });
-      gaugeBottomY = y + gaugeH + 0.25;
+      gaugeBottomY = gy + gaugeH + 0.25;
     }
 
-    // 4) Grafik - SAĞDA, tek kesintisiz, sadece SEÇİLİ yılların ayları (kronolojik)
+    // 4) Grafik - ALTTA, tam genişlik (tablo+halka satırının altı), tek kesintisiz,
+    // sadece SEÇİLİ yılların ayları (kronolojik)
+    const rowBottomY = Math.max(tableBottomY + 0.18, gaugeBottomY);
     if (selectedYears.length){
       const allLabels = [], allKisi = [], allLok = [];
       selectedYears.forEach(yr => {
@@ -969,7 +974,7 @@ async function generatePresentation(selectedYears){
         });
       });
       if (allLabels.length){
-        const chartX = 5.95, chartY = tblY, chartW = 12.5 - chartX, chartH = 7.05 - chartY;
+        const chartX = 0.4, chartY = rowBottomY, chartW = 12.5 - chartX, chartH = 7.05 - chartY;
         try {
           s.addChart([
             { type: 'bar', data: [{ name: 'Kişi', labels: allLabels, values: allKisi }], options: { chartColors: ['E8A53D'] } },
