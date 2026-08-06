@@ -315,7 +315,7 @@ const LOG_URL = "https://script.google.com/macros/s/AKfycbzeyn_R-Khl7qAMZozWuq4Z
 
 function sendLog(payload){
   try {
-    const body = JSON.stringify(Object.assign({ email: userEmail }, payload));
+    const body = JSON.stringify(Object.assign({ isim: userName }, payload));
     navigator.sendBeacon(LOG_URL, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
   } catch(e){}
 }
@@ -324,6 +324,7 @@ const FOTO_DRIVE_FOLDER_ID = "1aRcXTfTxFDh_yuxzkz0pQSFKAc82Q_rP";
 let writeAccessToken = null;
 let writeTokenClient = null;
 let userEmail = null;
+let userName = null;
 let islemAuthorized = false;
 let yetkiAuthorized = false;
 let sunumAuthorized = false;
@@ -381,6 +382,7 @@ async function initIslemAccess(){
     const myRow = AUTH_TABLE.find(r => r.gmail === userEmail);
     // Sabit yedek yönetici — Sheet boşsa/bozulsa/satır silinse bile bu hesap her zaman tam yetkiye sahiptir.
     const isFixedAdmin = userEmail === FIXED_SUPER_ADMIN_EMAIL;
+    userName = (myRow && myRow.isim) || (isFixedAdmin ? 'Zafer Çolak' : 'Bilinmeyen Kullanıcı');
 
     islemAuthorized = isFixedAdmin || !!(myRow && myRow.guncelleme);
     yetkiAuthorized = isFixedAdmin || !!(myRow && myRow.superYetkili);
@@ -1368,7 +1370,19 @@ async function loadData(){
 
     statusDot.className = 'dot ok';
     statusText.textContent = `Bağlantı başarılı — ${PERSONNEL.length} personel`;
-    errorBox.style.display = 'none';
+
+    // Sicil No benzersizlik kontrolü: Personel Listesi'nde aynı sicil numarası birden fazla
+    // satırda kullanılmışsa (örn. kopyala-yapıştır hatası), bu satırlardan biri arka planda
+    // "kaybolur" ve arama sonucunda doğru isim görünse bile tıklanınca yanlış kişinin verisi
+    // gelebilir - bu yüzden burada tespit edip görünür bir uyarı olarak gösteriyoruz.
+    const sicilGroups = {};
+    PERSONNEL.forEach(p => { (sicilGroups[p.sicil] = sicilGroups[p.sicil] || []).push(p.adSoyad); });
+    const dupEntries = Object.entries(sicilGroups).filter(([,names]) => names.length > 1);
+    const warnings = [];
+    if (dupEntries.length){
+      const dupText = dupEntries.map(([sicil,names]) => `${sicil} (${names.join(', ')})`).join(' | ');
+      warnings.push(`⚠ Sicil No çakışması tespit edildi, Personel Listesi'nde düzeltilmeli: ${dupText}`);
+    }
 
     if (!selectedSicil && PERSONNEL.length) selectedSicil = PERSONNEL[0].sicil;
 
@@ -1397,13 +1411,18 @@ async function loadData(){
       }
 
       if (karneErrors.length){
-        errorBox.style.display = 'block';
-        errorBox.textContent = 'Karne verisinde sorun: ' + karneErrors.join(' | ');
+        warnings.push('Karne verisinde sorun: ' + karneErrors.join(' | '));
       }
       statusText.textContent = `Bağlantı başarılı — ${PERSONNEL.length} personel, ${KARNE_MONTHS.length} karne ayı, ${KARNE_METRICS.length} parametre bulundu`;
     } catch (e){
+      warnings.push('Karne sekmeleri alınamadı: ' + e.message);
+    }
+
+    if (warnings.length){
       errorBox.style.display = 'block';
-      errorBox.textContent = 'Karne sekmeleri alınamadı: ' + e.message;
+      errorBox.textContent = warnings.join(' || ');
+    } else {
+      errorBox.style.display = 'none';
     }
 
     await loadVardiyaIzinCounts(); // sessizce başarısız olabilir, izin göstergesi o zaman eski statik haline döner
