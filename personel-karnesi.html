@@ -2745,7 +2745,10 @@ async function driveUploadPhoto(sicil, blob, token){
     if (permData.error) throw new Error(permData.error.message || 'Paylaşım izni ayarlanamadı.');
   }
 
-  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w500`;
+  // Sürüm numarası (?v=zaman damgası) ekleniyor - aynı dosya ID'si üzerine yazıldığında link
+  // değişmezse tarayıcılar eski (önbellekteki) fotoğrafı göstermeye devam edebiliyordu. Link
+  // her yüklemede değiştiği için önbellek artık asla devreye giremiyor.
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w500&v=${Date.now()}`;
 }
 
 async function writeFotoUrlToPersonelListesi(sicil, url, token){
