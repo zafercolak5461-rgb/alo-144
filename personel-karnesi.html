@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Personel Karnesi — ALO 144</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1292,6 +1293,14 @@ let islemYear = null; // seçili yıl (Ay seçiciyi filtrelemek için)
 let islemMonthKey = null; // seçili ay-sekmesinin tabName'i
 let islemRowData = null; // { exists, rowValues (raw), headersRaw, sicilCol, adCol, metricCols } ya da null
 let islemSaving = false;
+// chartjs-plugin-datalabels tüm Chart.js grafiklerine otomatik ekleniyor, bu yüzden global
+// varsayılanı KAPALI bırakıyoruz - sadece Analiz sekmesindeki grafiklerde, dataset bazında
+// açıkça "display:true" vererek aktif ediyoruz. Böylece Parametre/Genel Değerlendirme'deki
+// mevcut grafiklerin görünümü hiç etkilenmiyor.
+if (typeof ChartDataLabels !== 'undefined'){
+  Chart.register(ChartDataLabels);
+  Chart.defaults.set('plugins.datalabels', { display: false });
+}
 const PARAM_CHART_INSTANCES = {}; // metricKey -> Chart.js örneği (temizlik için)
 
 const refreshBtn = document.getElementById('refreshBtn');
@@ -2194,15 +2203,111 @@ let analizYear = null;
 let analizMonth = null; // null = Tüm Aylar
 let analizRankMetricKey = null; // null = varsayılan (Performans)
 let analizCompareYear = null; // null = otomatik (bir önceki yıl varsa)
-let analizTrendMetricKey = null; // null = varsayılan (Performans)
-let analizTrendChartType = 'line'; // 'line' | 'bar'
-let analizTrendCompareKey = ''; // '' = karşılaştırma yok
-let analizYearCmpMetricKey = null; // null = otomatik ilk metrik
-let analizYearCmpCompareKey = ''; // '' = karşılaştırma yok
+// 5 bağımsız metrik+grafik türü seçici - Aylık Trend ve Yıl Kıyaslama AYNI mantığı, AYNI
+// yardımcı fonksiyonları kullanır. metricKey '' = "Yok" (boş slot). İlk slot ilk açılışta
+// otomatik ilk metriğe (genelde Performans) ayarlanır, diğer 4 slot boş başlar.
+function makeAnalizSlots(){ return [
+  { metricKey: null, type: 'line' },
+  { metricKey: '', type: 'line' },
+  { metricKey: '', type: 'line' },
+  { metricKey: '', type: 'line' },
+  { metricKey: '', type: 'line' },
+]; }
+let analizTrendSlots = makeAnalizSlots();
+let analizYearCmpSlots = makeAnalizSlots();
+const ANALIZ_SLOT_COLORS = [
+  { solid: '#E8A53D', bar: 'rgba(232,165,61,0.75)', line: 'rgba(232,165,61,0.15)' },
+  { solid: '#5b9cf6', bar: 'rgba(91,156,246,0.65)', line: 'rgba(91,156,246,0.15)' },
+  { solid: '#3ddc97', bar: 'rgba(61,220,151,0.65)', line: 'rgba(61,220,151,0.15)' },
+  { solid: '#e85d5d', bar: 'rgba(232,93,93,0.65)', line: 'rgba(232,93,93,0.15)' },
+  { solid: '#8B7FD8', bar: 'rgba(139,127,216,0.65)', line: 'rgba(139,127,216,0.15)' },
+];
 const ANALIZ_CHART_INSTANCES = {};
 
 function destroyAnalizCharts(){
   Object.keys(ANALIZ_CHART_INSTANCES).forEach(k => { try { ANALIZ_CHART_INSTANCES[k].destroy(); } catch(e){} delete ANALIZ_CHART_INSTANCES[k]; });
+}
+
+// 5 slotluk metrik+tür seçici satırlarını üretir - Aylık Trend ve Yıl Kıyaslama TAMAMEN
+// aynı bu fonksiyonu kullanır, ikisi arasında davranış farkı olmaz.
+function analizSlotSelectorsHtml(idPrefix, slots, metrics){
+  return slots.map((slot, i) => {
+    const metricOptions = `<option value="" ${slot.metricKey === '' || slot.metricKey === null ? 'selected' : ''}>— Yok —</option>` +
+      metrics.map(m => `<option value="${m.key}" ${m.key === slot.metricKey ? 'selected' : ''}>${m.label}</option>`).join('');
+    const colorDot = slot.metricKey ? `<span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${ANALIZ_SLOT_COLORS[i].solid}; margin-right:6px;"></span>` : `<span style="display:inline-block; width:9px; height:9px; margin-right:6px;"></span>`;
+    return `
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+        ${colorDot}
+        <select class="search" id="${idPrefix}Metric${i}" style="width:auto; font-size:12px; padding:4px 8px; min-width:170px;">${metricOptions}</select>
+        <select class="search" id="${idPrefix}Type${i}" style="width:auto; font-size:12px; padding:4px 8px;" ${!slot.metricKey ? 'disabled' : ''}>
+          <option value="line" ${slot.type==='line'?'selected':''}>Çizgi</option>
+          <option value="bar" ${slot.type==='bar'?'selected':''}>Sütun</option>
+        </select>
+      </div>`;
+  }).join('');
+}
+
+// slots+metrics+labels+valueGetter'dan Chart.js dataset/scale yapılandırması üretir - hem
+// Aylık Trend hem Yıl Kıyaslama BİREBİR bu fonksiyonu çağırır.
+function analizBuildSlotDatasets(slots, metrics, valueGetter){
+  const datasets = [];
+  const scales = {};
+  let axisOrder = 0;
+  slots.forEach((slot, i) => {
+    if (!slot.metricKey) return;
+    const metric = metrics.find(m => m.key === slot.metricKey);
+    if (!metric) return;
+    const color = ANALIZ_SLOT_COLORS[i];
+    const axisId = 'y' + axisOrder;
+    datasets.push({
+      type: slot.type,
+      label: metric.label,
+      data: valueGetter(metric),
+      yAxisID: axisId,
+      borderColor: color.solid,
+      backgroundColor: slot.type === 'bar' ? color.bar : color.line,
+      fill: slot.type === 'line',
+      tension: 0.35,
+      pointBackgroundColor: color.solid, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
+      datalabels: {
+        display: true,
+        color: slot.type === 'bar' ? '#0F1830' : color.solid,
+        anchor: slot.type === 'bar' ? 'center' : 'end',
+        align: slot.type === 'bar' ? 'center' : 'top',
+        font: { size: 10, weight: 'bold' },
+        formatter: (v) => (v === null || v === undefined) ? '' : fmtKarneVal(v),
+      },
+    });
+    scales[axisId] = {
+      position: axisOrder % 2 === 0 ? 'left' : 'right',
+      display: axisOrder < 2,
+      ticks: { color: color.solid, font: { size: 10 } },
+      grid: { display: axisOrder === 0, color: 'rgba(143,163,201,0.12)' },
+      title: axisOrder < 2 ? { display: true, text: metric.label, color: color.solid, font: { size: 10 } } : undefined,
+    };
+    axisOrder++;
+  });
+  return { datasets, scales };
+}
+
+// Bir slot grubunun (5 seçici) değişim olaylarını bağlar - her iki bölüm de aynı fonksiyonu kullanır.
+function wireAnalizSlotSelectors(idPrefix, slots, onChange){
+  slots.forEach((slot, i) => {
+    const metricSel = document.getElementById(`${idPrefix}Metric${i}`);
+    const typeSel = document.getElementById(`${idPrefix}Type${i}`);
+    if (metricSel){
+      metricSel.addEventListener('change', () => {
+        slots[i].metricKey = metricSel.value;
+        onChange(true);
+      });
+    }
+    if (typeSel){
+      typeSel.addEventListener('change', () => {
+        slots[i].type = typeSel.value;
+        onChange(false);
+      });
+    }
+  });
 }
 
 function findAnalizMetric(patterns){
@@ -2240,7 +2345,7 @@ function computeAnaliz(year, month){
   const gecLoginM = findAnalizMetric(['GEÇ LOGİN', 'GEC LOGIN']);
   const cagriM = findAnalizMetric(['ÇAĞRI', 'CAGRI']);
   const isGunuM = findAnalizMetric(['İŞ GÜNÜ', 'IS GUNU', 'İŞGÜNÜ', 'ISGUNU']);
-  const rankableMetrics = [perfM, raporM, tutanakM, gecLoginM, cagriM].filter(Boolean);
+  const rankableMetrics = KARNE_METRICS.slice(); // TÜM metrikler - Sıralama/Aylık Trend seçicilerinde hepsi kullanılabilir
 
   function personPeriodValue(sicil, metric){
     if (!metric) return null;
@@ -2426,9 +2531,9 @@ function computeYearComparison(yearA, yearB){
     if (!vals.length) return null;
     return isAvg ? avgOf(vals) : vals.reduce((a,b)=>a+b,0);
   }
-  const rankableMetricsYC = [perfM, raporM, tutanakM, gecLoginM, cagriM, isGunuM].filter(Boolean);
+  const rankableMetricsYC = KARNE_METRICS.slice(); // TÜM metrikler
   const values = {};
-  rankableMetricsYC.forEach(m => { values[m.key] = { a: calc(recsA, m, m.key === (perfM && perfM.key)), b: calc(recsB, m, m.key === (perfM && perfM.key)) }; });
+  rankableMetricsYC.forEach(m => { values[m.key] = { a: calc(recsA, m, m.agg !== 'sum'), b: calc(recsB, m, m.agg !== 'sum') }; });
   return {
     yearA, yearB, commonMonths: common.map(mo => TR_MONTHS[mo]), hasCommon: common.length > 0,
     perf: { a: calc(recsA, perfM, true), b: calc(recsB, perfM, true) },
@@ -2557,12 +2662,11 @@ function renderAnalizContentHtml(){
   const activeRankMetric = a.rankableMetrics.find(m => m.key === analizRankMetricKey) || a.found.perfM || a.rankableMetrics[0];
   const rankResult = activeRankMetric ? a.topNForMetric(activeRankMetric, 10) : { list: [], total: null };
 
-  // --- Aylık Trend seçicileri (hangi metrik, hangi grafik türü, karşılaştırma metriği) ---
-  const activeTrendMetric = a.rankableMetrics.find(m => m.key === analizTrendMetricKey) || a.found.perfM || a.rankableMetrics[0];
-  const trendMetricOptions = a.rankableMetrics.map(m => `<option value="${m.key}" ${activeTrendMetric && m.key === activeTrendMetric.key ? 'selected' : ''}>${m.label}</option>`).join('');
-  const trendCompareOptions = `<option value="">Karşılaştırma yok</option>` +
-    a.rankableMetrics.filter(m => !activeTrendMetric || m.key !== activeTrendMetric.key)
-      .map(m => `<option value="${m.key}" ${m.key === analizTrendCompareKey ? 'selected' : ''}>${m.label} ile karşılaştır</option>`).join('');
+  // --- Aylık Trend: 5 slotluk seçiciler (ortak yardımcı fonksiyonlarla) ---
+  if (analizTrendSlots[0].metricKey === null){
+    analizTrendSlots[0].metricKey = a.found.perfM ? a.found.perfM.key : (a.rankableMetrics[0] ? a.rankableMetrics[0].key : '');
+  }
+  const trendSelectorsHtml = analizSlotSelectorsHtml('analizTrend', analizTrendSlots, a.rankableMetrics);
   const rankMax = rankResult.list.length ? Math.max(...rankResult.list.map(x => x.val)) : 1;
   const rankBarsHtml = rankResult.list.length ? rankResult.list.map((x,i) => `
     <div class="analiz-rankbar-row">
@@ -2640,11 +2744,12 @@ function renderAnalizContentHtml(){
           <td style="padding:8px 12px; text-align:right; color:var(--text); font-weight:700;">${fmtKarneVal(obj.b)}${unit||''}</td>
           <td style="padding:8px 12px; text-align:right; font-weight:700; color:${(obj.a!==null&&obj.b!==null&&obj.a-obj.b>=0)?'var(--ok)':'var(--danger)'};">${(obj.a!==null&&obj.b!==null)?((obj.a-obj.b>=0?'+':'')+fmtKarneVal(obj.a-obj.b)+(unit||'')):'—'}</td>
         </tr>` : '';
-      const nonPerfMetrics = cmp.rankableMetrics.filter(m => m.key !== (cmp.found.perfM && cmp.found.perfM.key));
-      if (analizYearCmpMetricKey === null && nonPerfMetrics.length) analizYearCmpMetricKey = nonPerfMetrics[0].key;
-      const ycMainOptions = nonPerfMetrics.map(m => `<option value="${m.key}" ${m.key === analizYearCmpMetricKey ? 'selected' : ''}>${m.label}</option>`).join('');
-      const ycCompareOptions = `<option value="">Karşılaştırma yok</option>` +
-        nonPerfMetrics.filter(m => m.key !== analizYearCmpMetricKey).map(m => `<option value="${m.key}" ${m.key === analizYearCmpCompareKey ? 'selected' : ''}>${m.label} ile karşılaştır</option>`).join('');
+      if (analizYearCmpSlots[0].metricKey === null){
+        analizYearCmpSlots[0].metricKey = cmp.found.perfM ? cmp.found.perfM.key : (cmp.rankableMetrics[0] ? cmp.rankableMetrics[0].key : '');
+        analizYearCmpSlots.forEach(s => { if (s !== analizYearCmpSlots[0]) s.type = 'bar'; });
+        analizYearCmpSlots[0].type = 'bar';
+      }
+      const yearCmpSelectorsHtml = analizSlotSelectorsHtml('analizYearCmp', analizYearCmpSlots, cmp.rankableMetrics);
       yearCompareHtml = `
         <div class="analiz-card">
           <div class="analiz-card-title">📊 Yıl Kıyaslama — <span id="analizCompareYearLabel">${analizYear} vs ${analizCompareYear}</span>
@@ -2667,12 +2772,8 @@ function renderAnalizContentHtml(){
               ${cmpRow('Toplam İş Günü', cmp.isGunu)}
             </tbody>
           </table>
-          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:16px; margin-bottom:8px;">
-            <span style="font-size:12px; color:var(--dim);">Grafik:</span>
-            <select class="search" id="analizYearCmpMetricSelect" style="width:auto; font-size:12px; padding:4px 8px;">${ycMainOptions}</select>
-            <select class="search" id="analizYearCmpCompareSelect" style="width:auto; font-size:12px; padding:4px 8px;">${ycCompareOptions}</select>
-          </div>
-          <div style="height:260px;"><canvas id="analizYearCompareChart"></canvas></div>
+          <div style="margin-top:16px; margin-bottom:8px;">${yearCmpSelectorsHtml}</div>
+          <div style="height:300px;"><canvas id="analizYearCompareChart"></canvas></div>
         </div>`;
     } else {
       yearCompareHtml = `<div class="analiz-card"><div class="analiz-card-title">📊 Yıl Kıyaslama</div><div style="color:var(--dim); font-size:13px;">${analizYear} ve ${analizCompareYear} arasında ortak (her ikisinde de veri olan) ay bulunamadı.</div></div>`;
@@ -2734,16 +2835,9 @@ function renderAnalizContentHtml(){
     </div>
 
     <div class="analiz-card">
-      <div class="analiz-card-title" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        📉 Aylık Trend
-        <select class="search" id="analizTrendMetricSelect" style="width:auto; font-size:12px; padding:4px 8px;">${trendMetricOptions}</select>
-        <select class="search" id="analizTrendTypeSelect" style="width:auto; font-size:12px; padding:4px 8px;">
-          <option value="line" ${analizTrendChartType==='line'?'selected':''}>Çizgi Grafik</option>
-          <option value="bar" ${analizTrendChartType==='bar'?'selected':''}>Sütun Grafik</option>
-        </select>
-        <select class="search" id="analizTrendCompareSelect" style="width:auto; font-size:12px; padding:4px 8px;">${trendCompareOptions}</select>
-      </div>
-      ${a.monthlyTrend.length ? `<div style="height:280px;"><canvas id="analizTrendChart"></canvas></div>` : `<div style="color:var(--dim); font-size:13px;">Bu görünüm sadece "Tüm Aylar" seçiliyken kullanılabilir.</div>`}
+      <div class="analiz-card-title">📉 Aylık Trend</div>
+      <div style="margin-bottom:12px;">${trendSelectorsHtml}</div>
+      ${a.monthlyTrend.length ? `<div style="height:300px;"><canvas id="analizTrendChart"></canvas></div>` : `<div style="color:var(--dim); font-size:13px;">Bu görünüm sadece "Tüm Aylar" seçiliyken kullanılabilir.</div>`}
     </div>
 
     ${correlationHtml}
@@ -2782,80 +2876,54 @@ function wireAnalizCharts(){
       },
       options: {
         responsive: true, maintainAspectRatio: false, cutout: '62%',
-        plugins: { legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 }, padding: 12 } } },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 }, padding: 12 } },
+          datalabels: {
+            display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+            color: '#10182B', font: { size: 13, weight: 'bold' },
+            formatter: (v) => v,
+          },
+        },
       },
     });
   }
 
-  // Aylık Trend - seçilen metrik + grafik türü, isteğe bağlı ikinci metrikle (farklı eksen/tür) karşılaştırma
+  // Aylık Trend - 5 slotlu ortak yardımcı fonksiyonla
   const trendCanvas = document.getElementById('analizTrendChart');
   if (trendCanvas && a.monthlyTrend.length && a.rankableMetrics.length){
-    const mainMetric = a.rankableMetrics.find(m => m.key === analizTrendMetricKey) || a.found.perfM || a.rankableMetrics[0];
-    const compareMetric = analizTrendCompareKey ? a.rankableMetrics.find(m => m.key === analizTrendCompareKey) : null;
-    const mainVals = a.monthlyTrend.map(m => (m.metrics && m.metrics[mainMetric.key] !== undefined) ? m.metrics[mainMetric.key] : null);
-    const datasets = [{
-      type: analizTrendChartType,
-      label: mainMetric.label, data: mainVals, yAxisID: 'y',
-      borderColor: '#E8A53D', backgroundColor: analizTrendChartType === 'bar' ? 'rgba(232,165,61,0.75)' : 'rgba(232,165,61,0.15)',
-      fill: analizTrendChartType === 'line', tension: 0.35,
-      pointBackgroundColor: '#E8A53D', pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
-    }];
-    if (compareMetric){
-      const compareType = analizTrendChartType === 'line' ? 'bar' : 'line';
-      const compareVals = a.monthlyTrend.map(m => (m.metrics && m.metrics[compareMetric.key] !== undefined) ? m.metrics[compareMetric.key] : null);
-      datasets.push({
-        type: compareType,
-        label: compareMetric.label, data: compareVals, yAxisID: 'y1',
-        borderColor: '#5b9cf6', backgroundColor: compareType === 'bar' ? 'rgba(91,156,246,0.55)' : 'rgba(91,156,246,0.15)',
-        fill: compareType === 'line', tension: 0.35,
-        pointBackgroundColor: '#5b9cf6', pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
+    const labels = a.monthlyTrend.map(m => m.label);
+    const { datasets, scales } = analizBuildSlotDatasets(analizTrendSlots, a.rankableMetrics, (metric) =>
+      a.monthlyTrend.map(m => (m.metrics && m.metrics[metric.key] !== undefined) ? m.metrics[metric.key] : null)
+    );
+    scales.x = { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { color: chartGridColor } };
+    if (datasets.length){
+      ANALIZ_CHART_INSTANCES.trend = new Chart(trendCanvas, {
+        data: { labels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: datasets.length > 1, position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
+          scales,
+        },
       });
     }
-    const scales = {
-      x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { color: chartGridColor } },
-      y: { position: 'left', ticks: { color: '#E8A53D', font: { size: 10 } }, grid: { color: chartGridColor }, title: { display: true, text: mainMetric.label, color: '#E8A53D', font: { size: 10 } } },
-    };
-    if (compareMetric){
-      scales.y1 = { position: 'right', ticks: { color: '#5b9cf6', font: { size: 10 } }, grid: { display: false }, title: { display: true, text: compareMetric.label, color: '#5b9cf6', font: { size: 10 } } };
-    }
-    ANALIZ_CHART_INSTANCES.trend = new Chart(trendCanvas, {
-      type: analizTrendChartType,
-      data: { labels: a.monthlyTrend.map(m => m.label), datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: !!compareMetric, position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
-        scales,
-      },
-    });
   }
 
-  // Yıl kıyaslama - seçilen metrik(ler), dual axis
+  // Yıl Kıyaslama - AYNI 5 slotlu ortak yardımcı fonksiyon, sadece etiketler 2 yıl
   const cmpCanvas = document.getElementById('analizYearCompareChart');
   if (cmpCanvas && analizCompareYear){
     const cmp = computeYearComparison(analizYear, analizCompareYear);
     if (cmp.hasCommon){
-      const nonPerfMetrics = cmp.rankableMetrics.filter(m => m.key !== (cmp.found.perfM && cmp.found.perfM.key));
-      const mainMetric = nonPerfMetrics.find(m => m.key === analizYearCmpMetricKey) || nonPerfMetrics[0];
-      const compareMetric = analizYearCmpCompareKey ? nonPerfMetrics.find(m => m.key === analizYearCmpCompareKey) : null;
-      if (mainMetric){
-        const labels = [String(analizYear), String(analizCompareYear)];
-        const mainVals = [cmp.values[mainMetric.key].a, cmp.values[mainMetric.key].b];
-        const datasets = [{ label: mainMetric.label, data: mainVals, backgroundColor: '#E8A53D', yAxisID: 'y' }];
-        const scales = {
-          x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } },
-          y: { position: 'left', ticks: { color: '#E8A53D', font: { size: 10 } }, grid: { color: chartGridColor }, title: { display: true, text: mainMetric.label, color: '#E8A53D', font: { size: 10 } } },
-        };
-        if (compareMetric){
-          const compareVals = [cmp.values[compareMetric.key].a, cmp.values[compareMetric.key].b];
-          datasets.push({ label: compareMetric.label, data: compareVals, backgroundColor: '#5b9cf6', yAxisID: 'y1' });
-          scales.y1 = { position: 'right', ticks: { color: '#5b9cf6', font: { size: 10 } }, grid: { display: false }, title: { display: true, text: compareMetric.label, color: '#5b9cf6', font: { size: 10 } } };
-        }
+      const labels = [String(analizYear), String(analizCompareYear)];
+      const { datasets, scales } = analizBuildSlotDatasets(analizYearCmpSlots, cmp.rankableMetrics, (metric) =>
+        [cmp.values[metric.key].a, cmp.values[metric.key].b]
+      );
+      scales.x = { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } };
+      if (datasets.length){
         ANALIZ_CHART_INSTANCES.compare = new Chart(cmpCanvas, {
-          type: 'bar',
           data: { labels, datasets },
           options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
+            plugins: { legend: { display: datasets.length > 1, position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
             scales,
           },
         });
@@ -2906,10 +2974,8 @@ function wireAnalizTab(){
       analizMonth = null;
       analizCompareYear = null;
       analizRankMetricKey = null;
-      analizTrendMetricKey = null;
-      analizTrendCompareKey = '';
-      analizYearCmpMetricKey = null;
-      analizYearCmpCompareKey = '';
+      analizTrendSlots = makeAnalizSlots();
+      analizYearCmpSlots = makeAnalizSlots();
       contentArea.innerHTML = renderAnalizTab();
       wireAnalizTab();
     });
@@ -2945,47 +3011,26 @@ function wireAnalizInnerControls(){
       wireAnalizInnerControls();
     });
   }
-  const trendMetricSel = document.getElementById('analizTrendMetricSelect');
-  if (trendMetricSel){
-    trendMetricSel.addEventListener('change', () => {
-      analizTrendMetricKey = trendMetricSel.value;
-      if (analizTrendCompareKey === analizTrendMetricKey) analizTrendCompareKey = '';
+  // Metrik seçimi değişince (renk noktası / devre dışı bırakma göstergesi için) HTML'i baştan
+  // kurmak gerekiyor; sadece grafik türü değişince ise sadece grafiği yeniden çizmek yeterli.
+  wireAnalizSlotSelectors('analizTrend', analizTrendSlots, (needsFullRerender) => {
+    if (needsFullRerender){
       document.getElementById('analizContentWrap').innerHTML = renderAnalizContentHtml();
       wireAnalizCharts();
       wireAnalizInnerControls();
-    });
-  }
-  const trendTypeSel = document.getElementById('analizTrendTypeSelect');
-  if (trendTypeSel){
-    trendTypeSel.addEventListener('change', () => {
-      analizTrendChartType = trendTypeSel.value;
+    } else {
       wireAnalizCharts();
-    });
-  }
-  const trendCompareSel = document.getElementById('analizTrendCompareSelect');
-  if (trendCompareSel){
-    trendCompareSel.addEventListener('change', () => {
-      analizTrendCompareKey = trendCompareSel.value;
-      wireAnalizCharts();
-    });
-  }
-  const ycMetricSel = document.getElementById('analizYearCmpMetricSelect');
-  if (ycMetricSel){
-    ycMetricSel.addEventListener('change', () => {
-      analizYearCmpMetricKey = ycMetricSel.value;
-      if (analizYearCmpCompareKey === analizYearCmpMetricKey) analizYearCmpCompareKey = '';
+    }
+  });
+  wireAnalizSlotSelectors('analizYearCmp', analizYearCmpSlots, (needsFullRerender) => {
+    if (needsFullRerender){
       document.getElementById('analizContentWrap').innerHTML = renderAnalizContentHtml();
       wireAnalizCharts();
       wireAnalizInnerControls();
-    });
-  }
-  const ycCompareSel = document.getElementById('analizYearCmpCompareSelect');
-  if (ycCompareSel){
-    ycCompareSel.addEventListener('change', () => {
-      analizYearCmpCompareKey = ycCompareSel.value;
+    } else {
       wireAnalizCharts();
-    });
-  }
+    }
+  });
 }
 
 function renderYetkiTab(){
