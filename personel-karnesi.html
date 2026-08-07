@@ -226,7 +226,7 @@
   .analiz-marquee-track span{ margin-right:64px; }
 
   .id-badge{ font-size:13px; background: var(--panel2); border:1px solid var(--line); padding:3px 9px; border-radius:20px; margin-left:6px; }
-.islem-only, .yetki-only, .sunum-only, .excel-only{ display:none !important; }
+.islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only{ display:none !important; }
 </style>
 </head>
 <body>
@@ -247,7 +247,7 @@
     <button class="sidebar-nav-item active" data-lefttab="bilgiler">Personel Bilgileri</button>
     <button class="sidebar-nav-item" data-lefttab="genel">Genel Değerlendirme</button>
     <button class="sidebar-nav-item" data-lefttab="parametre">Parametre</button>
-    <button class="sidebar-nav-item" data-lefttab="analiz">Analiz</button>
+    <button class="sidebar-nav-item analiz-only" data-lefttab="analiz">Analiz</button>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn">Güncelleme</button>
     <button class="sidebar-nav-item yetki-only" data-lefttab="yetki">Yetki Atama</button>
   </aside>
@@ -393,6 +393,7 @@ let islemAuthorized = false;
 let yetkiAuthorized = false;
 let sunumAuthorized = false;
 let excelAuthorized = false;
+let analizAuthorized = false;
 let AUTH_TABLE = [];
 let accessToken = null;
 let tokenClient = null;
@@ -410,7 +411,7 @@ function showLoginError(msg){
 function isTrueVal(v){ return v === true || String(v || '').trim().toLocaleUpperCase('tr') === 'TRUE'; }
 
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('A1:F1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('A1:G1000')}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
@@ -428,7 +429,8 @@ async function loadAuthTable(token){
       superYetkili: isTrueVal(r[2]),
       guncelleme: isTrueVal(r[3]),
       sunum: isTrueVal(r[4]),
-      excel: isTrueVal(r[5])
+      excel: isTrueVal(r[5]),
+      analiz: isTrueVal(r[6]),
     });
   }
   return rows;
@@ -452,13 +454,15 @@ async function initIslemAccess(){
     yetkiAuthorized = isFixedAdmin || !!(myRow && myRow.superYetkili);
     sunumAuthorized = isFixedAdmin || !!(myRow && myRow.sunum);
     excelAuthorized = isFixedAdmin || !!(myRow && myRow.excel);
+    analizAuthorized = isFixedAdmin || !!(myRow && myRow.analiz);
 
-    if (!islemAuthorized && !yetkiAuthorized && !sunumAuthorized && !excelAuthorized) return;
+    if (!islemAuthorized && !yetkiAuthorized && !sunumAuthorized && !excelAuthorized && !analizAuthorized) return;
 
     document.querySelectorAll('.islem-only').forEach(el => { if (islemAuthorized) el.classList.remove('islem-only'); });
     document.querySelectorAll('.yetki-only').forEach(el => { if (yetkiAuthorized) el.classList.remove('yetki-only'); });
     document.querySelectorAll('.sunum-only').forEach(el => { if (sunumAuthorized) el.classList.remove('sunum-only'); });
     document.querySelectorAll('.excel-only').forEach(el => { if (excelAuthorized) el.classList.remove('excel-only'); });
+    document.querySelectorAll('.analiz-only').forEach(el => { if (analizAuthorized) el.classList.remove('analiz-only'); });
 
     if (islemAuthorized || yetkiAuthorized || sunumAuthorized){
       writeTokenClient = google.accounts.oauth2.initTokenClient({
@@ -2683,6 +2687,7 @@ const AUTH_COLS = [
   { key: 'guncelleme',   label: 'Güncelleme',    letter: 'D' },
   { key: 'sunum',        label: 'Sunum',         letter: 'E' },
   { key: 'excel',        label: 'Excel',         letter: 'F' },
+  { key: 'analiz',       label: 'Analiz',        letter: 'G' },
 ];
 
 // ===== Analiz sekmesi =====
@@ -3678,13 +3683,7 @@ async function performYetkiAdd(){
   renderContentArea();
   try {
     const token = await ensureWriteToken();
-    const rowArr = [
-      isim, gmail,
-      document.getElementById('yetkiNew_superYetkili').checked ? 'TRUE' : 'FALSE',
-      document.getElementById('yetkiNew_guncelleme').checked ? 'TRUE' : 'FALSE',
-      document.getElementById('yetkiNew_sunum').checked ? 'TRUE' : 'FALSE',
-      document.getElementById('yetkiNew_excel').checked ? 'TRUE' : 'FALSE',
-    ];
+    const rowArr = [isim, gmail, ...AUTH_COLS.map(c => document.getElementById(`yetkiNew_${c.key}`).checked ? 'TRUE' : 'FALSE')];
     const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('A1')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
     const res = await fetch(appendUrl, {
       method: 'POST',
