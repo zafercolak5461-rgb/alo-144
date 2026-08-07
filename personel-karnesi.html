@@ -220,6 +220,10 @@
   .marquee-track span{ margin-right:56px; }
   @keyframes marqueeScroll{ 0%{ transform: translateX(100%); } 100%{ transform: translateX(-100%); } }
 
+  .analiz-marquee-wrap{ background: linear-gradient(90deg, rgba(232,165,61,0.16), rgba(232,165,61,0.05)); border:1px solid var(--accent); border-radius:12px; overflow:hidden; padding:14px 0; margin-bottom:20px; }
+  .analiz-marquee-track{ display:inline-block; white-space:nowrap; animation: marqueeScroll 26s linear infinite; font-family:'Georgia',serif; font-size:16px; font-weight:700; color: var(--text); }
+  .analiz-marquee-track span{ margin-right:64px; }
+
   .id-badge{ font-size:13px; background: var(--panel2); border:1px solid var(--line); padding:3px 9px; border-radius:20px; margin-left:6px; }
 .islem-only, .yetki-only, .sunum-only, .excel-only{ display:none !important; }
 </style>
@@ -279,6 +283,9 @@
       <div class="error-box" id="errorBox" style="display:none;"></div>
       <div class="marquee-wrap" id="marqueeWrap" style="display:none;">
         <div class="marquee-track" id="marqueeTrack"></div>
+      </div>
+      <div class="analiz-marquee-wrap" id="analizMarqueeWrap" style="display:none;">
+        <div class="analiz-marquee-track" id="analizMarqueeTrack"></div>
       </div>
 
       <div id="identityStrip"></div>
@@ -1480,8 +1487,12 @@ sidebarEl.addEventListener('click', (e) => {
   sidebarEl.querySelectorAll('[data-lefttab]').forEach(b => b.classList.toggle('active', b === btn));
   if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz'){
     identityStrip.innerHTML = '';
+    document.getElementById('marqueeWrap').style.display = 'none';
   } else {
     renderIdentityStrip();
+  }
+  if (selectedLeftTab !== 'analiz'){
+    document.getElementById('analizMarqueeWrap').style.display = 'none';
   }
   const searchStackWrap = document.getElementById('searchStackWrap');
   if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz') ? 'none' : '';
@@ -2186,6 +2197,8 @@ let analizCompareYear = null; // null = otomatik (bir önceki yıl varsa)
 let analizTrendMetricKey = null; // null = varsayılan (Performans)
 let analizTrendChartType = 'line'; // 'line' | 'bar'
 let analizTrendCompareKey = ''; // '' = karşılaştırma yok
+let analizYearCmpMetricKey = null; // null = otomatik ilk metrik
+let analizYearCmpCompareKey = ''; // '' = karşılaştırma yok
 const ANALIZ_CHART_INSTANCES = {};
 
 function destroyAnalizCharts(){
@@ -2406,12 +2419,16 @@ function computeYearComparison(yearA, yearB){
   const tutanakM = findAnalizMetric(['TUTANAK']);
   const gecLoginM = findAnalizMetric(['GEÇ LOGİN','GEC LOGIN']);
   const cagriM = findAnalizMetric(['ÇAĞRI','CAGRI']);
+  const isGunuM = findAnalizMetric(['İŞ GÜNÜ', 'IS GUNU', 'İŞGÜNÜ', 'ISGUNU']);
   function calc(recs, metric, isAvg){
     if (!metric) return null;
     const vals = recs.map(r => r[metric.key]).filter(v => v !== null && v !== undefined);
     if (!vals.length) return null;
     return isAvg ? avgOf(vals) : vals.reduce((a,b)=>a+b,0);
   }
+  const rankableMetricsYC = [perfM, raporM, tutanakM, gecLoginM, cagriM, isGunuM].filter(Boolean);
+  const values = {};
+  rankableMetricsYC.forEach(m => { values[m.key] = { a: calc(recsA, m, m.key === (perfM && perfM.key)), b: calc(recsB, m, m.key === (perfM && perfM.key)) }; });
   return {
     yearA, yearB, commonMonths: common.map(mo => TR_MONTHS[mo]), hasCommon: common.length > 0,
     perf: { a: calc(recsA, perfM, true), b: calc(recsB, perfM, true) },
@@ -2419,7 +2436,9 @@ function computeYearComparison(yearA, yearB){
     tutanak: { a: calc(recsA, tutanakM, false), b: calc(recsB, tutanakM, false) },
     gecLogin: { a: calc(recsA, gecLoginM, false), b: calc(recsB, gecLoginM, false) },
     cagri: { a: calc(recsA, cagriM, false), b: calc(recsB, cagriM, false) },
-    found: { perfM, raporM, tutanakM, gecLoginM, cagriM },
+    isGunu: { a: calc(recsA, isGunuM, false), b: calc(recsB, isGunuM, false) },
+    found: { perfM, raporM, tutanakM, gecLoginM, cagriM, isGunuM },
+    rankableMetrics: rankableMetricsYC, values,
   };
 }
 
@@ -2456,6 +2475,28 @@ function analizBadge(level, text){
   const cls = level === 'danger' ? 'danger' : level === 'ok' ? 'ok' : 'warn';
   const emoji = level === 'danger' ? '⚠️' : level === 'ok' ? '✅' : '📌';
   return `<span class="analiz-badge ${cls}">${emoji} ${text}</span>`;
+}
+
+function renderAnalizMarquee(){
+  const wrap = document.getElementById('analizMarqueeWrap');
+  const track = document.getElementById('analizMarqueeTrack');
+  if (!wrap || !track) return;
+  if (!analizYear){ wrap.style.display = 'none'; return; }
+  const a = computeAnaliz(analizYear, analizMonth);
+  if (!a.aktifPersonel){ wrap.style.display = 'none'; return; }
+  const periodLabel = analizMonth === null ? `${analizYear}` : `${TR_MONTHS[analizMonth]} ${analizYear}`;
+  const items = [];
+  if (a.enYuksekPerf) items.push({ icon: '🏆', text: `${periodLabel} en yüksek performans: ${a.enYuksekPerf.name} (${fmtKarneVal(a.enYuksekPerf.val)})` });
+  if (a.enDusukPerf) items.push({ icon: '🔻', text: `En düşük performans: ${a.enDusukPerf.name} (${fmtKarneVal(a.enDusukPerf.val)})` });
+  if (a.ozet.tip === 'yil') items.push({ icon: '📈', text: `Yıl trendi: ${a.ozet.trend}` });
+  else if (a.ozet.prevOrt !== null) items.push({ icon: (a.ozet.ortalama - a.ozet.prevOrt >= 0) ? '📈' : '📉', text: `Bir önceki aya göre performans ${(a.ozet.ortalama - a.ozet.prevOrt >= 0) ? 'arttı' : 'düştü'} (${(a.ozet.ortalama - a.ozet.prevOrt >= 0) ? '+' : ''}${fmtKarneVal(a.ozet.ortalama - a.ozet.prevOrt)})` });
+  if (a.enCokRapor && a.enCokRapor.val > 0) items.push({ icon: '📋', text: `En yüksek rapor: ${a.enCokRapor.name} (${fmtKarneVal(a.enCokRapor.val)} gün)` });
+  if (a.enCokTutanak && a.enCokTutanak.val > 0) items.push({ icon: '📝', text: `En çok tutanak: ${a.enCokTutanak.name} (${fmtKarneVal(a.enCokTutanak.val)} adet)` });
+  if (a.buckets[3].count > 0) items.push({ icon: '⚠️', text: `${a.buckets[3].count} personel 70 puanının altında` });
+  if (a.correlationNote) items.push({ icon: '🔗', text: a.correlationNote });
+  if (!items.length){ wrap.style.display = 'none'; return; }
+  track.innerHTML = items.map(i => `<span>${i.icon} ${i.text}</span>`).join('');
+  wrap.style.display = 'block';
 }
 
 function renderAnalizContentHtml(){
@@ -2599,6 +2640,11 @@ function renderAnalizContentHtml(){
           <td style="padding:8px 12px; text-align:right; color:var(--text); font-weight:700;">${fmtKarneVal(obj.b)}${unit||''}</td>
           <td style="padding:8px 12px; text-align:right; font-weight:700; color:${(obj.a!==null&&obj.b!==null&&obj.a-obj.b>=0)?'var(--ok)':'var(--danger)'};">${(obj.a!==null&&obj.b!==null)?((obj.a-obj.b>=0?'+':'')+fmtKarneVal(obj.a-obj.b)+(unit||'')):'—'}</td>
         </tr>` : '';
+      const nonPerfMetrics = cmp.rankableMetrics.filter(m => m.key !== (cmp.found.perfM && cmp.found.perfM.key));
+      if (analizYearCmpMetricKey === null && nonPerfMetrics.length) analizYearCmpMetricKey = nonPerfMetrics[0].key;
+      const ycMainOptions = nonPerfMetrics.map(m => `<option value="${m.key}" ${m.key === analizYearCmpMetricKey ? 'selected' : ''}>${m.label}</option>`).join('');
+      const ycCompareOptions = `<option value="">Karşılaştırma yok</option>` +
+        nonPerfMetrics.filter(m => m.key !== analizYearCmpMetricKey).map(m => `<option value="${m.key}" ${m.key === analizYearCmpCompareKey ? 'selected' : ''}>${m.label} ile karşılaştır</option>`).join('');
       yearCompareHtml = `
         <div class="analiz-card">
           <div class="analiz-card-title">📊 Yıl Kıyaslama — <span id="analizCompareYearLabel">${analizYear} vs ${analizCompareYear}</span>
@@ -2618,9 +2664,15 @@ function renderAnalizContentHtml(){
               ${cmpRow('Toplam Tutanak', cmp.tutanak)}
               ${cmpRow('Toplam Geç Login', cmp.gecLogin, ' dk')}
               ${cmpRow('Toplam Çağrı', cmp.cagri)}
+              ${cmpRow('Toplam İş Günü', cmp.isGunu)}
             </tbody>
           </table>
-          <canvas id="analizYearCompareChart" height="90" style="margin-top:16px;"></canvas>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:16px; margin-bottom:8px;">
+            <span style="font-size:12px; color:var(--dim);">Grafik:</span>
+            <select class="search" id="analizYearCmpMetricSelect" style="width:auto; font-size:12px; padding:4px 8px;">${ycMainOptions}</select>
+            <select class="search" id="analizYearCmpCompareSelect" style="width:auto; font-size:12px; padding:4px 8px;">${ycCompareOptions}</select>
+          </div>
+          <div style="height:260px;"><canvas id="analizYearCompareChart"></canvas></div>
         </div>`;
     } else {
       yearCompareHtml = `<div class="analiz-card"><div class="analiz-card-title">📊 Yıl Kıyaslama</div><div style="color:var(--dim); font-size:13px;">${analizYear} ve ${analizCompareYear} arasında ortak (her ikisinde de veri olan) ay bulunamadı.</div></div>`;
@@ -2777,29 +2829,37 @@ function wireAnalizCharts(){
     });
   }
 
-  // Yıl kıyaslama grouped bar
+  // Yıl kıyaslama - seçilen metrik(ler), dual axis
   const cmpCanvas = document.getElementById('analizYearCompareChart');
   if (cmpCanvas && analizCompareYear){
     const cmp = computeYearComparison(analizYear, analizCompareYear);
     if (cmp.hasCommon){
-      ANALIZ_CHART_INSTANCES.compare = new Chart(cmpCanvas, {
-        type: 'bar',
-        data: {
-          labels: ['Rapor', 'Tutanak', 'Geç Login', 'Çağrı'],
-          datasets: [
-            { label: String(analizYear), data: [cmp.rapor.a, cmp.tutanak.a, cmp.gecLogin.a, cmp.cagri.a], backgroundColor: '#E8A53D' },
-            { label: String(analizCompareYear), data: [cmp.rapor.b, cmp.tutanak.b, cmp.gecLogin.b, cmp.cagri.b], backgroundColor: '#5b9cf6' },
-          ],
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
-          scales: {
-            x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } },
-            y: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { color: chartGridColor } },
+      const nonPerfMetrics = cmp.rankableMetrics.filter(m => m.key !== (cmp.found.perfM && cmp.found.perfM.key));
+      const mainMetric = nonPerfMetrics.find(m => m.key === analizYearCmpMetricKey) || nonPerfMetrics[0];
+      const compareMetric = analizYearCmpCompareKey ? nonPerfMetrics.find(m => m.key === analizYearCmpCompareKey) : null;
+      if (mainMetric){
+        const labels = [String(analizYear), String(analizCompareYear)];
+        const mainVals = [cmp.values[mainMetric.key].a, cmp.values[mainMetric.key].b];
+        const datasets = [{ label: mainMetric.label, data: mainVals, backgroundColor: '#E8A53D', yAxisID: 'y' }];
+        const scales = {
+          x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } },
+          y: { position: 'left', ticks: { color: '#E8A53D', font: { size: 10 } }, grid: { color: chartGridColor }, title: { display: true, text: mainMetric.label, color: '#E8A53D', font: { size: 10 } } },
+        };
+        if (compareMetric){
+          const compareVals = [cmp.values[compareMetric.key].a, cmp.values[compareMetric.key].b];
+          datasets.push({ label: compareMetric.label, data: compareVals, backgroundColor: '#5b9cf6', yAxisID: 'y1' });
+          scales.y1 = { position: 'right', ticks: { color: '#5b9cf6', font: { size: 10 } }, grid: { display: false }, title: { display: true, text: compareMetric.label, color: '#5b9cf6', font: { size: 10 } } };
+        }
+        ANALIZ_CHART_INSTANCES.compare = new Chart(cmpCanvas, {
+          type: 'bar',
+          data: { labels, datasets },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
+            scales,
           },
-        },
-      });
+        });
+      }
     }
   }
 
@@ -2837,6 +2897,7 @@ function renderAnalizTab(){
 
 function wireAnalizTab(){
   wireAnalizCharts();
+  renderAnalizMarquee();
   const yearSel = document.getElementById('analizYearSelect');
   const monthSel = document.getElementById('analizMonthSelect');
   if (yearSel){
@@ -2847,6 +2908,8 @@ function wireAnalizTab(){
       analizRankMetricKey = null;
       analizTrendMetricKey = null;
       analizTrendCompareKey = '';
+      analizYearCmpMetricKey = null;
+      analizYearCmpCompareKey = '';
       contentArea.innerHTML = renderAnalizTab();
       wireAnalizTab();
     });
@@ -2857,6 +2920,7 @@ function wireAnalizTab(){
       document.getElementById('analizContentWrap').innerHTML = renderAnalizContentHtml();
       wireAnalizCharts();
       wireAnalizInnerControls();
+      renderAnalizMarquee();
     });
   }
   wireAnalizInnerControls();
@@ -2902,6 +2966,23 @@ function wireAnalizInnerControls(){
   if (trendCompareSel){
     trendCompareSel.addEventListener('change', () => {
       analizTrendCompareKey = trendCompareSel.value;
+      wireAnalizCharts();
+    });
+  }
+  const ycMetricSel = document.getElementById('analizYearCmpMetricSelect');
+  if (ycMetricSel){
+    ycMetricSel.addEventListener('change', () => {
+      analizYearCmpMetricKey = ycMetricSel.value;
+      if (analizYearCmpCompareKey === analizYearCmpMetricKey) analizYearCmpCompareKey = '';
+      document.getElementById('analizContentWrap').innerHTML = renderAnalizContentHtml();
+      wireAnalizCharts();
+      wireAnalizInnerControls();
+    });
+  }
+  const ycCompareSel = document.getElementById('analizYearCmpCompareSelect');
+  if (ycCompareSel){
+    ycCompareSel.addEventListener('change', () => {
+      analizYearCmpCompareKey = ycCompareSel.value;
       wireAnalizCharts();
     });
   }
