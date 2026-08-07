@@ -1011,30 +1011,88 @@ function pptGaugeArc(s, x, y, w, h, category, value, lokVal, arcColorMap){
   }
 }
 
-// Personelin öne çıkan bulgularını hesaplar (Top 10 performans - pozitif; İç Kullanım modunda
-// ayrıca düşük performans ve en çok rapor/tutanak/geç login/çağrı sıralamaları - olumsuz).
+// Personelin öne çıkan bulgularını hesaplar. Top 10 performans sıralaması (pozitif, her iki
+// modda da) - bunun dışında İç Kullanım modunda:
+//  1) TÜM diğer metrikler için kişi-vs-lokasyon karşılaştırması (yönü metric.category'den
+//     otomatik belirlenir - Rapor/Tutanak/Geç Login gibi "düşük=iyi" metriklerle
+//     Performans/KKO/Anket/Mevzuat gibi "yüksek=iyi" metrikler doğru yorumlanır)
+//  2) "Sıfır" pozitif bulgular (örn. "hiç tutanak yok")
+//  3) Çağrı yoğunluğu bağlamlı kişisel korelasyon bulguları (kişinin KENDİ çağrı sayısı hakkında
+//     YORUM YAPILMAZ - sadece lokasyon geneli çağrı yoğunluğu, kişinin rapor/tutanak/geç login
+//     eğilimini açıklamakta bağlam olarak kullanılır)
+// Çağrı, Köpük Talep Sayısı ve İş Günü metrikleri YÖNÜ BELİRSİZ (yüksek/düşük olması otomatik
+// iyi/kötü anlamına gelmiyor - yıllık izin, onaylı devamsızlık gibi meşru sebepler olabilir) -
+// bu yüzden bu üçü hakkında DOĞRUDAN bir yorum üretilmez, sadece bağlam olarak kullanılabilir.
 // 6 ay kıdem kuralı zaten topNForMetric/top10 içinde uygulanıyor, burada tekrar kontrol gerekmez.
+const ANALIZ_YORUM_HARIC_METRIKLER = ['ÇAĞRI', 'CAGRI', 'KÖPÜK', 'KOPUK', 'İŞ GÜNÜ', 'IS GUNU', 'İŞGÜNÜ', 'ISGUNU'];
 function personelFindings(sicil, years, mode){
   const findings = [];
   years.forEach(year => {
     const a = computeAnaliz(year, null);
     if (!a.aktifPersonel) return;
+
     const top10Idx = a.top10.findIndex(x => x.sicil === sicil);
     if (top10Idx !== -1){
       findings.push({ positive: true, text: `${year} yılında Performans sıralamasında ${top10Idx+1}. sırada (Top 10)` });
     }
-    if (mode === 'ic'){
-      const dusukIdx = a.dusukList.findIndex(x => x.sicil === sicil);
-      if (dusukIdx !== -1){
-        findings.push({ positive: false, text: `${year} yılında performansı 70 puanının altında (${fmtKarneVal(a.dusukList[dusukIdx].val)})` });
+    if (mode !== 'ic') return;
+
+    const dusukIdx = a.dusukList.findIndex(x => x.sicil === sicil);
+    if (dusukIdx !== -1){
+      findings.push({ positive: false, text: `${year} yılında performansı 70 puanının altında (${fmtKarneVal(a.dusukList[dusukIdx].val)})` });
+    }
+
+    // 1) Kişi-vs-lokasyon karşılaştırması - TÜM metrikler (hariç tutulanlar dışında)
+    KARNE_METRICS.forEach(metric => {
+      const upper = metric.key.toLocaleUpperCase('tr');
+      if (ANALIZ_YORUM_HARIC_METRIKLER.some(x => upper.includes(x))) return;
+      if (!['scale100','kko','scale5','vsLocation','ach'].includes(metric.category)) return; // yönü belirsiz (neutral) metrikler atlanır
+      const kisiVal = personYearlyValue(sicil, year, metric);
+      const lokVal = locationYearlyValue(year, metric);
+      if (kisiVal === null || lokVal === null) return;
+      const isLowerBetter = (metric.category === 'vsLocation' || metric.category === 'ach');
+
+      // 2) "Sıfır" pozitif bulgu - düşük=iyi metriklerde kişi tam sıfırsa özellikle vurgulanır
+      if (isLowerBetter && kisiVal === 0){
+        findings.push({ positive: true, text: `${year} yılında hiç ${metric.label.toLocaleLowerCase('tr')} yok` });
+        return;
       }
-      [a.found.raporM, a.found.tutanakM, a.found.gecLoginM, a.found.cagriM].filter(Boolean).forEach(metric => {
-        const res = a.topNForMetric(metric, 10);
-        const idx = res.list.findIndex(x => x.sicil === sicil);
-        if (idx !== -1){
-          findings.push({ positive: false, text: `${year} yılında en çok ${metric.label} alan/yazılan 10 kişiden biri (${idx+1}. sıra, ${fmtKarneVal(res.list[idx].val)})` });
+      const cls = yearlySummaryColorClass(metric.category, kisiVal, lokVal);
+      if (!cls) return;
+      const yon = kisiVal > lokVal ? 'üzerinde' : 'altında';
+      if (cls === 'neg'){
+        findings.push({ positive: false, text: `${year} yılında ${metric.label}, lokasyon ortalamasının ${yon} (Kişi: ${fmtKarneVal(kisiVal)}, Lokasyon: ${fmtKarneVal(lokVal)})` });
+      } else if (cls === 'pos'){
+        findings.push({ positive: true, text: `${year} yılında ${metric.label}, lokasyon ortalamasının ${yon} (Kişi: ${fmtKarneVal(kisiVal)}, Lokasyon: ${fmtKarneVal(lokVal)})` });
+      }
+    });
+
+    // 3) Çağrı yoğunluğu bağlamlı kişisel korelasyon bulguları - kişinin kendi çağrı sayısı
+    // hakkında yorum yapılmaz, sadece lokasyon geneli aylık çağrı yoğunluğu bağlam olarak kullanılır.
+    if (a.found.cagriM && a.monthlyTrend.length >= 4){
+      const monthsData = a.monthlyTrend.filter(m => m.cagriToplam !== null);
+      if (monthsData.length >= 4){
+        const avgCagri = avgOf(monthsData.map(m => m.cagriToplam));
+        const yogunAylar = monthsData.filter(m => m.cagriToplam > avgCagri);
+        const sakinAylar = monthsData.filter(m => m.cagriToplam <= avgCagri);
+        const personMonthVal = (monthIdx, metric) => {
+          const r = KARNE_RECORDS.find(x => x.sicil === sicil && x.yil === year && x.ayIndex === monthIdx);
+          return (r && r[metric.key] !== undefined) ? r[metric.key] : null;
+        };
+        if (yogunAylar.length && sakinAylar.length){
+          [
+            { metric: a.found.raporM, label: 'rapor kullanımı' },
+            { metric: a.found.tutanakM, label: 'tutanak alma durumu' },
+            { metric: a.found.gecLoginM, label: 'geç login/eksik staff durumu' },
+          ].filter(x => x.metric).forEach(({ metric, label }) => {
+            const yogunOrt = avgOf(yogunAylar.map(m => personMonthVal(m.month, metric)).filter(v => v !== null));
+            const sakinOrt = avgOf(sakinAylar.map(m => personMonthVal(m.month, metric)).filter(v => v !== null));
+            if (yogunOrt !== null && yogunOrt > 0 && (sakinOrt === null || yogunOrt > sakinOrt * 1.2)){
+              findings.push({ positive: false, text: `${year} yılında çağrı yoğunluğunun yüksek olduğu aylarda ${label} daha belirgindi (yoğun aylar ort. ${fmtKarneVal(yogunOrt)}${sakinOrt !== null ? ', diğer aylar ort. ' + fmtKarneVal(sakinOrt) : ''})` });
+            }
+          });
         }
-      });
+      }
     }
   });
   return findings;
@@ -1066,22 +1124,6 @@ async function generatePresentation(selectedYears, findingsMode){
     s.addText(p.adSoyad, { x: 0.6, y: 3.15, w: 11.5, h: 0.9, fontFace: 'Georgia', fontSize: 32, color: WHITE, bold: true });
     s.addText(`Sicil ${p.sicil}   ·   ${p.gorevi || '—'}`, { x: 0.6, y: 3.95, w: 10, h: 0.4, fontFace: 'Arial', fontSize: 14, color: 'CADCFC' });
     s.addText(`Hazırlanma tarihi: ${new Date().toLocaleDateString('tr-TR')}`, { x: 0.6, y: 6.7, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 10, color: DIM });
-  }
-
-  // --- Öne Çıkan Bulgular (varsa) - Analiz sekmesindeki sıralamalarla bağlamsal olarak
-  // ilişkilendirilmiş bulgular. "Kişiye Gönderilecek" modunda sadece olumlu bulgular eklenir.
-  {
-    const findings = personelFindings(selectedSicil, selectedYears, mode);
-    if (findings.length){
-      const s = pres.addSlide();
-      s.background = { color: DARK };
-      s.addText('Öne Çıkan Bulgular', { x: 0.5, y: 0.4, w: 10, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
-      const bulletLines = findings.map(f => ({
-        text: (f.positive ? '✅  ' : '⚠️  ') + f.text,
-        options: { fontFace: 'Arial', fontSize: 14, color: f.positive ? '3ddc97' : 'F5C451', breakLine: true, paraSpaceAfter: 10 },
-      }));
-      s.addText(bulletLines, { x: 0.6, y: 1.3, w: 11.5, h: 5, valign: 'top' });
-    }
   }
 
   // --- Genel Değerlendirme (ekrandaki ile aynı mantık VE aynı koyu tema: TÜM yıllar, TÜM metrikler kart olarak) ---
@@ -1217,6 +1259,27 @@ async function generatePresentation(selectedYears, findingsMode){
     }
   });
 
+  // --- Öne Çıkan Bulgular (varsa) - EN SON slayt(lar). Bulgu sayısı fazlaysa birden fazla
+  // slayta bölünür. "Kişiye Gönderilecek" modunda sadece olumlu bulgular eklenir.
+  {
+    const findings = personelFindings(selectedSicil, selectedYears, mode);
+    if (findings.length){
+      const PER_SLIDE = 12;
+      for (let i = 0; i < findings.length; i += PER_SLIDE){
+        const chunk = findings.slice(i, i + PER_SLIDE);
+        const s = pres.addSlide();
+        s.background = { color: DARK };
+        const pageSuffix = findings.length > PER_SLIDE ? ` (${Math.floor(i / PER_SLIDE) + 1}/${Math.ceil(findings.length / PER_SLIDE)})` : '';
+        s.addText('Öne Çıkan Bulgular' + pageSuffix, { x: 0.5, y: 0.4, w: 11, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
+        const bulletLines = chunk.map(f => ({
+          text: (f.positive ? '✅  ' : '⚠️  ') + f.text,
+          options: { fontFace: 'Arial', fontSize: 13, color: f.positive ? '3ddc97' : 'F5C451', breakLine: true, paraSpaceAfter: 9 },
+        }));
+        s.addText(bulletLines, { x: 0.6, y: 1.25, w: 11.8, h: 5.8, valign: 'top' });
+      }
+    }
+  }
+
   const safeName = p.adSoyad.trim().replace(/\s+/g, '_');
   await pres.writeFile({ fileName: `${safeName}_Personel_Karnesi.pptx` });
 }
@@ -1307,20 +1370,77 @@ async function generateAnalizPresentation(year, month){
     } catch(e){}
   }
 
-  // --- Aylık Trend (sadece Tüm Yıl modunda) ---
-  if (month === null && a.monthlyTrend.length && a.found.perfM){
-    const s = pres.addSlide();
-    s.background = { color: DARK };
-    s.addText('Aylık Performans Trendi', { x: 0.5, y: 0.35, w: 10, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
-    try {
-      s.addChart('line', [{ name: 'Ortalama Performans', labels: a.monthlyTrend.map(m => m.label), values: a.monthlyTrend.map(m => m.ort) }], {
-        x: 0.5, y: 1.2, w: 12.3, h: 5.5,
-        chartColors: [ACCENT],
-        showLegend: false,
-        catAxisLabelColor: WHITE, valAxisLabelColor: WHITE, catAxisLabelFontSize: 9, valAxisLabelFontSize: 9,
-        lineDataSymbol: 'circle', lineSize: 2.5,
-      });
-    } catch(e){}
+  // --- Aylık Trend slaytları (sadece Tüm Yıl modunda) - dashboard'daki 5 seçici SABİT
+  // ikili gruplara ayrılır: (1.+2.), (3.+4.), (5. tek başına). Bir grupta iki metrik de
+  // doluysa TEK slaytta çift eksenli grafik olur; sadece biri doluysa tek metrikli slayt olur.
+  if (month === null && a.monthlyTrend.length){
+    const pairGroups = [[0,1],[2,3],[4]];
+    const anyActive = analizTrendSlots.some(s => s.metricKey);
+    const groupsToRender = anyActive
+      ? pairGroups.map(idxs => idxs.map(i => analizTrendSlots[i]).filter(s => s.metricKey)).filter(g => g.length)
+      : (a.found.perfM ? [[{ metricKey: a.found.perfM.key, type: 'line' }]] : []);
+
+    groupsToRender.forEach(group => {
+      const items = group.map(slot => ({ slot, metric: a.rankableMetrics.find(m => m.key === slot.metricKey) })).filter(x => x.metric);
+      if (!items.length) return;
+      const labels = a.monthlyTrend.map(m => m.label);
+      const valuesFor = (metric) => a.monthlyTrend.map(m => (m.metrics && m.metrics[metric.key] !== undefined) ? m.metrics[metric.key] : null);
+      const s = pres.addSlide();
+      s.background = { color: DARK };
+      const title = items.map(x => x.metric.label).join(' & ');
+      s.addText(`Aylık Trend — ${title}`, { x: 0.5, y: 0.35, w: 11.8, h: 0.5, fontFace: 'Georgia', fontSize: 20, color: WHITE, bold: true });
+
+      if (items.length === 1){
+        const { slot, metric } = items[0];
+        try {
+          s.addChart(slot.type === 'bar' ? 'bar' : 'line', [{ name: metric.label, labels, values: valuesFor(metric) }], {
+            x: 0.5, y: 1.2, w: 12.3, h: 5.5,
+            chartColors: [ACCENT], showLegend: false,
+            catAxisLabelColor: WHITE, valAxisLabelColor: WHITE, catAxisLabelFontSize: 9, valAxisLabelFontSize: 9,
+            showValue: true, dataLabelColor: WHITE, dataLabelPosition: slot.type === 'bar' ? 'outEnd' : 't', dataLabelFontSize: 9,
+            lineDataSymbol: 'circle', lineSize: 2.5,
+          });
+        } catch(e){}
+      } else {
+        // 2 metrikli, çift eksenli birleşik grafik (dashboard'daki mantıkla aynı - sol/sağ eksen)
+        const [first, second] = items;
+        try {
+          s.addChart([
+            { type: first.slot.type === 'bar' ? 'bar' : 'line', data: [{ name: first.metric.label, labels, values: valuesFor(first.metric) }], options: { chartColors: [ACCENT] } },
+            { type: second.slot.type === 'bar' ? 'bar' : 'line', data: [{ name: second.metric.label, labels, values: valuesFor(second.metric) }], options: { chartColors: [BLUE], secondaryValAxis: true, secondaryCatAxis: true } },
+          ], {
+            x: 0.5, y: 1.2, w: 12.3, h: 5.5,
+            showLegend: true, legendPos: 'b', legendColor: WHITE, legendFontSize: 10,
+            catAxisLabelColor: WHITE, catAxisLabelFontSize: 9,
+            valAxes: [
+              { showValAxisTitle: true, valAxisTitle: first.metric.label, valAxisTitleColor: ACCENT, valAxisLabelColor: ACCENT, valAxisLabelFontSize: 9 },
+              { showValAxisTitle: true, valAxisTitle: second.metric.label, valAxisTitleColor: BLUE, valAxisLabelColor: BLUE, valAxisLabelFontSize: 9, valGridLine: 'none' },
+            ],
+            catAxes: [ { catAxisLabelColor: WHITE, catAxisLabelFontSize: 9 }, { catAxisHidden: true } ],
+          });
+        } catch(e){}
+      }
+    });
+  }
+
+  // --- Yıllar İçindeki Genel Trend (tüm yılların yıllık ortalaması, ay bazında değil) ---
+  {
+    const allYearsForTrend = [...new Set(KARNE_MONTHS.map(m => m.year))].sort((a2,b2) => a2 - b2);
+    if (allYearsForTrend.length > 1 && a.found.perfM){
+      const yearVals = allYearsForTrend.map(y => computeAnaliz(y, null).ortalamaPerformans);
+      const s = pres.addSlide();
+      s.background = { color: DARK };
+      s.addText('Yıllar İçindeki Genel Trend', { x: 0.5, y: 0.35, w: 11, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
+      s.addText('Ortalama Performans, her yılın tamamı üzerinden (ay bazında değil, yıllık) hesaplanmıştır.', { x: 0.5, y: 0.85, w: 11.5, h: 0.3, fontFace: 'Arial', fontSize: 9.5, color: DIM });
+      try {
+        s.addChart('bar', [{ name: 'Yıllık Ortalama Performans', labels: allYearsForTrend.map(String), values: yearVals }], {
+          x: 0.5, y: 1.3, w: 12.3, h: 5.4,
+          chartColors: [ACCENT], showLegend: false,
+          catAxisLabelColor: WHITE, valAxisLabelColor: WHITE, catAxisLabelFontSize: 11, valAxisLabelFontSize: 9,
+          showValue: true, dataLabelColor: WHITE, dataLabelPosition: 'outEnd', dataLabelFontSize: 11,
+        });
+      } catch(e){}
+    }
   }
 
   // --- Yıl Kıyaslama (varsa bir önceki/başka bir yıl) ---
