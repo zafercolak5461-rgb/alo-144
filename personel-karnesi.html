@@ -3710,37 +3710,29 @@ async function performYetkiAdd(){
 // sonra Drive'daki fotoğraf klasörüne yükler (varsa üzerine yazar), herkese açık görüntüleme
 // izni verir ve linki Personel Listesi'nin P (Foto URL) sütununa yazar.
 
-function fileToJpegBlob(file, maxDim){
+async function fileToJpegBlob(file, maxDim){
   maxDim = maxDim || 500;
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Dosya okunamadı.'));
-    reader.onload = () => {
-      img.onerror = () => reject(new Error('Resim yüklenemedi.'));
-      img.onload = () => {
-        // Dashboard'da fotoğraf kare bir kutuda (object-fit:cover) gösteriliyor. Eskiden bu
-        // kırpmayı tarayıcıya bırakıyorduk - tam ortadan kestiği için, başın üstünde az boşluk
-        // olan dikey fotoğraflarda baş kesiliyordu. Artık burada, YÜKLEME ANINDA, baş kesilmeyecek
-        // şekilde (fazlalık ağırlıklı ALTTAN alınarak) kareye kırpıyoruz - hangi fotoğraf
-        // yüklenirse yüklensin sonuç garantili doğru olur.
-        const iw = img.width, ih = img.height;
-        const side = Math.min(iw, ih);
-        let sx = 0, sy = 0;
-        if (ih > iw){
-          sy = Math.round((ih - iw) * 0.08); // dikey: fazlalığın çoğu alttan alınır
-        } else if (iw > ih){
-          sx = Math.round((iw - ih) / 2); // yatay: ortadan
-        }
-        const size = Math.min(maxDim, side);
-        const canvas = document.createElement('canvas');
-        canvas.width = size; canvas.height = size;
-        canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, size, size);
-        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Resim dönüştürülemedi.')), 'image/jpeg', 0.85);
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+  // Telefon kameraları fotoğrafı genelde YATAY ham veriyle kaydedip, "ekranda dikey göster"
+  // diye ayrı bir gizli EXIF etiketi (Orientation) ekliyor. Normal <img> gösterimi bu etiketi
+  // otomatik uygular ama tuval (canvas) üzerinde ham pikselle çalışırken bu etiket YOK
+  // sayılıyordu - bu da telefon fotoğraflarında yanlış (kafa kesilmiş gibi görünen) kırpmaya
+  // sebep oluyordu. createImageBitmap + imageOrientation:'from-image', bu etiketi otomatik
+  // uygulayarak resmi EKRANDA GÖRÜNDÜĞÜ GİBİ (doğru döndürülmüş) hale getirir.
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const iw = bitmap.width, ih = bitmap.height;
+  const side = Math.min(iw, ih);
+  let sx = 0, sy = 0;
+  if (ih > iw){
+    sy = Math.round((ih - iw) * 0.08); // dikey: fazlalığın çoğu alttan alınır
+  } else if (iw > ih){
+    sx = Math.round((iw - ih) / 2); // yatay: ortadan
+  }
+  const size = Math.min(maxDim, side);
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  canvas.getContext('2d').drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Resim dönüştürülemedi.')), 'image/jpeg', 0.85);
   });
 }
 
