@@ -3719,12 +3719,23 @@ function fileToJpegBlob(file, maxDim){
     reader.onload = () => {
       img.onerror = () => reject(new Error('Resim yüklenemedi.'));
       img.onload = () => {
-        let w = img.width, h = img.height;
-        if (w > h && w > maxDim){ h = Math.round(h * maxDim / w); w = maxDim; }
-        else if (h > maxDim){ w = Math.round(w * maxDim / h); h = maxDim; }
+        // Dashboard'da fotoğraf kare bir kutuda (object-fit:cover) gösteriliyor. Eskiden bu
+        // kırpmayı tarayıcıya bırakıyorduk - tam ortadan kestiği için, başın üstünde az boşluk
+        // olan dikey fotoğraflarda baş kesiliyordu. Artık burada, YÜKLEME ANINDA, baş kesilmeyecek
+        // şekilde (fazlalık ağırlıklı ALTTAN alınarak) kareye kırpıyoruz - hangi fotoğraf
+        // yüklenirse yüklensin sonuç garantili doğru olur.
+        const iw = img.width, ih = img.height;
+        const side = Math.min(iw, ih);
+        let sx = 0, sy = 0;
+        if (ih > iw){
+          sy = Math.round((ih - iw) * 0.08); // dikey: fazlalığın çoğu alttan alınır
+        } else if (iw > ih){
+          sx = Math.round((iw - ih) / 2); // yatay: ortadan
+        }
+        const size = Math.min(maxDim, side);
         const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.width = size; canvas.height = size;
+        canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, size, size);
         canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Resim dönüştürülemedi.')), 'image/jpeg', 0.85);
       };
       img.src = reader.result;
