@@ -2183,6 +2183,9 @@ let analizYear = null;
 let analizMonth = null; // null = Tüm Aylar
 let analizRankMetricKey = null; // null = varsayılan (Performans)
 let analizCompareYear = null; // null = otomatik (bir önceki yıl varsa)
+let analizTrendMetricKey = null; // null = varsayılan (Performans)
+let analizTrendChartType = 'line'; // 'line' | 'bar'
+let analizTrendCompareKey = ''; // '' = karşılaştırma yok
 const ANALIZ_CHART_INSTANCES = {};
 
 function destroyAnalizCharts(){
@@ -2288,10 +2291,17 @@ function computeAnaliz(year, month){
         const mv = monthRecs.map(r => r[metric.key]).filter(v => v !== null && v !== undefined);
         return mv.length ? mv.reduce((a,b)=>a+b,0) : null;
       };
+      const metricsMap = {};
+      rankableMetrics.forEach(metric => {
+        const mv = monthRecs.map(r => r[metric.key]).filter(v => v !== null && v !== undefined);
+        if (!mv.length){ metricsMap[metric.key] = null; return; }
+        metricsMap[metric.key] = metric.agg === 'sum' ? mv.reduce((a,b)=>a+b,0) : avgOf(mv);
+      });
       return {
         month: m.month, label: TR_MONTHS[m.month], ort: avgOf(vals),
         raporToplam: sumOf(raporM), tutanakToplam: sumOf(tutanakM),
         cagriToplam: sumOf(cagriM), isGunuToplam: sumOf(isGunuM),
+        metrics: metricsMap,
       };
     });
   }
@@ -2505,6 +2515,13 @@ function renderAnalizContentHtml(){
   const rankOptions = a.rankableMetrics.map(m => `<option value="${m.key}" ${m.key === analizRankMetricKey ? 'selected' : ''}>${m.label}</option>`).join('');
   const activeRankMetric = a.rankableMetrics.find(m => m.key === analizRankMetricKey) || a.found.perfM || a.rankableMetrics[0];
   const rankResult = activeRankMetric ? a.topNForMetric(activeRankMetric, 10) : { list: [], total: null };
+
+  // --- Aylık Trend seçicileri (hangi metrik, hangi grafik türü, karşılaştırma metriği) ---
+  const activeTrendMetric = a.rankableMetrics.find(m => m.key === analizTrendMetricKey) || a.found.perfM || a.rankableMetrics[0];
+  const trendMetricOptions = a.rankableMetrics.map(m => `<option value="${m.key}" ${activeTrendMetric && m.key === activeTrendMetric.key ? 'selected' : ''}>${m.label}</option>`).join('');
+  const trendCompareOptions = `<option value="">Karşılaştırma yok</option>` +
+    a.rankableMetrics.filter(m => !activeTrendMetric || m.key !== activeTrendMetric.key)
+      .map(m => `<option value="${m.key}" ${m.key === analizTrendCompareKey ? 'selected' : ''}>${m.label} ile karşılaştır</option>`).join('');
   const rankMax = rankResult.list.length ? Math.max(...rankResult.list.map(x => x.val)) : 1;
   const rankBarsHtml = rankResult.list.length ? rankResult.list.map((x,i) => `
     <div class="analiz-rankbar-row">
@@ -2652,7 +2669,7 @@ function renderAnalizContentHtml(){
       </div>
       <div class="analiz-card">
         <div class="analiz-card-title">🎯 Performans Dağılımı</div>
-        <canvas id="analizDistChart" height="200"></canvas>
+        <div style="height:300px;"><canvas id="analizDistChart"></canvas></div>
       </div>
     </div>
 
@@ -2664,11 +2681,18 @@ function renderAnalizContentHtml(){
       <div>${rankBarsHtml}</div>
     </div>
 
-    ${a.monthlyTrend.length ? `
     <div class="analiz-card">
-      <div class="analiz-card-title">📉 Aylık Performans Trendi</div>
-      <canvas id="analizTrendChart" height="90"></canvas>
-    </div>` : ''}
+      <div class="analiz-card-title" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        📉 Aylık Trend
+        <select class="search" id="analizTrendMetricSelect" style="width:auto; font-size:12px; padding:4px 8px;">${trendMetricOptions}</select>
+        <select class="search" id="analizTrendTypeSelect" style="width:auto; font-size:12px; padding:4px 8px;">
+          <option value="line" ${analizTrendChartType==='line'?'selected':''}>Çizgi Grafik</option>
+          <option value="bar" ${analizTrendChartType==='bar'?'selected':''}>Sütun Grafik</option>
+        </select>
+        <select class="search" id="analizTrendCompareSelect" style="width:auto; font-size:12px; padding:4px 8px;">${trendCompareOptions}</select>
+      </div>
+      ${a.monthlyTrend.length ? `<div style="height:280px;"><canvas id="analizTrendChart"></canvas></div>` : `<div style="color:var(--dim); font-size:13px;">Bu görünüm sadece "Tüm Aylar" seçiliyken kullanılabilir.</div>`}
+    </div>
 
     ${correlationHtml}
     ${dikkatHtml}
@@ -2705,32 +2729,50 @@ function wireAnalizCharts(){
         datasets: [{ data: a.buckets.map(b => b.count), backgroundColor: a.buckets.map(b => b.color), borderWidth: 0 }],
       },
       options: {
-        responsive: true, cutout: '62%',
+        responsive: true, maintainAspectRatio: false, cutout: '62%',
         plugins: { legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 }, padding: 12 } } },
       },
     });
   }
 
-  // Sıralama metriği trendi olarak Aylık Trend (Performans)
+  // Aylık Trend - seçilen metrik + grafik türü, isteğe bağlı ikinci metrikle (farklı eksen/tür) karşılaştırma
   const trendCanvas = document.getElementById('analizTrendChart');
-  if (trendCanvas && a.monthlyTrend.length){
+  if (trendCanvas && a.monthlyTrend.length && a.rankableMetrics.length){
+    const mainMetric = a.rankableMetrics.find(m => m.key === analizTrendMetricKey) || a.found.perfM || a.rankableMetrics[0];
+    const compareMetric = analizTrendCompareKey ? a.rankableMetrics.find(m => m.key === analizTrendCompareKey) : null;
+    const mainVals = a.monthlyTrend.map(m => (m.metrics && m.metrics[mainMetric.key] !== undefined) ? m.metrics[mainMetric.key] : null);
+    const datasets = [{
+      type: analizTrendChartType,
+      label: mainMetric.label, data: mainVals, yAxisID: 'y',
+      borderColor: '#E8A53D', backgroundColor: analizTrendChartType === 'bar' ? 'rgba(232,165,61,0.75)' : 'rgba(232,165,61,0.15)',
+      fill: analizTrendChartType === 'line', tension: 0.35,
+      pointBackgroundColor: '#E8A53D', pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
+    }];
+    if (compareMetric){
+      const compareType = analizTrendChartType === 'line' ? 'bar' : 'line';
+      const compareVals = a.monthlyTrend.map(m => (m.metrics && m.metrics[compareMetric.key] !== undefined) ? m.metrics[compareMetric.key] : null);
+      datasets.push({
+        type: compareType,
+        label: compareMetric.label, data: compareVals, yAxisID: 'y1',
+        borderColor: '#5b9cf6', backgroundColor: compareType === 'bar' ? 'rgba(91,156,246,0.55)' : 'rgba(91,156,246,0.15)',
+        fill: compareType === 'line', tension: 0.35,
+        pointBackgroundColor: '#5b9cf6', pointRadius: 4, pointHoverRadius: 6, borderWidth: 2,
+      });
+    }
+    const scales = {
+      x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { color: chartGridColor } },
+      y: { position: 'left', ticks: { color: '#E8A53D', font: { size: 10 } }, grid: { color: chartGridColor }, title: { display: true, text: mainMetric.label, color: '#E8A53D', font: { size: 10 } } },
+    };
+    if (compareMetric){
+      scales.y1 = { position: 'right', ticks: { color: '#5b9cf6', font: { size: 10 } }, grid: { display: false }, title: { display: true, text: compareMetric.label, color: '#5b9cf6', font: { size: 10 } } };
+    }
     ANALIZ_CHART_INSTANCES.trend = new Chart(trendCanvas, {
-      type: 'line',
-      data: {
-        labels: a.monthlyTrend.map(m => m.label),
-        datasets: [{
-          label: 'Ortalama Performans', data: a.monthlyTrend.map(m => m.ort),
-          borderColor: '#E8A53D', backgroundColor: 'rgba(232,165,61,0.15)', fill: true, tension: 0.35,
-          pointBackgroundColor: '#E8A53D', pointRadius: 4, pointHoverRadius: 6,
-        }],
-      },
+      type: analizTrendChartType,
+      data: { labels: a.monthlyTrend.map(m => m.label), datasets },
       options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { color: chartGridColor } },
-          y: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { color: chartGridColor } },
-        },
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: !!compareMetric, position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
+        scales,
       },
     });
   }
@@ -2803,6 +2845,8 @@ function wireAnalizTab(){
       analizMonth = null;
       analizCompareYear = null;
       analizRankMetricKey = null;
+      analizTrendMetricKey = null;
+      analizTrendCompareKey = '';
       contentArea.innerHTML = renderAnalizTab();
       wireAnalizTab();
     });
@@ -2835,6 +2879,30 @@ function wireAnalizInnerControls(){
       document.getElementById('analizContentWrap').innerHTML = renderAnalizContentHtml();
       wireAnalizCharts();
       wireAnalizInnerControls();
+    });
+  }
+  const trendMetricSel = document.getElementById('analizTrendMetricSelect');
+  if (trendMetricSel){
+    trendMetricSel.addEventListener('change', () => {
+      analizTrendMetricKey = trendMetricSel.value;
+      if (analizTrendCompareKey === analizTrendMetricKey) analizTrendCompareKey = '';
+      document.getElementById('analizContentWrap').innerHTML = renderAnalizContentHtml();
+      wireAnalizCharts();
+      wireAnalizInnerControls();
+    });
+  }
+  const trendTypeSel = document.getElementById('analizTrendTypeSelect');
+  if (trendTypeSel){
+    trendTypeSel.addEventListener('change', () => {
+      analizTrendChartType = trendTypeSel.value;
+      wireAnalizCharts();
+    });
+  }
+  const trendCompareSel = document.getElementById('analizTrendCompareSelect');
+  if (trendCompareSel){
+    trendCompareSel.addEventListener('change', () => {
+      analizTrendCompareKey = trendCompareSel.value;
+      wireAnalizCharts();
     });
   }
 }
