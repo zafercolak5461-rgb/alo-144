@@ -465,6 +465,28 @@ body{
   .table-scroll tbody tr:hover td:first-child{
     background:var(--bg-panel-2);
   }
+  /* İSTİSNA: Genel Talep Dağılımı tablosunda gerçek ilk sütun "#" (sıra no), asıl
+     kimlik sütunu "İl" ikinci sırada. "#" sabit genişlikte tutulup İl'in hemen yanına
+     (left:40px) sabitleniyor - böylece aralarında boşluk/çakışma olmuyor, sonraki
+     sütunların doğal konumu tam olarak bu ikisinin toplam genişliğiyle örtüşüyor. */
+  #gtdTable thead th:first-child,
+  #gtdTable tbody td:first-child{
+    position:sticky; left:0; z-index:2;
+    width:40px; min-width:40px; max-width:40px;
+    text-align:center;
+  }
+  #gtdTable thead th:first-child{ background:var(--bg-panel-2); z-index:4; }
+  #gtdTable tbody td:first-child{ background:var(--bg-panel); }
+  #gtdTable tbody tr:hover td:first-child{ background:var(--bg-panel-2); }
+  #gtdTable thead th:nth-child(2){
+    position:sticky; left:40px; z-index:3;
+    background:var(--bg-panel-2); text-align:left;
+  }
+  #gtdTable tbody td:nth-child(2){
+    position:sticky; left:40px; z-index:1;
+    background:var(--bg-panel); text-align:left;
+  }
+  #gtdTable tbody tr:hover td:nth-child(2){ background:var(--bg-panel-2); }
 
   .note{ margin-top:16px; font-size:12px; color:var(--text-dim); line-height:1.6; }
   .note b{ color:var(--text); }
