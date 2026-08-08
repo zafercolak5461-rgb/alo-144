@@ -916,17 +916,6 @@ body{
         <input type="date" id="gtd-dateTo">
       </div>
     </div>
-    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;">
-      <div class="date-input-group">
-        <label>İl</label>
-        <select id="gtdIl"><option value="all">Tüm İller (haritadan da seçebilirsiniz)</option></select>
-      </div>
-      <div class="date-input-group" style="position:relative;">
-        <label>Kategori (çoklu seçim)</label>
-        <button type="button" id="gtdKatBtn" class="refresh-btn" style="min-width:220px; text-align:left;">Genel (Tüm Kategoriler)</button>
-        <div id="gtdKatPanel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
-      </div>
-    </div>
   </div>
 
   <div class="metrics" id="gtdMetrics"></div>
@@ -935,6 +924,19 @@ body{
     <div class="panel-head">
       Türkiye Haritası — Seçili Kategori/Dönem Yoğunluk Dağılımı
       <span class="hint" style="font-size:10.5px;">bir ile tıklayarak İl filtresini tetikleyebilirsiniz</span>
+    </div>
+    <div style="padding:16px 18px 4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <button type="button" id="gtdMapAllBtn" class="preset-btn active">🔄 Tüm İller</button>
+      <div class="date-input-group">
+        <label>İl</label>
+        <select id="gtdIlMap" class="gtd-il-select"><option value="all">Tüm İller</option></select>
+      </div>
+      <div class="date-input-group" style="position:relative;">
+        <label>Kategori (çoklu seçim)</label>
+        <button type="button" id="gtdKatBtnMap" class="refresh-btn gtd-kat-btn" style="min-width:220px; text-align:left;">Genel (Tüm Kategoriler) ▾</button>
+        <div id="gtdKatPanelMap" class="gtd-kat-panel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
+      </div>
+      <span class="hint" style="font-size:10.5px;">Not: İl seçimi haritanın renklerini değiştirmez — harita her zaman tüm illeri gösterir</span>
     </div>
     <div style="padding:16px 18px;">
       <div id="gtdMapWrap" style="width:100%; max-width:980px; margin:0 auto;"><svg version="1.1" id="gtdTurkiyeSvg" style="width:100%;height:auto;max-height:780px;" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1007.478 527.323" xml:space="preserve">
@@ -1217,6 +1219,17 @@ body{
     <div class="panel-head">
       Detaylı Tablo
       <span class="count" id="gtdRowCount"></span>
+    </div>
+    <div style="padding:14px 18px 4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div class="date-input-group">
+        <label>İl</label>
+        <select id="gtdIlTable" class="gtd-il-select"><option value="all">Tüm İller</option></select>
+      </div>
+      <div class="date-input-group" style="position:relative;">
+        <label>Kategori (çoklu seçim)</label>
+        <button type="button" id="gtdKatBtnTable" class="refresh-btn gtd-kat-btn" style="min-width:220px; text-align:left;">Genel (Tüm Kategoriler) ▾</button>
+        <div id="gtdKatPanelTable" class="gtd-kat-panel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
+      </div>
     </div>
     <div class="table-wrap">
       <table id="gtdTable">
@@ -7176,7 +7189,6 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
 const SHEET_ID = "1l8-TNGbOg7pILG29Mu5p66-VyTaZBc9pqRIFwmeC7Fo";
 const RANGE = "Sayfa1!A1:Z20000";
 
-// Açık sarıdan kırmızıya 5 kademeli skala
 const COLOR_SCALE = ['#FFF6BF', '#FFD966', '#FFA23A', '#F2622E', '#C81E1E'];
 const COLOR_LABELS = ['Çok Düşük', 'Düşük', 'Orta', 'Yüksek', 'Çok Yüksek'];
 
@@ -7184,9 +7196,6 @@ const statusDot = document.getElementById('gtdStatusDot');
 const statusText = document.getElementById('gtdStatusText');
 const errorBox = document.getElementById('gtdErrorBox');
 const warningBox = document.getElementById('gtdWarningBox');
-const ilSel = document.getElementById('gtdIl');
-const katBtn = document.getElementById('gtdKatBtn');
-const katPanel = document.getElementById('gtdKatPanel');
 const metricsEl = document.getElementById('gtdMetrics');
 const mapWrap = document.getElementById('gtdMapWrap');
 const mapLegend = document.getElementById('gtdMapLegend');
@@ -7195,16 +7204,73 @@ const tableHead = document.getElementById('gtdTableHead');
 const tableBody = document.getElementById('gtdTableBody');
 const rowCountEl = document.getElementById('gtdRowCount');
 
-let ALL_ROWS = [];      // {date, il, values:[...], toplam, yuzde, raw}
-let CATEGORIES = [];    // [{index, name}]
-let SELECTED_KAT = [];  // seçili kategori index'leri - boşsa "Genel (tüm kategoriler)" demektir
+let ALL_ROWS = [];
+let CATEGORIES = [];
+let SELECTED_IL = 'all';
+let SELECTED_KAT = []; // boşsa Genel (tüm kategoriler)
 let INITIALIZED = false;
 let gtdChart = null;
-let provinceMap = {};   // "01" -> [<g>, ...] plaka koduna göre birleşik (İstanbul Asya+Avrupa)
+let provinceMap = {};
 let nameToKod = null;
 let labelsBuilt = false;
 
-// ---- Veri Çekme ----
+// ================= SENKRON FİLTRE KONTROLLERİ =================
+// İl ve Kategori seçicileri 3 farklı yerde (üst filtre, harita üstü, tablo üstü) tekrar
+// ediyor - hepsi aynı SELECTED_IL / SELECTED_KAT durumunu paylaşır ve birbirini günceller.
+const ilSelects = [];
+const katControls = []; // {btn, panel}
+
+function registerIlSelect(el){
+  ilSelects.push(el);
+  el.addEventListener('change', () => setIl(el.value));
+}
+function setIl(val){
+  SELECTED_IL = val;
+  ilSelects.forEach(el => { el.value = val; });
+  document.getElementById('gtdMapAllBtn').classList.toggle('active', val === 'all');
+  renderAll();
+}
+
+function registerKatControl(btn, panel){
+  katControls.push({ btn, panel });
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = panel.style.display === 'none';
+    katControls.forEach(k => k.panel.style.display = 'none');
+    panel.style.display = willOpen ? 'block' : 'none';
+  });
+  panel.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('gtd-kat-check')) return;
+    const idx = Number(e.target.value);
+    if (e.target.checked){ if (!SELECTED_KAT.includes(idx)) SELECTED_KAT.push(idx); }
+    else { SELECTED_KAT = SELECTED_KAT.filter(i => i !== idx); }
+    syncKatControls();
+    renderAll();
+  });
+}
+function syncKatControls(){
+  katControls.forEach(({btn, panel}) => {
+    panel.querySelectorAll('.gtd-kat-check').forEach(cb => {
+      cb.checked = SELECTED_KAT.includes(Number(cb.value));
+    });
+    if (!SELECTED_KAT.length) btn.textContent = 'Genel (Tüm Kategoriler) ▾';
+    else if (SELECTED_KAT.length === 1) btn.textContent = CATEGORIES[SELECTED_KAT[0]].name + ' ▾';
+    else btn.textContent = SELECTED_KAT.length + ' kategori seçili ▾';
+  });
+}
+document.addEventListener('click', (e) => {
+  katControls.forEach(({btn, panel}) => {
+    if (!panel.contains(e.target) && e.target !== btn) panel.style.display = 'none';
+  });
+});
+
+registerIlSelect(document.getElementById('gtdIlMap'));
+registerIlSelect(document.getElementById('gtdIlTable'));
+registerKatControl(document.getElementById('gtdKatBtnMap'), document.getElementById('gtdKatPanelMap'));
+registerKatControl(document.getElementById('gtdKatBtnTable'), document.getElementById('gtdKatPanelTable'));
+document.getElementById('gtdMapAllBtn').addEventListener('click', () => setIl('all'));
+
+// ================= Veri Çekme =================
 async function loadData(isRefresh){
   const refreshBtn = document.getElementById('gtdRefreshBtn');
   refreshBtn.disabled = true;
@@ -7266,7 +7332,6 @@ async function loadData(isRefresh){
   }
 }
 
-// ---- Ortak tarih filtre kontrolcüsü (Gelen Arama Dağılımı ile aynı mantık) ----
 const dateFilter = createDateFilterController({
   presetGroupId: 'gtd-presetGroup',
   yearSelectId: 'gtd-yearSelect',
@@ -7278,48 +7343,26 @@ const dateFilter = createDateFilterController({
   onApply: () => renderAll()
 });
 
-// ---- İl filtresi ----
 function populateIlFilter(){
   const ils = [...new Set(ALL_ROWS.map(r => r.il))].sort((a,b) => a.localeCompare(b, 'tr'));
-  const cur = ilSel.value;
-  ilSel.innerHTML = '<option value="all">Tüm İller (haritadan da seçebilirsiniz)</option>' +
-    ils.map(il => `<option value="${il}">${il}</option>`).join('');
-  if (ils.includes(cur)) ilSel.value = cur;
+  const optsHtml = '<option value="all">Tüm İller</option>' + ils.map(il => `<option value="${il}">${il}</option>`).join('');
+  ilSelects.forEach(el => {
+    el.innerHTML = optsHtml;
+    if (ils.includes(SELECTED_IL)) el.value = SELECTED_IL;
+  });
 }
-ilSel.addEventListener('change', renderAll);
 
-// ---- Kategori çoklu seçim ----
 function populateKatFilter(){
-  katPanel.innerHTML = CATEGORIES.map((c,i) => `
+  const optsHtml = CATEGORIES.map((c,i) => `
     <label style="display:flex; align-items:center; gap:8px; padding:5px 2px; cursor:pointer; font-size:12.5px;">
       <input type="checkbox" class="gtd-kat-check" value="${i}" ${SELECTED_KAT.includes(i) ? 'checked' : ''}>
       ${c.name}
     </label>
   `).join('');
-  updateKatBtnLabel();
+  katControls.forEach(({panel}) => { panel.innerHTML = optsHtml; });
+  syncKatControls();
 }
-function updateKatBtnLabel(){
-  if (!SELECTED_KAT.length) katBtn.textContent = 'Genel (Tüm Kategoriler) ▾';
-  else if (SELECTED_KAT.length === 1) katBtn.textContent = CATEGORIES[SELECTED_KAT[0]].name + ' ▾';
-  else katBtn.textContent = SELECTED_KAT.length + ' kategori seçili ▾';
-}
-katBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  katPanel.style.display = katPanel.style.display === 'none' ? 'block' : 'none';
-});
-document.addEventListener('click', (e) => {
-  if (!katPanel.contains(e.target) && e.target !== katBtn) katPanel.style.display = 'none';
-});
-katPanel.addEventListener('change', (e) => {
-  if (!e.target.classList.contains('gtd-kat-check')) return;
-  const idx = Number(e.target.value);
-  if (e.target.checked){ if (!SELECTED_KAT.includes(idx)) SELECTED_KAT.push(idx); }
-  else { SELECTED_KAT = SELECTED_KAT.filter(i => i !== idx); }
-  updateKatBtnLabel();
-  renderAll();
-});
 
-// ---- Satır-bazlı tutarlılık kontrolü ----
 function checkConsistency(){
   const mismatches = ALL_ROWS.filter(r => {
     if (r.toplam === null) return false;
@@ -7334,15 +7377,7 @@ function checkConsistency(){
   }
 }
 
-// ---- Filtrelenmiş satırlar (tarih aralığı + il) ----
-function getFilteredRows(){
-  let rows = dateFilter.getFilteredRows();
-  const il = ilSel.value;
-  if (il !== 'all') rows = rows.filter(r => r.il === il);
-  return rows;
-}
-
-// Seçili kategori(ler)e göre bir satırın değeri
+// Seçili kategori(ler)e göre bir satırın tek değeri (Genel ise 13 kategori toplamı)
 function rowValue(r){
   if (!SELECTED_KAT.length) return r.values.reduce((a,b) => a+b, 0);
   return SELECTED_KAT.reduce((sum, idx) => sum + (r.values[idx] || 0), 0);
@@ -7354,15 +7389,33 @@ function aggregateByIl(rows){
   return map;
 }
 
-// ---- Ana render ----
+// İl bazında, seçili her kategori için AYRI toplam (tablo sütunları için)
+function aggregateByIlDetailed(rows){
+  const map = {};
+  const cats = SELECTED_KAT.length ? SELECTED_KAT : null;
+  rows.forEach(r => {
+    if (!map[r.il]) map[r.il] = { catSums: {}, total: 0 };
+    if (cats){
+      cats.forEach(idx => { map[r.il].catSums[idx] = (map[r.il].catSums[idx] || 0) + (r.values[idx] || 0); });
+    }
+    map[r.il].total += rowValue(r);
+  });
+  return map;
+}
+
+// ================= Ana Render =================
 function renderAll(){
   if (!ALL_ROWS.length) return;
-  const rows = getFilteredRows();
-  const byIl = aggregateByIl(rows);
-  renderMetricsPanel(rows, byIl);
-  renderMap(byIl);
-  renderChart(byIl);
-  renderTable(byIl);
+  const rowsDateOnly = dateFilter.getFilteredRows();                 // sadece tarih aralığı - harita ve genel payı için
+  const rowsFiltered = SELECTED_IL === 'all' ? rowsDateOnly : rowsDateOnly.filter(r => r.il === SELECTED_IL); // + il filtresi - tablo/grafik/metrik için
+
+  const byIlAll = aggregateByIl(rowsDateOnly);       // harita HER ZAMAN tüm illeri gösterir
+  const byIlFiltered = aggregateByIl(rowsFiltered);
+
+  renderMetricsPanel(rowsFiltered, byIlFiltered);
+  renderMap(byIlAll);
+  renderChart(byIlFiltered);
+  renderTable(rowsFiltered, rowsDateOnly);
 }
 
 function renderMetricsPanel(rows, byIl){
@@ -7374,21 +7427,21 @@ function renderMetricsPanel(rows, byIl){
     if (v > enYogunDeger){ enYogunDeger = v; enYogun = il; }
   });
   metricsEl.innerHTML = `
-    <div class="metric"><div class="label">Genel Toplam</div><div class="value">${Math.round(genelToplam).toLocaleString('tr-TR')}</div></div>
+    <div class="metric"><div class="label">${SELECTED_IL === 'all' ? 'Genel Toplam' : SELECTED_IL + ' Toplamı'}</div><div class="value">${Math.round(genelToplam).toLocaleString('tr-TR')}</div></div>
     <div class="metric"><div class="label">Kayıt Sayısı</div><div class="value">${rows.length.toLocaleString('tr-TR')}</div></div>
     <div class="metric"><div class="label">Veri Bulunan İl Sayısı</div><div class="value">${ilCount}</div></div>
     <div class="metric"><div class="label">En Yoğun İl</div><div class="value" style="font-size:20px;">${enYogun}</div></div>
   `;
 }
 
-// ---- Harita altyapısı ----
+// ================= Harita =================
 function buildProvinceMap(){
   if (Object.keys(provinceMap).length) return;
   const svg = mapWrap.querySelector('svg');
   if (!svg) return;
   svg.querySelectorAll('g[data-plakakodu]').forEach(g => {
     const kod = g.getAttribute('data-plakakodu');
-    if (kod === '00' || !kod) return; // Kıbrıs vb. hariç
+    if (kod === '00' || !kod) return;
     if (!provinceMap[kod]) provinceMap[kod] = [];
     provinceMap[kod].push(g);
   });
@@ -7408,7 +7461,6 @@ function buildNameToKod(){
   return nameToKod;
 }
 
-// İl isimlerini haritanın üzerine yazar (her ilin bounding-box merkezine)
 function buildMapLabels(){
   if (labelsBuilt) return;
   const svg = mapWrap.querySelector('svg');
@@ -7428,7 +7480,6 @@ function buildMapLabels(){
       const cx = bbox.x + bbox.width/2;
       const cy = bbox.y + bbox.height/2;
       const ad = kodToAd[kod] || '';
-      // Küçük iller için isim taşmasın diye kısaltma yok - font-size küçük tutuluyor
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('x', cx);
       text.setAttribute('y', cy);
@@ -7440,7 +7491,7 @@ function buildMapLabels(){
       text.setAttribute('style', 'pointer-events:none; text-shadow:0 0 2px rgba(255,255,255,0.85), 0 0 2px rgba(255,255,255,0.85);');
       text.textContent = ad;
       labelLayer.appendChild(text);
-    } catch(e){ /* getBBox bazı tarayıcılarda gizli elementte hata verebilir - yoksay */ }
+    } catch(e){ /* getBBox bazı durumlarda hata verebilir - yoksay */ }
   });
 
   svg.appendChild(labelLayer);
@@ -7455,11 +7506,13 @@ function colorForRank(value, sorted){
   return COLOR_SCALE[tier];
 }
 
-function renderMap(byIl){
+// Harita HER ZAMAN tüm illeri gösterir - İl filtresi haritayı etkilemez, sadece
+// tarih aralığı ve kategori seçimi etkiler.
+function renderMap(byIlAll){
   buildProvinceMap();
   buildMapLabels();
   const nk = buildNameToKod();
-  const entries = Object.entries(byIl).filter(([il]) => il !== 'zzBelirtilmemiş');
+  const entries = Object.entries(byIlAll).filter(([il]) => il !== 'zzBelirtilmemiş');
   const values = entries.map(([,v]) => v).filter(v => v > 0).sort((a,b) => a-b);
 
   Object.values(provinceMap).forEach(gList => gList.forEach(g => {
@@ -7481,7 +7534,7 @@ function renderMap(byIl){
   `).join('');
 
   const top5 = entries.sort((a,b) => b[1]-a[1]).slice(0,5);
-  mapTopList.innerHTML = '<div style="font-weight:700; margin-bottom:6px; color:var(--text);">En Yoğun 5 İl</div>' +
+  mapTopList.innerHTML = '<div style="font-weight:700; margin-bottom:6px; color:var(--text);">En Yoğun 5 İl (Tüm İller)</div>' +
     top5.map(([il,v],i) => `
       <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--line);">
         <span>${i+1}. ${il}</span><span style="font-family:'IBM Plex Mono',monospace;">${Math.round(v).toLocaleString('tr-TR')}</span>
@@ -7489,17 +7542,16 @@ function renderMap(byIl){
     `).join('');
 }
 
-// Haritada bir ile tıklayınca İl filtresini tetikle
 mapWrap.addEventListener('click', (e) => {
   const g = e.target.closest('g[data-iladi]');
   if (!g) return;
   const ad = (g.getAttribute('data-iladi') || '').replace(/\s*\((Asya|Avrupa)\)\s*/i, '').trim();
   if (!ad) return;
-  const opt = [...ilSel.options].find(o => o.value === ad);
-  if (opt){ ilSel.value = ad; renderAll(); }
+  const exists = ilSelects[0] && [...ilSelects[0].options].some(o => o.value === ad);
+  if (exists) setIl(ad);
 });
 
-// ---- Grafik (Chart.js + değer etiketleri) ----
+// ================= Grafik =================
 function renderChart(byIl){
   const ctx = document.getElementById('gtdChart-canvas');
   if (!ctx) return;
@@ -7542,25 +7594,30 @@ function renderChart(byIl){
   });
 }
 
-// ---- Tablo ----
-function renderTable(byIl){
-  const katName = !SELECTED_KAT.length ? 'Toplam (Tüm Kategoriler)' :
-    (SELECTED_KAT.length === 1 ? CATEGORIES[SELECTED_KAT[0]].name : SELECTED_KAT.length + ' Kategori Toplamı');
-  tableHead.innerHTML = `<tr><th>#</th><th>İl</th><th>${katName}</th><th>Genel İçindeki Payı</th></tr>`;
-  const entries = Object.entries(byIl).sort((a,b) => b[1]-a[1]);
-  const total = entries.reduce((a,[,v]) => a+v, 0) || 1;
-  tableBody.innerHTML = entries.map(([il,v], i) => `
-    <tr>
-      <td>${i+1}</td>
-      <td>${il}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;">${Math.round(v).toLocaleString('tr-TR')}</td>
-      <td>${((v/total)*100).toFixed(1)}%</td>
-    </tr>
-  `).join('');
+// ================= Tablo =================
+// rowsFiltered: İl filtresi uygulanmış satırlar (tablo satırları için)
+// rowsAllIl: sadece tarih filtresi uygulanmış satırlar (Genel payı % hesaplaması için - il filtresinden bağımsız)
+function renderTable(rowsFiltered, rowsAllIl){
+  const activeCats = SELECTED_KAT.length ? SELECTED_KAT : null;
+
+  const detail = aggregateByIlDetailed(rowsFiltered);
+  const genelGrandTotal = Object.values(aggregateByIl(rowsAllIl)).reduce((a,b) => a+b, 0) || 1;
+
+  const headCols = activeCats ? activeCats.map(idx => CATEGORIES[idx].name) : ['Toplam (Tüm Kategoriler)'];
+  tableHead.innerHTML = `<tr><th>#</th><th>İl</th>${headCols.map(h => `<th>${h}</th>`).join('')}<th>Genel İçindeki Payı</th></tr>`;
+
+  const entries = Object.entries(detail).sort((a,b) => b[1].total - a[1].total);
+  tableBody.innerHTML = entries.map(([il, d], i) => {
+    const cols = activeCats
+      ? activeCats.map(idx => `<td style="font-family:'IBM Plex Mono',monospace;">${Math.round(d.catSums[idx] || 0).toLocaleString('tr-TR')}</td>`).join('')
+      : `<td style="font-family:'IBM Plex Mono',monospace;">${Math.round(d.total).toLocaleString('tr-TR')}</td>`;
+    const pct = ((d.total / genelGrandTotal) * 100).toFixed(1);
+    return `<tr><td>${i+1}</td><td>${il}</td>${cols}<td>${pct}%</td></tr>`;
+  }).join('');
   rowCountEl.textContent = `${entries.length} il`;
 }
 
-// ---- Olaylar ----
+// ================= Olaylar =================
 document.getElementById('gtdRefreshBtn').addEventListener('click', () => loadData(true));
 
 document.querySelector('[data-page="genel-talep-dagilimi"]').addEventListener('click', () => {
