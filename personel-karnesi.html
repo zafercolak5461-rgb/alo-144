@@ -72,7 +72,7 @@
   .empty-state{ padding:24px; text-align:center; color:var(--dim2); font-size:12.5px; }
 
   .identity-strip{ display:flex; align-items:center; gap:28px; background:linear-gradient(135deg, var(--panel2) 0%, var(--bg) 100%); border:1px solid var(--line); border-radius:20px; padding:34px 40px; margin-bottom:24px; }
-  .identity-av{ width:118px; height:118px; border-radius:26px; overflow:hidden; flex-shrink:0; border:3px solid var(--accent); background:var(--panel2); display:flex; align-items:center; justify-content:center; }
+  .identity-av{ width:118px; height:157px; border-radius:26px; overflow:hidden; flex-shrink:0; border:3px solid var(--accent); background:var(--panel2); display:flex; align-items:center; justify-content:center; }
   .identity-av img{ width:100%; height:100%; object-fit:cover; display:block; }
   .identity-av svg{ width:50px; height:50px; color:var(--dim2); }
   .identity-name{ font-family:'Fraunces',serif; font-size:38px; font-weight:700; color:var(--text); }
@@ -3710,8 +3710,8 @@ async function performYetkiAdd(){
 // sonra Drive'daki fotoğraf klasörüne yükler (varsa üzerine yazar), herkese açık görüntüleme
 // izni verir ve linki Personel Listesi'nin P (Foto URL) sütununa yazar.
 
-async function fileToJpegBlob(file, maxDim){
-  maxDim = maxDim || 500;
+async function fileToJpegBlob(file, maxW){
+  maxW = maxW || 400;
   // Telefon kameraları fotoğrafı genelde YATAY ham veriyle kaydedip, "ekranda dikey göster"
   // diye ayrı bir gizli EXIF etiketi (Orientation) ekliyor. Normal <img> gösterimi bu etiketi
   // otomatik uygular ama tuval (canvas) üzerinde ham pikselle çalışırken bu etiket YOK
@@ -3720,17 +3720,33 @@ async function fileToJpegBlob(file, maxDim){
   // uygulayarak resmi EKRANDA GÖRÜNDÜĞÜ GİBİ (doğru döndürülmüş) hale getirir.
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const iw = bitmap.width, ih = bitmap.height;
-  const side = Math.min(iw, ih);
-  let sx = 0, sy = 0;
-  if (ih > iw){
-    sy = 0; // dikey: üstten HİÇ kırpma yapılmaz, fazlalığın tamamı alttan alınır
-  } else if (iw > ih){
-    sx = Math.round((iw - ih) / 2); // yatay: ortadan
+
+  // Hedef oran artık ZORLA KARE değil, dikey 3:4 (genişlik:yükseklik) dikdörtgen.
+  // Telefon fotoğrafları zaten doğal olarak buna yakın bir oranda çekildiği için,
+  // kırpılması gereken kısım eskiye göre çok daha az (çoğu fotoğrafta neredeyse sıfır).
+  const RATIO = 3 / 4; // width / height
+
+  let sx, sy, cw, ch;
+  if (iw / ih > RATIO){
+    // Fotoğraf hedeften daha geniş: tam yükseklik korunur, fazlalık yanlardan (ortadan) kırpılır
+    ch = ih;
+    cw = Math.round(ih * RATIO);
+    sy = 0;
+    sx = Math.round((iw - cw) / 2);
+  } else {
+    // Fotoğraf hedeften daha dar/uzun: tam genişlik korunur, fazlalık ALTTAN kırpılır (üstten hiç)
+    cw = iw;
+    ch = Math.round(iw / RATIO);
+    sx = 0;
+    sy = 0; // üstten HİÇ kırpma yapılmaz, fazlalığın tamamı alttan alınır
+    if (ch > ih){ ch = ih; } // güvenlik: hesap taşarsa mevcut yüksekliği aşma
   }
-  const size = Math.min(maxDim, side);
+
+  const outW = Math.min(maxW, cw);
+  const outH = Math.round(outW / RATIO);
   const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
-  canvas.getContext('2d').drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
+  canvas.width = outW; canvas.height = outH;
+  canvas.getContext('2d').drawImage(bitmap, sx, sy, cw, ch, 0, 0, outW, outH);
   return await new Promise((resolve, reject) => {
     canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Resim dönüştürülemedi.')), 'image/jpeg', 0.85);
   });
