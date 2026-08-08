@@ -445,6 +445,23 @@ body{
     top:0;
     z-index:2;
   }
+  /* DASHBOARD GENELİ - sabit ilk sütun (08.08.2026): yatay kaydırırken en soldaki
+     kimlik sütunu (İl/Personel/Tarih vb.) sabit kalır, hangi satıra bakıldığı kaybolmaz. */
+  .table-scroll thead th:first-child{
+    position:sticky;
+    left:0;
+    z-index:3;
+    background:var(--bg-panel-2);
+  }
+  .table-scroll tbody td:first-child{
+    position:sticky;
+    left:0;
+    z-index:1;
+    background:var(--bg-panel);
+  }
+  .table-scroll tbody tr:hover td:first-child{
+    background:var(--bg-panel-2);
+  }
 
   .note{ margin-top:16px; font-size:12px; color:var(--text-dim); line-height:1.6; }
   .note b{ color:var(--text); }
@@ -546,6 +563,7 @@ body{
        sağa taşan sütunlar PDF'te görünmeden kesiliyordu. */
     .table-scroll{ overflow:visible !important; max-height:none !important; }
     .table-scroll thead th{ position:static !important; }
+    .table-scroll thead th:first-child, .table-scroll tbody td:first-child{ position:static !important; }
     table{ font-size:9px !important; }
     thead th, tbody td{ padding:5px 8px !important; white-space:nowrap; }
   }
@@ -1401,18 +1419,10 @@ body{
       </div>
     </div>
 
-    <div class="panel-grid">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
-        <div id="ktcCh-selectors" style="padding:8px 18px 6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ktcCh-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Oran Dağılımı (Halka) <span class="hint" style="font-size:10.5px;">metrikleri seçin</span></div>
-        <div id="ktcChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ktcChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ktcChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div id="ktcCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="ktcCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -2316,7 +2326,10 @@ function isRateHeader(name){
   // "AbdMaxWait" gibi farklı yazım biçimlerinin hepsi aynı şekilde yakalanır. "bekleme" ve
   // "maxwait"/"ans" gibi Türkçe/kısaltma varyasyonları da eklendi çünkü sheet'teki gerçek
   // başlık düz İngilizce "wait" kelimesini içermeyebilir (örn. tamamen Türkçe bir başlık).
-  const n = name.toLowerCase().replace(/[\s_-]/g, '');
+  // KÖK NEDEN (08.08.2026): .toLowerCase() Türkçe "İ" harfini düz 'i' değil, 'i' + görünmez
+  // birleşik nokta karakterine çeviriyor - bu da "ABDMAXWAİT" gibi başlıklarda 'wait' alt
+  // metin eşleşmesini bozuyordu. toLocaleLowerCase('tr') kullanılarak düzeltildi.
+  const n = name.toLocaleLowerCase('tr').replace(/[\s_-]/g, '');
   return ['oran','yüzde','yuzde','%','puan','skor','sla','asa','wait','bekleme','maxwait','abdmaxwait','ansmaxwait'].some(k => n.includes(k));
 }
 
@@ -2798,12 +2811,12 @@ const ALO_SLOT_COLORS = [
 ];
 
 function aloSlotSelectorsHtml(idPrefix, slots, metrics){
-  return slots.map((slot, i) => {
+  const rows = slots.map((slot, i) => {
     const metricOptions = `<option value="" ${!slot.metricKey ? 'selected' : ''}>— Yok —</option>` +
       metrics.map(m => `<option value="${m.key}" ${m.key === slot.metricKey ? 'selected' : ''}>${m.label}</option>`).join('');
     const colorDot = slot.metricKey ? `<span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${ALO_SLOT_COLORS[i].solid}; margin-right:6px;"></span>` : `<span style="display:inline-block; width:9px; height:9px; margin-right:6px;"></span>`;
     return `
-      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+      <div style="display:flex; align-items:center; gap:8px;">
         ${colorDot}
         <select class="search" id="${idPrefix}Metric${i}" style="width:auto; font-size:12px; padding:4px 8px; min-width:170px;">${metricOptions}</select>
         <select class="search" id="${idPrefix}Type${i}" style="width:auto; font-size:12px; padding:4px 8px;" ${!slot.metricKey ? 'disabled' : ''}>
@@ -2812,18 +2825,25 @@ function aloSlotSelectorsHtml(idPrefix, slots, metrics){
         </select>
       </div>`;
   }).join('');
+  return `<div style="display:flex; flex-wrap:wrap; gap:14px 20px;">${rows}</div>`;
 }
 
-function aloBuildSlotDatasets(slots, metrics, formatFn){
+function aloBuildSlotDatasets(slots, metrics){
   const datasets = [];
   const scales = {};
-  let axisOrder = 0;
+  // DÜZELTME (08.08.2026): Eskiden her metrik kendi ekseni alıyordu, bu da aynı birimdeki
+  // (adet/sayı) metrikleri farklı ölçekte çizip yanıltıcı görünüme sebep oluyordu. Artık
+  // metrikler AGG TİPİNE göre 2 gruba ayrılıyor: agg='sum' (ham sayı/adet) olanlar SOL ekseni
+  // ORTAK paylaşır, agg='avg' (oran/yüzde/süre - SLA, ACH, ASA, KKO vb.) olanlar SAĞ ekseni
+  // ORTAK paylaşır. Böylece aynı birimdeki metrikler dürüst şekilde kıyaslanabilir.
+  let usedSum = false, usedAvg = false;
   slots.forEach((slot, i) => {
     if (!slot.metricKey) return;
     const metric = metrics.find(m => String(m.key) === String(slot.metricKey));
     if (!metric) return;
     const color = ALO_SLOT_COLORS[i];
-    const axisId = 'y' + axisOrder;
+    const isAvg = metric.agg === 'avg';
+    const axisId = isAvg ? 'yAvg' : 'ySum';
     datasets.push({
       type: slot.type,
       label: metric.label,
@@ -2836,14 +2856,17 @@ function aloBuildSlotDatasets(slots, metrics, formatFn){
       pointBackgroundColor: color.solid, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2,
       _fmt: metric
     });
-    scales[axisId] = {
-      position: axisOrder % 2 === 0 ? 'left' : 'right',
-      display: axisOrder < 2,
-      ticks: { color: color.solid, font: { size: 10 } },
-      grid: { display: axisOrder === 0, color: 'rgba(143,163,201,0.12)' },
-      title: axisOrder < 2 ? { display: true, text: metric.label, color: color.solid, font: { size: 10 } } : undefined,
-    };
-    axisOrder++;
+    if (!scales[axisId]){
+      const firstOnLeft = !isAvg && !usedSum;
+      scales[axisId] = {
+        position: isAvg ? 'right' : 'left',
+        display: true,
+        ticks: { color: isAvg ? '#8B7FD8' : '#E8A53D', font: { size: 10 } },
+        grid: { display: !isAvg, color: 'rgba(143,163,201,0.12)' },
+        title: { display: true, text: isAvg ? 'Oran / Süre' : 'Sayı / Adet', color: isAvg ? '#8B7FD8' : '#E8A53D', font: { size: 10 } },
+      };
+    }
+    if (isAvg) usedAvg = true; else usedSum = true;
   });
   return { datasets, scales };
 }
@@ -4563,16 +4586,11 @@ const ktcChart = createSlotChartPanel({
   selectorsId: 'ktcCh-selectors',
   canvasId: 'ktcCh-canvas',
   getContext: ktcChartContext,
-  getDefaultMetricKeys: (ctx) => { const totalDef = ctx.metrics.find(m => m.label.toLowerCase().includes('genel toplam')); return totalDef ? [totalDef.key] : ctx.metrics.slice(0,1).map(m=>m.key); }
-});
-
-const ktcChartRight = createChartBuilderPanel({
-  chipsContainerId: 'ktcChR-chips',
-  typeGroupId: 'ktcChR-typeGroup',
-  canvasId: 'ktcChR-canvas',
-  defaultType: 'donut',
-  getContext: ktcChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.filter(m => m.agg === 'sum' && !m.label.toLowerCase().includes('genel toplam')).slice(0,4).map(m => m.key)
+  getDefaultMetricKeys: (ctx) => {
+    const totalDef = ctx.metrics.find(m => m.label.toLowerCase().includes('genel toplam'));
+    const rest = ctx.metrics.filter(m => m.agg === 'sum' && !m.label.toLowerCase().includes('genel toplam')).slice(0,4);
+    return [...(totalDef ? [totalDef.key] : []), ...rest.map(m => m.key)].slice(0,5);
+  }
 });
 
 function renderCompareChips(){
@@ -4618,7 +4636,6 @@ function renderComparison(){
     compareTableHead.innerHTML = '';
     compareTableBody.innerHTML = `<tr><td class="empty-state" colspan="99">Kıyaslamak için en az bir bölge seçip verisini yükleyin.</td></tr>`;
     ktcChart.render();
-    ktcChartRight.render();
     return;
   }
 
@@ -4673,7 +4690,6 @@ function renderComparison(){
   compareTableBody.innerHTML += `<tr style="border-top:2px solid var(--line);"><td class="date" style="font-weight:700;">Toplam</td>${totalRowCells}<td style="font-weight:700; color:var(--accent);">${grandTotal.toLocaleString('tr-TR')}</td></tr>`;
 
   ktcChart.render();
-  ktcChartRight.render();
 }
 
 // --- Sayfa içi sekme geçişi (Bölge Görünümü / Aylık Özet / Kıyaslama) ---
@@ -7633,19 +7649,25 @@ function renderChart(byIl){
       indexAxis: 'y',
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { right: 50 } },
       plugins: {
         legend: { display: false },
         tooltip: { enabled: true },
         datalabels: {
           anchor: 'end',
           align: 'end',
+          clamp: true,
           color: '#c7cde0',
           font: { size: 11, weight: '600' },
           formatter: (v) => v.toLocaleString('tr-TR')
         }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9aa4bf' } },
+        x: {
+          grid: { color: 'rgba(255,255,255,0.06)' },
+          ticks: { color: '#9aa4bf' },
+          suggestedMax: entries.length ? Math.max(...entries.map(e => e[1])) * 1.12 : undefined
+        },
         y: { grid: { display: false }, ticks: { color: '#c7cde0' } }
       }
     },
