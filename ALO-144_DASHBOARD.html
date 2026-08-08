@@ -1613,18 +1613,10 @@ body{
       </div>
     </div>
 
-    <div class="panel-grid" style="margin-bottom:0;">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
-        <div id="vdDevCh-selectors" style="padding:8px 18px 6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdDevCh-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Oran Dağılımı (Halka) <span class="hint" style="font-size:10.5px;">metrikleri seçin</span></div>
-        <div id="vdDevChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="vdDevChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdDevChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0; margin-bottom:0;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div id="vdDevCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="vdDevCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -1645,18 +1637,10 @@ body{
       </div>
     </div>
 
-    <div class="panel-grid" style="margin-bottom:0;">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
-        <div id="vdShiftCh-selectors" style="padding:8px 18px 6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdShiftCh-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Oran Dağılımı (Halka) <span class="hint" style="font-size:10.5px;">metrikleri seçin</span></div>
-        <div id="vdShiftChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="vdShiftChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdShiftChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0; margin-bottom:0;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div id="vdShiftCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="vdShiftCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -5251,7 +5235,6 @@ function renderDevamsizlikView(){
     countEl.textContent = '';
     metricsEl.innerHTML = '';
     vdDevChart.render();
-    vdDevChartRight.render();
     return;
   }
 
@@ -5276,7 +5259,6 @@ function renderDevamsizlikView(){
     countEl.textContent = '';
     metricsEl.innerHTML = '';
     vdDevChart.render();
-    vdDevChartRight.render();
     return;
   }
 
@@ -5314,7 +5296,6 @@ function renderDevamsizlikView(){
   playCountAnimations(metricsEl);
 
   vdDevChart.render();
-  vdDevChartRight.render();
 }
 
 // Grafik bağlamı: TARİH bazında (gün gün), sadece seçili metrikler (durum etiketleri
@@ -5362,11 +5343,6 @@ const vdDevChart = createSlotChartPanel({
   getContext: devChartContext,
   getDefaultMetricKeys: (ctx) => ctx.metrics.slice(0, 5).map(m => m.key)
 });
-const vdDevChartRight = createChartBuilderPanel({
-  chipsContainerId: 'vdDevChR-chips', typeGroupId: 'vdDevChR-typeGroup', canvasId: 'vdDevChR-canvas',
-  defaultType: 'donut', getContext: devChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.map(m => m.key)
-});
 
 // ===== SEKME 2: Vardiya Dağılımı =====
 function renderVardiyaDagilimView(){
@@ -5384,7 +5360,6 @@ function renderVardiyaDagilimView(){
     countEl.textContent = '';
     metricsEl.innerHTML = '';
     vdShiftChart.render();
-    vdShiftChartRight.render();
     return;
   }
 
@@ -5426,7 +5401,6 @@ function renderVardiyaDagilimView(){
   playCountAnimations(metricsEl);
 
   vdShiftChart.render();
-  vdShiftChartRight.render();
 }
 
 function shiftChartContext(){
@@ -5452,11 +5426,6 @@ const vdShiftChart = createSlotChartPanel({
   idPrefix: 'vdShiftCh', selectorsId: 'vdShiftCh-selectors', canvasId: 'vdShiftCh-canvas',
   getContext: shiftChartContext,
   getDefaultMetricKeys: (ctx) => ctx.metrics.slice(0, 5).map(m => m.key)
-});
-const vdShiftChartRight = createChartBuilderPanel({
-  chipsContainerId: 'vdShiftChR-chips', typeGroupId: 'vdShiftChR-typeGroup', canvasId: 'vdShiftChR-canvas',
-  defaultType: 'donut', getContext: shiftChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.map(m => m.key)
 });
 
 // ===== SEKME 3: Takım Bazlı Günlük Kapsam =====
