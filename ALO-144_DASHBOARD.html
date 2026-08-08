@@ -743,19 +743,10 @@ body{
   </div>
 
   <div class="tab-content active" id="tab-ozet">
-    <div class="panel-grid" style="margin-bottom:0;">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ozChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ozChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:280px; padding:0 18px 18px;"><canvas id="ozChL-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ozChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ozChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:280px; padding:0 18px 18px;"><canvas id="ozChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0; margin-bottom:16px;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi (Çizgi/Sütun) seçin</span></div>
+      <div id="ozCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="ozCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -811,19 +802,10 @@ body{
       </div>
     </div>
 
-    <div class="panel-grid" style="margin-bottom:0;">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ayChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ayChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:280px; padding:0 18px 18px;"><canvas id="ayChL-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ayChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ayChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:280px; padding:0 18px 18px;"><canvas id="ayChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi (Çizgi/Sütun) seçin</span></div>
+      <div id="ayCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="ayCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -1231,7 +1213,7 @@ body{
         <div id="gtdKatPanelTable" class="gtd-kat-panel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
       </div>
     </div>
-    <div class="table-wrap">
+    <div class="table-scroll">
       <table id="gtdTable">
         <thead id="gtdTableHead"></thead>
         <tbody id="gtdTableBody"></tbody>
@@ -1328,10 +1310,9 @@ body{
 
     <div style="margin-top:16px;">
       <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ktChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ktChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:380px; padding:0 18px 18px;"><canvas id="ktChL-canvas"></canvas></div>
+        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+        <div id="ktCh-selectors" style="padding:8px 18px 6px;"></div>
+        <div class="chart-wrap" style="height:380px; padding:0 18px 18px;"><canvas id="ktCh-canvas"></canvas></div>
       </div>
     </div>
   </div>
@@ -1362,19 +1343,10 @@ body{
       </div>
     </div>
 
-    <div class="panel-grid" style="margin-bottom:0;">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ayKtChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ayKtChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ayKtChL-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ayKtChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ayKtChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ayKtChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div id="ayKtCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="ayKtCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -1431,13 +1403,12 @@ body{
 
     <div class="panel-grid">
       <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ktcChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ktcChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ktcChL-canvas"></canvas></div>
+        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+        <div id="ktcCh-selectors" style="padding:8px 18px 6px;"></div>
+        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ktcCh-canvas"></canvas></div>
       </div>
       <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
+        <div class="chart-panel-head">Oran Dağılımı (Halka) <span class="hint" style="font-size:10.5px;">metrikleri seçin</span></div>
         <div id="ktcChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
         <div class="preset-group" id="ktcChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
         <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ktcChR-canvas"></canvas></div>
@@ -1589,13 +1560,12 @@ body{
 
     <div class="panel-grid" style="margin-bottom:0;">
       <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="vdDevChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="vdDevChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdDevChL-canvas"></canvas></div>
+        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+        <div id="vdDevCh-selectors" style="padding:8px 18px 6px;"></div>
+        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdDevCh-canvas"></canvas></div>
       </div>
       <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
+        <div class="chart-panel-head">Oran Dağılımı (Halka) <span class="hint" style="font-size:10.5px;">metrikleri seçin</span></div>
         <div id="vdDevChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
         <div class="preset-group" id="vdDevChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
         <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdDevChR-canvas"></canvas></div>
@@ -1622,13 +1592,12 @@ body{
 
     <div class="panel-grid" style="margin-bottom:0;">
       <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="vdShiftChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="vdShiftChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdShiftChL-canvas"></canvas></div>
+        <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+        <div id="vdShiftCh-selectors" style="padding:8px 18px 6px;"></div>
+        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdShiftCh-canvas"></canvas></div>
       </div>
       <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
+        <div class="chart-panel-head">Oran Dağılımı (Halka) <span class="hint" style="font-size:10.5px;">metrikleri seçin</span></div>
         <div id="vdShiftChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
         <div class="preset-group" id="vdShiftChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
         <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdShiftChR-canvas"></canvas></div>
@@ -1642,19 +1611,10 @@ body{
 
     <div class="metrics" id="vd-covMetrics" style="margin-bottom:20px;"></div>
 
-    <div class="panel-grid" style="margin-bottom:0;">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="vdCovChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="vdCovChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdCovChL-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="vdCovChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="vdCovChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="vdCovChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div id="vdCovCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="vdCovCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -1786,19 +1746,10 @@ body{
       </div>
     </div>
 
-    <div class="panel-grid" style="margin-bottom:0;">
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 1 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ppRankChL-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ppRankChL-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ppRankChL-canvas"></canvas></div>
-      </div>
-      <div class="chart-panel" style="padding-bottom:0;">
-        <div class="chart-panel-head">Grafik 2 <span class="hint" style="font-size:10.5px;">metrikleri ve grafik tipini seçin</span></div>
-        <div id="ppRankChR-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-        <div class="preset-group" id="ppRankChR-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-        <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="ppRankChR-canvas"></canvas></div>
-      </div>
+    <div class="chart-panel" style="padding-bottom:0;">
+      <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div id="ppRankCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="ppRankCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -1825,10 +1776,9 @@ body{
     <div id="pp-cardContent"></div>
 
     <div class="chart-panel" id="pp-cardTrendPanel" style="display:none; margin-top:16px; padding-bottom:0;">
-      <div class="chart-panel-head">Personel / Takım / Lokasyon Ortalaması — Aylar Arası Trend <span class="hint" style="font-size:10.5px;">grafik tipini seçin</span></div>
-      <div id="ppCardTrend-chips" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:6px;"></div>
-      <div class="preset-group" id="ppCardTrend-typeGroup" style="padding:0 18px 12px; margin-bottom:0; gap:6px;"></div>
-      <div class="chart-wrap" style="height:320px; padding:0 18px 18px;"><canvas id="ppCardTrend-canvas"></canvas></div>
+      <div class="chart-panel-head">Personel / Takım / Lokasyon Ortalaması — Aylar Arası Trend <span class="hint" style="font-size:10.5px;">her slot için metrik ve grafik tipi seçin</span></div>
+      <div id="ppCardTrendCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:320px; padding:0 18px 18px;"><canvas id="ppCardTrendCh-canvas"></canvas></div>
     </div>
   </div>
 
@@ -2362,8 +2312,12 @@ function isPercentHeader(name){
 // güvenilmez - isim bazlı tespite ihtiyaç var (kullanıcı onayladı, önceden yanlışlıkla
 // toplanıyordu, AHT'deki aynı kök sorun).
 function isRateHeader(name){
-  const n = name.toLowerCase();
-  return ['oran','yüzde','yuzde','%','puan','skor','sla','asa','wait'].some(k => n.includes(k));
+  // Boşluklar/alt çizgiler kaldırılarak karşılaştırılıyor - "ABD Max Wait", "Abd_Max_Wait",
+  // "AbdMaxWait" gibi farklı yazım biçimlerinin hepsi aynı şekilde yakalanır. "bekleme" ve
+  // "maxwait"/"ans" gibi Türkçe/kısaltma varyasyonları da eklendi çünkü sheet'teki gerçek
+  // başlık düz İngilizce "wait" kelimesini içermeyebilir (örn. tamamen Türkçe bir başlık).
+  const n = name.toLowerCase().replace(/[\s_-]/g, '');
+  return ['oran','yüzde','yuzde','%','puan','skor','sla','asa','wait','bekleme','maxwait','abdmaxwait','ansmaxwait'].some(k => n.includes(k));
 }
 
 function chartTheme(){
@@ -2829,7 +2783,131 @@ function createChartBuilderPanel(config){
   return { render };
 }
 
-// ===== ORTAK EXCEL'E AKTARMA =====
+// ===== 5-SLOT GRAFİK SİSTEMİ (Personel Karnesi Analiz sekmesiyle aynı mantık) =====
+// createChartBuilderPanel'den farkı: burada her "slot" kendi metriğini VE kendi grafik
+// türünü (Çizgi/Sütun) BAĞIMSIZ seçer, farklı ölçekli metrikler çift eksende (en fazla 2
+// eksen görünür, gerisi sağa/sola üst üste biner ama veri kaybolmaz) üst üste gösterilir.
+// Personel Karnesi'ndeki ANALIZ_SLOT_COLORS/analizSlotSelectorsHtml/analizBuildSlotDatasets
+// ile BİREBİR aynı görsel dil - iki dashboard arasında tutarlılık için.
+const ALO_SLOT_COLORS = [
+  { solid: '#E8A53D', bar: 'rgba(232,165,61,0.75)', line: 'rgba(232,165,61,0.15)' },
+  { solid: '#5b9cf6', bar: 'rgba(91,156,246,0.65)', line: 'rgba(91,156,246,0.15)' },
+  { solid: '#3ddc97', bar: 'rgba(61,220,151,0.65)', line: 'rgba(61,220,151,0.15)' },
+  { solid: '#e85d5d', bar: 'rgba(232,93,93,0.65)', line: 'rgba(232,93,93,0.15)' },
+  { solid: '#8B7FD8', bar: 'rgba(139,127,216,0.65)', line: 'rgba(139,127,216,0.15)' },
+];
+
+function aloSlotSelectorsHtml(idPrefix, slots, metrics){
+  return slots.map((slot, i) => {
+    const metricOptions = `<option value="" ${!slot.metricKey ? 'selected' : ''}>— Yok —</option>` +
+      metrics.map(m => `<option value="${m.key}" ${m.key === slot.metricKey ? 'selected' : ''}>${m.label}</option>`).join('');
+    const colorDot = slot.metricKey ? `<span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:${ALO_SLOT_COLORS[i].solid}; margin-right:6px;"></span>` : `<span style="display:inline-block; width:9px; height:9px; margin-right:6px;"></span>`;
+    return `
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+        ${colorDot}
+        <select class="search" id="${idPrefix}Metric${i}" style="width:auto; font-size:12px; padding:4px 8px; min-width:170px;">${metricOptions}</select>
+        <select class="search" id="${idPrefix}Type${i}" style="width:auto; font-size:12px; padding:4px 8px;" ${!slot.metricKey ? 'disabled' : ''}>
+          <option value="line" ${slot.type==='line'?'selected':''}>Çizgi</option>
+          <option value="bar" ${slot.type==='bar'?'selected':''}>Sütun</option>
+        </select>
+      </div>`;
+  }).join('');
+}
+
+function aloBuildSlotDatasets(slots, metrics, formatFn){
+  const datasets = [];
+  const scales = {};
+  let axisOrder = 0;
+  slots.forEach((slot, i) => {
+    if (!slot.metricKey) return;
+    const metric = metrics.find(m => String(m.key) === String(slot.metricKey));
+    if (!metric) return;
+    const color = ALO_SLOT_COLORS[i];
+    const axisId = 'y' + axisOrder;
+    datasets.push({
+      type: slot.type,
+      label: metric.label,
+      data: metric.values,
+      yAxisID: axisId,
+      borderColor: color.solid,
+      backgroundColor: slot.type === 'bar' ? color.bar : color.line,
+      fill: slot.type === 'line',
+      tension: 0.3,
+      pointBackgroundColor: color.solid, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2,
+      _fmt: metric
+    });
+    scales[axisId] = {
+      position: axisOrder % 2 === 0 ? 'left' : 'right',
+      display: axisOrder < 2,
+      ticks: { color: color.solid, font: { size: 10 } },
+      grid: { display: axisOrder === 0, color: 'rgba(143,163,201,0.12)' },
+      title: axisOrder < 2 ? { display: true, text: metric.label, color: color.solid, font: { size: 10 } } : undefined,
+    };
+    axisOrder++;
+  });
+  return { datasets, scales };
+}
+
+function aloWireSlotSelectors(idPrefix, slots, onChange){
+  slots.forEach((slot, i) => {
+    const metricSel = document.getElementById(`${idPrefix}Metric${i}`);
+    const typeSel = document.getElementById(`${idPrefix}Type${i}`);
+    if (metricSel){
+      metricSel.addEventListener('change', () => { slots[i].metricKey = metricSel.value; onChange(); });
+    }
+    if (typeSel){
+      typeSel.addEventListener('change', () => { slots[i].type = typeSel.value; onChange(); });
+    }
+  });
+}
+
+// KULLANIM: createSlotChartPanel({ idPrefix, selectorsId, canvasId, getContext: () => ({labels, metrics}), getDefaultMetricKeys: (ctx) => ['1','2'] })
+// getDefaultMetricKeys, ilk render'da SIRAYLA slot 0,1,2... doldurmak için kullanılır (opsiyonel, boşsa tüm slotlar boş başlar).
+function createSlotChartPanel(config){
+  const selectorsEl = document.getElementById(config.selectorsId);
+  const canvasEl = document.getElementById(config.canvasId);
+  const slots = [
+    { metricKey: '', type: 'line' },
+    { metricKey: '', type: 'line' },
+    { metricKey: '', type: 'line' },
+    { metricKey: '', type: 'line' },
+    { metricKey: '', type: 'line' },
+  ];
+  let chartInstance = null;
+  let initialized = false;
+
+  function render(){
+    const ctx = config.getContext();
+    if (!initialized){
+      initialized = true;
+      const defaults = config.getDefaultMetricKeys ? (config.getDefaultMetricKeys(ctx) || []) : [];
+      defaults.slice(0,5).forEach((key,i) => { if (key !== undefined && key !== null) slots[i].metricKey = String(key); });
+    }
+    selectorsEl.innerHTML = aloSlotSelectorsHtml(config.idPrefix, slots, ctx.metrics);
+    aloWireSlotSelectors(config.idPrefix, slots, render);
+
+    if (chartInstance){ chartInstance.destroy(); chartInstance = null; }
+    const { datasets, scales } = aloBuildSlotDatasets(slots, ctx.metrics);
+    if (!datasets.length) return;
+    const t = chartTheme();
+    scales.x = { grid:{ color:t.grid }, ticks:{ color:t.text, font:{ family:'IBM Plex Mono', size:10 } } };
+    chartInstance = new Chart(canvasEl, {
+      type: 'bar',
+      data: { labels: ctx.labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: t.text, font: { family:'Inter', size:11 } } },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${formatMetricValue(c.parsed.y, c.dataset._fmt)}` } }
+        },
+        scales
+      }
+    });
+  }
+
+  return { render };
+}
+
 // Herhangi bir <table> elementini, o an ekranda görünen haliyle (filtrelenmiş,
 // sıralanmış, ne ise) tek tıkla .xlsx dosyası olarak indirir. SheetJS kütüphanesi kullanır
 // (CDN üzerinden yükleniyor, bkz. build.sh).
@@ -3036,20 +3114,12 @@ function ozetChartContext(){
   return { labels, metrics };
 }
 
-const ozetChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'ozChL-chips',
-  typeGroupId: 'ozChL-typeGroup',
-  canvasId: 'ozChL-canvas',
+const ozetChart = createSlotChartPanel({
+  idPrefix: 'ozCh',
+  selectorsId: 'ozCh-selectors',
+  canvasId: 'ozCh-canvas',
   getContext: ozetChartContext,
-  getDefaultSelected: () => [COL.gelen, COL.cevap, COL.kacan].filter(i => i >= 0)
-});
-
-const ozetChartRight = createChartBuilderPanel({
-  chipsContainerId: 'ozChR-chips',
-  typeGroupId: 'ozChR-typeGroup',
-  canvasId: 'ozChR-canvas',
-  getContext: ozetChartContext,
-  getDefaultSelected: () => [COL.sla, COL.ach].filter(i => i >= 0)
+  getDefaultMetricKeys: () => [COL.gelen, COL.cevap, COL.kacan, COL.sla, COL.ach].filter(i => i >= 0)
 });
 
 // --- Filtering (ortak kontrolcü kullanılıyor - bkz. shared-global/date-filter.js) ---
@@ -3067,8 +3137,7 @@ const gelenAramaFilter = createDateFilterController({
     CURRENT_FILTERED_ROWS = filtered;
     renderMetrics(filtered);
     renderTable(filtered);
-    ozetChartLeft.render();
-    ozetChartRight.render();
+    ozetChart.render();
   }
 });
 
@@ -3349,8 +3418,7 @@ function renderMonthlyTable(){
   if (!selected.length){
     head.innerHTML = '';
     body.innerHTML = `<tr><td class="empty-state" colspan="99">Yukarıdan en az bir ay seçin.</td></tr>`;
-    aylikChartLeft.render();
-    aylikChartRight.render();
+    aylikChart.render();
     return;
   }
 
@@ -3397,8 +3465,7 @@ function renderMonthlyTable(){
   }).join('');
   body.innerHTML += `<tr style="border-top:2px solid var(--line);"><td class="date" style="font-weight:700;">Toplam (${selected.length} ay)</td>${totalCells}</tr>`;
 
-  aylikChartLeft.render();
-  aylikChartRight.render();
+  aylikChart.render();
 }
 
 // --- Grafik bağlamı: Aylık Özet (seçili aylar boyunca toplulaştırılmış değerler) ---
@@ -3422,20 +3489,12 @@ function aylikChartContext(){
   return { labels, metrics };
 }
 
-const aylikChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'ayChL-chips',
-  typeGroupId: 'ayChL-typeGroup',
-  canvasId: 'ayChL-canvas',
+const aylikChart = createSlotChartPanel({
+  idPrefix: 'ayCh',
+  selectorsId: 'ayCh-selectors',
+  canvasId: 'ayCh-canvas',
   getContext: aylikChartContext,
-  getDefaultSelected: () => [COL.gelen, COL.cevap, COL.kacan].filter(i => i >= 0)
-});
-
-const aylikChartRight = createChartBuilderPanel({
-  chipsContainerId: 'ayChR-chips',
-  typeGroupId: 'ayChR-typeGroup',
-  canvasId: 'ayChR-canvas',
-  getContext: aylikChartContext,
-  getDefaultSelected: () => [COL.sla, COL.ach].filter(i => i >= 0)
+  getDefaultMetricKeys: () => [COL.gelen, COL.cevap, COL.kacan, COL.sla, COL.ach].filter(i => i >= 0)
 });
 
 
@@ -4074,7 +4133,7 @@ const ktRegionFilter = createDateFilterController({
     ktRangeLabel.textContent = `${filtered.length} gün seçili`;
     renderRegionMetrics(filtered);
     renderRegionTable(filtered);
-    ktChartLeft.render();
+    ktChart.render();
   }
 });
 
@@ -4122,13 +4181,12 @@ function ktChartContext(){
   return { labels, metrics };
 }
 
-const ktChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'ktChL-chips',
-  typeGroupId: 'ktChL-typeGroup',
-  canvasId: 'ktChL-canvas',
-  defaultType: 'bar',
+const ktChart = createSlotChartPanel({
+  idPrefix: 'ktCh',
+  selectorsId: 'ktCh-selectors',
+  canvasId: 'ktCh-canvas',
   getContext: ktChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.filter(m => m.agg === 'sum').map(m => m.key)
+  getDefaultMetricKeys: (ctx) => ctx.metrics.filter(m => m.agg === 'sum').map(m => m.key).slice(0,5)
 });
 
 function renderRegionTable(filteredRows){
@@ -4183,12 +4241,11 @@ function switchRegionView(){
     ktTableHead.innerHTML = '';
     ktTableBody.innerHTML = `<tr><td class="empty-state" colspan="99">${activeRegion === 'GENEL' ? 'Henüz hiçbir bölge yüklenmedi.' : 'Bu bölge için henüz veri çekilmedi.'} Yukarıdan "Yenile"ye basın.</td></tr>`;
     genelNote.style.display = 'none';
-    ktChartLeft.render();
+    ktChart.render();
     document.getElementById('kt-monthChips').innerHTML = `<div class="empty-state">Henüz veri yok.</div>`;
     document.getElementById('kt-monthlyTableHead').innerHTML = '';
     document.getElementById('kt-monthlyTableBody').innerHTML = `<tr><td class="empty-state" colspan="99">Bu bölge için henüz veri çekilmedi.</td></tr>`;
-    ayKtChartLeft.render();
-    ayKtChartRight.render();
+    ayKtChart.render();
     return;
   }
 
@@ -4316,8 +4373,7 @@ function renderMonthlyTableKT(){
   if (!data || !selected.length){
     head.innerHTML = '';
     body.innerHTML = `<tr><td class="empty-state" colspan="99">Yukarıdan en az bir ay seçin.</td></tr>`;
-    ayKtChartLeft.render();
-    ayKtChartRight.render();
+    ayKtChart.render();
     return;
   }
 
@@ -4361,8 +4417,7 @@ function renderMonthlyTableKT(){
   }).join('');
   body.innerHTML += `<tr style="border-top:2px solid var(--line);"><td class="date" style="font-weight:700;">Toplam (${selected.length} ay)</td>${totalCellsKT}</tr>`;
 
-  ayKtChartLeft.render();
-  ayKtChartRight.render();
+  ayKtChart.render();
 }
 
 // --- Grafik bağlamı: Köpük Talep Dağılımı Aylık Özet ---
@@ -4390,22 +4445,15 @@ function ktAylikChartContext(){
   return { labels, metrics };
 }
 
-const ayKtChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'ayKtChL-chips',
-  typeGroupId: 'ayKtChL-typeGroup',
-  canvasId: 'ayKtChL-canvas',
-  defaultType: 'bar',
+const ayKtChart = createSlotChartPanel({
+  idPrefix: 'ayKtCh',
+  selectorsId: 'ayKtCh-selectors',
+  canvasId: 'ayKtCh-canvas',
   getContext: ktAylikChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.filter(m => m.agg === 'sum').slice(0, 3).map(m => m.key)
-});
-
-const ayKtChartRight = createChartBuilderPanel({
-  chipsContainerId: 'ayKtChR-chips',
-  typeGroupId: 'ayKtChR-typeGroup',
-  canvasId: 'ayKtChR-canvas',
-  defaultType: 'line',
-  getContext: ktAylikChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.filter(m => m.agg === 'avg').slice(0, 2).map(m => m.key)
+  getDefaultMetricKeys: (ctx) => [
+    ...ctx.metrics.filter(m => m.agg === 'sum').slice(0, 3).map(m => m.key),
+    ...ctx.metrics.filter(m => m.agg === 'avg').slice(0, 2).map(m => m.key)
+  ]
 });
 
 document.getElementById('kt-regionGroup').addEventListener('click', (e) => {
@@ -4510,13 +4558,12 @@ function ktcChartContext(){
   return { labels, metrics };
 }
 
-const ktcChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'ktcChL-chips',
-  typeGroupId: 'ktcChL-typeGroup',
-  canvasId: 'ktcChL-canvas',
-  defaultType: 'bar',
+const ktcChart = createSlotChartPanel({
+  idPrefix: 'ktcCh',
+  selectorsId: 'ktcCh-selectors',
+  canvasId: 'ktcCh-canvas',
   getContext: ktcChartContext,
-  getDefaultSelected: (ctx) => { const totalDef = ctx.metrics.find(m => m.label.toLowerCase().includes('genel toplam')); return totalDef ? [totalDef.key] : ctx.metrics.slice(0,1).map(m=>m.key); }
+  getDefaultMetricKeys: (ctx) => { const totalDef = ctx.metrics.find(m => m.label.toLowerCase().includes('genel toplam')); return totalDef ? [totalDef.key] : ctx.metrics.slice(0,1).map(m=>m.key); }
 });
 
 const ktcChartRight = createChartBuilderPanel({
@@ -4570,7 +4617,7 @@ function renderComparison(){
     ktcMetrics.innerHTML = '';
     compareTableHead.innerHTML = '';
     compareTableBody.innerHTML = `<tr><td class="empty-state" colspan="99">Kıyaslamak için en az bir bölge seçip verisini yükleyin.</td></tr>`;
-    ktcChartLeft.render();
+    ktcChart.render();
     ktcChartRight.render();
     return;
   }
@@ -4625,7 +4672,7 @@ function renderComparison(){
   const totalRowCells = regionColumnTotals.map(v => `<td style="font-weight:600; color:var(--accent);">${v.toLocaleString('tr-TR')}</td>`).join('');
   compareTableBody.innerHTML += `<tr style="border-top:2px solid var(--line);"><td class="date" style="font-weight:700;">Toplam</td>${totalRowCells}<td style="font-weight:700; color:var(--accent);">${grandTotal.toLocaleString('tr-TR')}</td></tr>`;
 
-  ktcChartLeft.render();
+  ktcChart.render();
   ktcChartRight.render();
 }
 
@@ -5142,7 +5189,7 @@ function renderDevamsizlikView(){
     body.innerHTML = `<tr><td class="empty-state" colspan="99">Yukarıdan en az bir metrik seçin (Rapor, Yıllık İzin, Çalışma Gün Sayısı vb.).</td></tr>`;
     countEl.textContent = '';
     metricsEl.innerHTML = '';
-    vdDevChartLeft.render();
+    vdDevChart.render();
     vdDevChartRight.render();
     return;
   }
@@ -5167,7 +5214,7 @@ function renderDevamsizlikView(){
     body.innerHTML = `<tr><td class="empty-state" colspan="99">Seçili filtrelerde veri yok. Takım/personel/tarih seçimlerinizi kontrol edin.</td></tr>`;
     countEl.textContent = '';
     metricsEl.innerHTML = '';
-    vdDevChartLeft.render();
+    vdDevChart.render();
     vdDevChartRight.render();
     return;
   }
@@ -5205,7 +5252,7 @@ function renderDevamsizlikView(){
   ).join('');
   playCountAnimations(metricsEl);
 
-  vdDevChartLeft.render();
+  vdDevChart.render();
   vdDevChartRight.render();
 }
 
@@ -5249,10 +5296,10 @@ function devChartContext(){
   return { labels, metrics };
 }
 
-const vdDevChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'vdDevChL-chips', typeGroupId: 'vdDevChL-typeGroup', canvasId: 'vdDevChL-canvas',
-  defaultType: 'bar', getContext: devChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.slice(0, 3).map(m => m.key)
+const vdDevChart = createSlotChartPanel({
+  idPrefix: 'vdDevCh', selectorsId: 'vdDevCh-selectors', canvasId: 'vdDevCh-canvas',
+  getContext: devChartContext,
+  getDefaultMetricKeys: (ctx) => ctx.metrics.slice(0, 5).map(m => m.key)
 });
 const vdDevChartRight = createChartBuilderPanel({
   chipsContainerId: 'vdDevChR-chips', typeGroupId: 'vdDevChR-typeGroup', canvasId: 'vdDevChR-canvas',
@@ -5275,7 +5322,7 @@ function renderVardiyaDagilimView(){
     body.innerHTML = `<tr><td class="empty-state" colspan="99">Seçili filtrelerde veri yok.</td></tr>`;
     countEl.textContent = '';
     metricsEl.innerHTML = '';
-    vdShiftChartLeft.render();
+    vdShiftChart.render();
     vdShiftChartRight.render();
     return;
   }
@@ -5317,7 +5364,7 @@ function renderVardiyaDagilimView(){
   ).join('');
   playCountAnimations(metricsEl);
 
-  vdShiftChartLeft.render();
+  vdShiftChart.render();
   vdShiftChartRight.render();
 }
 
@@ -5340,10 +5387,10 @@ function shiftChartContext(){
   return { labels, metrics };
 }
 
-const vdShiftChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'vdShiftChL-chips', typeGroupId: 'vdShiftChL-typeGroup', canvasId: 'vdShiftChL-canvas',
-  defaultType: 'bar', getContext: shiftChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.slice(0, 3).map(m => m.key)
+const vdShiftChart = createSlotChartPanel({
+  idPrefix: 'vdShiftCh', selectorsId: 'vdShiftCh-selectors', canvasId: 'vdShiftCh-canvas',
+  getContext: shiftChartContext,
+  getDefaultMetricKeys: (ctx) => ctx.metrics.slice(0, 5).map(m => m.key)
 });
 const vdShiftChartRight = createChartBuilderPanel({
   chipsContainerId: 'vdShiftChR-chips', typeGroupId: 'vdShiftChR-typeGroup', canvasId: 'vdShiftChR-canvas',
@@ -5462,8 +5509,7 @@ function renderKapsamView(){
 
   if ((!workedRecords.length && !durumRecords.length) || !teams.length){
     metricsEl.innerHTML = '';
-    vdCovChartLeft.render();
-    vdCovChartRight.render();
+    vdCovChart.render();
     return;
   }
 
@@ -5481,8 +5527,7 @@ function renderKapsamView(){
   ].join('');
   playCountAnimations(metricsEl);
 
-  vdCovChartLeft.render();
-  vdCovChartRight.render();
+  vdCovChart.render();
 }
 
 function covChartContext(){
@@ -5519,15 +5564,13 @@ function covChartContext(){
   return { labels, metrics: [...teamMetrics, ...durumMetrics] };
 }
 
-const vdCovChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'vdCovChL-chips', typeGroupId: 'vdCovChL-typeGroup', canvasId: 'vdCovChL-canvas',
-  defaultType: 'line', getContext: covChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.filter(m => m.key.startsWith('takim_')).map(m => m.key)
-});
-const vdCovChartRight = createChartBuilderPanel({
-  chipsContainerId: 'vdCovChR-chips', typeGroupId: 'vdCovChR-typeGroup', canvasId: 'vdCovChR-canvas',
-  defaultType: 'bar', getContext: covChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.filter(m => m.key.startsWith('durum_')).slice(0, 3).map(m => m.key)
+const vdCovChart = createSlotChartPanel({
+  idPrefix: 'vdCovCh', selectorsId: 'vdCovCh-selectors', canvasId: 'vdCovCh-canvas',
+  getContext: covChartContext,
+  getDefaultMetricKeys: (ctx) => [
+    ...ctx.metrics.filter(m => m.key.startsWith('takim_')).slice(0,3).map(m => m.key),
+    ...ctx.metrics.filter(m => m.key.startsWith('durum_')).slice(0,2).map(m => m.key)
+  ]
 });
 
 // ===== SEKME 4: Günlük Detay — Personel × Gün matrisi =====
@@ -6107,8 +6150,7 @@ function renderRankingView(){
     body.innerHTML = `<tr><td class="empty-state" colspan="99">Sıralama için Ay Seçimi'nden en az bir ay seçin.</td></tr>`;
     countEl.textContent = '';
     metricsEl.innerHTML = '';
-    ppRankChartLeft.render();
-    ppRankChartRight.render();
+    ppRankChart.render();
     return;
   }
 
@@ -6118,8 +6160,7 @@ function renderRankingView(){
     body.innerHTML = `<tr><td class="empty-state" colspan="99">Seçili filtrelerde bu ay için veri yok.</td></tr>`;
     countEl.textContent = '';
     metricsEl.innerHTML = '';
-    ppRankChartLeft.render();
-    ppRankChartRight.render();
+    ppRankChart.render();
     return;
   }
 
@@ -6143,8 +6184,7 @@ function renderRankingView(){
   metricsEl.innerHTML = `<div class="metric"><div class="label">${selectedTeamLeader === 'ALL' ? 'Lokasyon' : selectedTeamLeader} Performans Ortalaması</div><div class="value ok" data-count-target="${overallAvg !== null ? overallAvg : ''}" data-count-decimals="1">0</div></div>`;
   playCountAnimations(metricsEl);
 
-  ppRankChartLeft.render();
-  ppRankChartRight.render();
+  ppRankChart.render();
 }
 
 function rankChartContext(){
@@ -6160,15 +6200,14 @@ function rankChartContext(){
   return { labels, metrics };
 }
 
-const ppRankChartLeft = createChartBuilderPanel({
-  chipsContainerId: 'ppRankChL-chips', typeGroupId: 'ppRankChL-typeGroup', canvasId: 'ppRankChL-canvas',
-  defaultType: 'bar', getContext: rankChartContext,
-  getDefaultSelected: (ctx) => { const perf = ctx.metrics.find(m => m.key === 'performans'); return perf ? [perf.key] : ctx.metrics.slice(0,1).map(m => m.key); }
-});
-const ppRankChartRight = createChartBuilderPanel({
-  chipsContainerId: 'ppRankChR-chips', typeGroupId: 'ppRankChR-typeGroup', canvasId: 'ppRankChR-canvas',
-  defaultType: 'bar', getContext: rankChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.filter(m => ['kko','anket','sinav'].includes(m.key)).map(m => m.key)
+const ppRankChart = createSlotChartPanel({
+  idPrefix: 'ppRankCh', selectorsId: 'ppRankCh-selectors', canvasId: 'ppRankCh-canvas',
+  getContext: rankChartContext,
+  getDefaultMetricKeys: (ctx) => {
+    const perf = ctx.metrics.find(m => m.key === 'performans');
+    const rest = ctx.metrics.filter(m => ['kko','anket','sinav'].includes(m.key)).map(m => m.key);
+    return [...(perf ? [perf.key] : []), ...rest].slice(0,5);
+  }
 });
 
 // ===== SEKME 2: Aylar Arası Kıyaslama =====
@@ -6357,10 +6396,10 @@ function cardTrendChartContext(){
   };
 }
 
-const ppCardTrendChart = createChartBuilderPanel({
-  chipsContainerId: 'ppCardTrend-chips', typeGroupId: 'ppCardTrend-typeGroup', canvasId: 'ppCardTrend-canvas',
-  defaultType: 'line', getContext: cardTrendChartContext,
-  getDefaultSelected: (ctx) => ctx.metrics.map(m => m.key)
+const ppCardTrendChart = createSlotChartPanel({
+  idPrefix: 'ppCardTrendCh', selectorsId: 'ppCardTrendCh-selectors', canvasId: 'ppCardTrendCh-canvas',
+  getContext: cardTrendChartContext,
+  getDefaultMetricKeys: (ctx) => ctx.metrics.map(m => m.key)
 });
 
 // Performans Puanı'na göre yorum metninin rengini belirler (sadece TEK AY modunda kullanılır).
@@ -7353,13 +7392,32 @@ function populateIlFilter(){
 }
 
 function populateKatFilter(){
-  const optsHtml = CATEGORIES.map((c,i) => `
+  const checksHtml = CATEGORIES.map((c,i) => `
     <label style="display:flex; align-items:center; gap:8px; padding:5px 2px; cursor:pointer; font-size:12.5px;">
       <input type="checkbox" class="gtd-kat-check" value="${i}" ${SELECTED_KAT.includes(i) ? 'checked' : ''}>
       ${c.name}
     </label>
   `).join('');
-  katControls.forEach(({panel}) => { panel.innerHTML = optsHtml; });
+  const optsHtml = `
+    <div style="display:flex; gap:8px; padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid var(--line);">
+      <button type="button" class="gtd-kat-selectall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Seç</button>
+      <button type="button" class="gtd-kat-clearall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Sil</button>
+    </div>
+    ${checksHtml}
+  `;
+  katControls.forEach(({panel}) => {
+    panel.innerHTML = optsHtml;
+    panel.querySelector('.gtd-kat-selectall').addEventListener('click', () => {
+      SELECTED_KAT = CATEGORIES.map((_,i) => i);
+      syncKatControls();
+      renderAll();
+    });
+    panel.querySelector('.gtd-kat-clearall').addEventListener('click', () => {
+      SELECTED_KAT = [];
+      syncKatControls();
+      renderAll();
+    });
+  });
   syncKatControls();
 }
 
@@ -7485,10 +7543,11 @@ function buildMapLabels(){
       text.setAttribute('y', cy);
       text.setAttribute('text-anchor', 'middle');
       text.setAttribute('dominant-baseline', 'middle');
-      text.setAttribute('font-size', '6.5');
+      text.setAttribute('font-size', '9.5');
       text.setAttribute('font-family', 'sans-serif');
+      text.setAttribute('font-weight', '800');
       text.setAttribute('fill', '#1a1f2e');
-      text.setAttribute('style', 'pointer-events:none; text-shadow:0 0 2px rgba(255,255,255,0.85), 0 0 2px rgba(255,255,255,0.85);');
+      text.setAttribute('style', 'pointer-events:none; text-shadow:0 0 3px rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.95), 0 0 3px rgba(255,255,255,0.95);');
       text.textContent = ad;
       labelLayer.appendChild(text);
     } catch(e){ /* getBBox bazı durumlarda hata verebilir - yoksay */ }
