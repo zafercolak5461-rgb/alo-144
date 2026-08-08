@@ -3723,7 +3723,7 @@ async function fileToJpegBlob(file, maxDim){
   const side = Math.min(iw, ih);
   let sx = 0, sy = 0;
   if (ih > iw){
-    sy = Math.round((ih - iw) * 0.08); // dikey: fazlalığın çoğu alttan alınır
+    sy = 0; // dikey: üstten HİÇ kırpma yapılmaz, fazlalığın tamamı alttan alınır
   } else if (iw > ih){
     sx = Math.round((iw - ih) / 2); // yatay: ortadan
   }
