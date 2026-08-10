@@ -508,6 +508,27 @@ body{
   }
   #ppXlsxRank tbody tr:hover td:nth-child(2){ background:var(--bg-panel-2); }
 
+  /* AYNI İSTİSNA: Analiz sayfası -> İl Sıralaması tablosunda (anIlRankTable)
+     gerçek ilk sütun "#" (sıra no), asıl kimlik sütunu "İl" ikinci sırada. */
+  #anIlRankTable thead th:first-child,
+  #anIlRankTable tbody td:first-child{
+    position:sticky; left:0; z-index:2;
+    width:40px; min-width:40px; max-width:40px;
+    text-align:center;
+  }
+  #anIlRankTable thead th:first-child{ background:var(--bg-panel-2); z-index:4; }
+  #anIlRankTable tbody td:first-child{ background:var(--bg-panel); }
+  #anIlRankTable tbody tr:hover td:first-child{ background:var(--bg-panel-2); }
+  #anIlRankTable thead th:nth-child(2){
+    position:sticky; left:40px; z-index:3;
+    background:var(--bg-panel-2); text-align:left;
+  }
+  #anIlRankTable tbody td:nth-child(2){
+    position:sticky; left:40px; z-index:1;
+    background:var(--bg-panel); text-align:left;
+  }
+  #anIlRankTable tbody tr:hover td:nth-child(2){ background:var(--bg-panel-2); }
+
   .note{ margin-top:16px; font-size:12px; color:var(--text-dim); line-height:1.6; }
   .note b{ color:var(--text); }
 
@@ -1556,23 +1577,16 @@ body{
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px;">
-      <div class="date-input-group">
-        <label>Talep Kaynağı</label>
-        <select id="an-source">
-          <option value="gtd">Genel Talep Dağılımı (kategori + il kırılımlı)</option>
-          <option value="kopuk">Köpük Talep Dağılımı (toplam hacim)</option>
-        </select>
-      </div>
       <div class="date-input-group" id="an-il-group">
-        <label>İl</label>
+        <label>İl <span class="hint" style="font-size:10px;">(sadece Genel Talep Dağılımı'nı etkiler)</span></label>
         <select id="an-ilSelect"><option value="all">Tüm İller</option></select>
       </div>
       <div class="date-input-group" id="an-kat-group" style="position:relative;">
-        <label>Kategori (çoklu seçim)</label>
+        <label>Kategori — Genel Talep Dağılımı <span class="hint" style="font-size:10px;">(çoklu seçim)</span></label>
         <button type="button" id="an-katBtn" class="refresh-btn" style="min-width:220px; text-align:left;">Genel (Tüm Kategoriler) ▾</button>
-        <div id="an-katPanel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
+        <div id="an-katPanel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:320px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
       </div>
-      <span class="hint" style="font-size:10.5px;">Köpük Talep kaynağında İl/Kategori kırılımı yok — tüm bölgelerin toplamı kullanılır</span>
+      <span class="hint" style="font-size:10.5px;">Köpük Talep her zaman toplam hacim olarak gösterilir — İl/Kategori kırılımı bu analizde yok</span>
     </div>
   </div>
 
@@ -1584,40 +1598,46 @@ body{
   </div>
 
   <div class="chart-panel" style="margin-bottom:16px;">
-    <div class="chart-panel-head">Korelasyon — Talep vs Çağrı <span class="hint" style="font-size:10.5px;">dönem başı = 100 endeksli — iki çizgi birbirine yaklaşıyorsa paralel hareket ediyor demektir</span></div>
-    <div class="chart-wrap" style="height:340px; padding:8px 18px 18px;"><canvas id="anCorrChart-canvas"></canvas></div>
+    <div class="chart-panel-head">Korelasyon — Çağrı × Genel Talep × Köpük Talep <span class="hint" style="font-size:10.5px;">dönem başı = 100 endeksli — çizgiler birbirine yaklaşıyorsa paralel hareket ediyor demektir</span></div>
+    <div class="chart-wrap" style="height:360px; padding:8px 18px 18px;"><canvas id="anCorrChart-canvas"></canvas></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">
-      Aylık Yoğunluk Haritası (Yıl × Ay) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili kategori/kaynağın TÜM geçmiş verisi — tarih filtresinden bağımsız</span>
+      Genel Talep Dağılımı — Aylık Yoğunluk Haritası (Yıl × Ay) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili kategori/il — TÜM geçmiş veri, tarih filtresinden bağımsız</span>
     </div>
-    <div id="anHeatmapWrap" style="padding:18px; overflow-x:auto;"></div>
+    <div id="anHeatmapGtdWrap" style="padding:18px; overflow-x:auto;"></div>
   </div>
 
-  <div class="panel-grid" id="anRankGrid" style="margin-bottom:16px;">
-    <div class="panel">
-      <div class="panel-head">Kategori Sıralaması <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili dönem vs önceki eşit dönem</span></div>
-      <div class="table-scroll">
-        <table id="anKatRankTable">
-          <thead><tr id="anKatRankHead"></tr></thead>
-          <tbody id="anKatRankBody"></tbody>
-        </table>
-      </div>
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      Köpük Talep — Aylık Yoğunluk Haritası (Yıl × Ay) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">toplam hacim — TÜM geçmiş veri, tarih filtresinden bağımsız</span>
     </div>
-    <div class="panel">
-      <div class="panel-head">İl Sıralaması (İlk 15) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili dönem vs önceki eşit dönem</span></div>
-      <div class="table-scroll">
-        <table id="anIlRankTable">
-          <thead><tr id="anIlRankHead"></tr></thead>
-          <tbody id="anIlRankBody"></tbody>
-        </table>
-      </div>
+    <div id="anHeatmapKopukWrap" style="padding:18px; overflow-x:auto;"></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">Genel Talep Dağılımı — Kategori Sıralaması <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili dönem vs önceki eşit dönem</span></div>
+    <div class="table-scroll">
+      <table id="anKatRankTable">
+        <thead><tr id="anKatRankHead"></tr></thead>
+        <tbody id="anKatRankBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">Genel Talep Dağılımı — İl Sıralaması (İlk 15) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili kategoriler yan yana + son sütunda toplam — seçili dönem</span></div>
+    <div class="table-scroll">
+      <table id="anIlRankTable">
+        <thead><tr id="anIlRankHead"></tr></thead>
+        <tbody id="anIlRankBody"></tbody>
+      </table>
     </div>
   </div>
 
   <div class="note">
-    Bu sayfa üç ayrı Google E-Tablo'yu (Gelen Arama Dağılımı, Genel Talep Dağılımı, Köpük Talep Dağılımı) TARİH üzerinden eşleştirerek çalışır. Kategori/İl sıralaması ve ısı haritası sadece "Genel Talep Dağılımı" kaynağında kullanılabilir.
+    Bu sayfa üç ayrı Google E-Tablo'yu (Gelen Arama Dağılımı, Genel Talep Dağılımı, Köpük Talep Dağılımı) TARİH üzerinden eşleştirerek çalışır. Üçü de her zaman birlikte gösterilir — filtreleme yapmadan da aralarındaki ilişkiyi görebilirsiniz. Kategori/İl filtresi sadece Genel Talep Dağılımı'nı etkiler.
   </div>
 
 </div>
@@ -7868,9 +7888,9 @@ let CALLS_ROWS = [];     // {date, cevap, gelen, kacan}
 let GTD_ROWS = [];       // {date, il, values:[...], toplam}
 let GTD_CATEGORIES = []; // {index, name}
 let KOPUK_ROWS = [];     // {date, toplam}
-let talepSeries = [];    // {date, value} - seçili kaynak/il/kategoriye göre yeniden hesaplanır
+let gtdSeries = [];      // {date, value} - İl/Kategori filtresine göre yeniden hesaplanır
+let kopukSeries = [];    // {date, value} - her zaman toplam hacim
 
-let currentSource = 'gtd'; // 'gtd' | 'kopuk'
 let currentIl = 'all';
 let currentKat = [];       // boşsa Genel (tüm kategoriler)
 let AN_INITIALIZED = false;
@@ -8036,11 +8056,25 @@ function populateIlSelect(){
 
 function populateKatPanel(){
   const panel = document.getElementById('an-katPanel');
-  panel.innerHTML = GTD_CATEGORIES.map((c,i) => `
+  const checksHtml = GTD_CATEGORIES.map((c,i) => `
     <label style="display:flex; align-items:center; gap:8px; padding:5px 4px; font-size:12.5px; cursor:pointer;">
       <input type="checkbox" class="an-kat-check" value="${i}" ${currentKat.includes(i) ? 'checked' : ''}>
       ${c.name}
     </label>`).join('');
+  panel.innerHTML = `
+    <div style="display:flex; gap:8px; padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid var(--line);">
+      <button type="button" id="an-kat-selectall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Seç</button>
+      <button type="button" id="an-kat-clearall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Sil</button>
+    </div>
+    ${checksHtml}`;
+  document.getElementById('an-kat-selectall').addEventListener('click', () => {
+    currentKat = GTD_CATEGORIES.map((_,i) => i);
+    populateKatPanel(); syncKatBtnLabel(); renderAll();
+  });
+  document.getElementById('an-kat-clearall').addEventListener('click', () => {
+    currentKat = [];
+    populateKatPanel(); syncKatBtnLabel(); renderAll();
+  });
 }
 
 function syncKatBtnLabel(){
@@ -8050,13 +8084,6 @@ function syncKatBtnLabel(){
   else btn.textContent = currentKat.length + ' kategori seçili ▾';
 }
 
-document.getElementById('an-source').addEventListener('change', (e) => {
-  currentSource = e.target.value;
-  const gtdOnly = currentSource === 'gtd';
-  document.getElementById('an-il-group').style.display = gtdOnly ? '' : 'none';
-  document.getElementById('an-kat-group').style.display = gtdOnly ? '' : 'none';
-  renderAll();
-});
 document.getElementById('an-ilSelect').addEventListener('change', (e) => { currentIl = e.target.value; renderAll(); });
 document.getElementById('an-katBtn').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -8095,9 +8122,8 @@ function buildGtdSeries(selectedIl, selectedKat){
 }
 
 function rebuildTalepSeries(){
-  talepSeries = currentSource === 'gtd'
-    ? buildGtdSeries(currentIl, currentKat)
-    : KOPUK_ROWS.map(r => ({ date: r.date, value: r.toplam }));
+  gtdSeries = buildGtdSeries(currentIl, currentKat);
+  kopukSeries = KOPUK_ROWS.map(r => ({ date: r.date, value: r.toplam }));
 }
 
 function getCurrentRange(){
@@ -8125,15 +8151,14 @@ function pctChange(curr, prev){
   return ((curr - prev) / prev) * 100;
 }
 
-function talepLabel(){
-  if (currentSource === 'kopuk') return 'Köpük Talep (Toplam)';
+function gtdLabel(){
   if (currentKat.length === 1) return GTD_CATEGORIES[currentKat[0]].name + ' Talebi';
   if (currentKat.length > 1) return 'Seçili Kategoriler Talebi';
   return 'Genel Talep (Tüm Kategoriler)';
 }
 
 function topKategoriInRange(from, to){
-  if (currentSource !== 'gtd' || !GTD_CATEGORIES.length) return null;
+  if (!GTD_CATEGORIES.length) return null;
   const totals = GTD_CATEGORIES.map(c => ({ name: c.name, total: 0 }));
   GTD_ROWS.forEach(row => {
     if (row.date < from || row.date > to) return;
@@ -8145,7 +8170,6 @@ function topKategoriInRange(from, to){
 }
 
 function topIlInRange(from, to){
-  if (currentSource !== 'gtd') return null;
   const map = new Map();
   GTD_ROWS.forEach(row => {
     if (row.date < from || row.date > to) return;
@@ -8157,10 +8181,10 @@ function topIlInRange(from, to){
   return best;
 }
 
-function peakMonthOverall(){
-  if (!talepSeries.length) return null;
+function peakMonthOverall(series){
+  if (!series.length) return null;
   const byMonth = {};
-  talepSeries.forEach(p => {
+  series.forEach(p => {
     const m = p.date.getMonth() + 1;
     const ymKey = p.date.getFullYear() + '-' + m;
     if (!byMonth[m]) byMonth[m] = { sum: 0, yms: new Set() };
@@ -8203,22 +8227,36 @@ function renderMetrics(from, to){
   const gelenCurr = sumField(CALLS_ROWS, 'gelen', from, to);
   const kacanCurr = sumField(CALLS_ROWS, 'kacan', from, to);
   const kacanOrani = gelenCurr > 0 ? (kacanCurr / gelenCurr * 100) : null;
-  const talepCurr = sumSeriesInRange(talepSeries, from, to);
-  const talepPrev = sumSeriesInRange(talepSeries, prevFrom, prevTo);
+  const gtdCurr = sumSeriesInRange(gtdSeries, from, to);
+  const gtdPrev = sumSeriesInRange(gtdSeries, prevFrom, prevTo);
+  const kopukCurr = sumSeriesInRange(kopukSeries, from, to);
+  const kopukPrev = sumSeriesInRange(kopukSeries, prevFrom, prevTo);
 
   const cards = [
     metricCard('Toplam Çağrı (Cevaplanan)', callsCurr, pctChange(callsCurr, callsPrev)),
-    metricCard('Toplam ' + talepLabel(), talepCurr, pctChange(talepCurr, talepPrev)),
+    metricCard('Toplam ' + gtdLabel(), gtdCurr, pctChange(gtdCurr, gtdPrev)),
+    metricCard('Toplam Köpük Talep', kopukCurr, pctChange(kopukCurr, kopukPrev)),
     metricCard('Kaçan Çağrı Oranı', kacanOrani, null, { isPct: true })
   ];
-  if (currentSource === 'gtd'){
-    const topKat = topKategoriInRange(from, to);
-    const topIl = topIlInRange(from, to);
-    if (topKat) cards.push(metricCard('En Çok Talep Alınan Konu', topKat.name, null, { isText: true, sub: Math.round(topKat.total).toLocaleString('tr-TR') + ' adet' }));
-    if (topIl) cards.push(metricCard('En Çok Talep Alınan İl', topIl.name, null, { isText: true, sub: Math.round(topIl.total).toLocaleString('tr-TR') + ' adet' }));
-  }
+  const topKat = topKategoriInRange(from, to);
+  const topIl = topIlInRange(from, to);
+  if (topKat) cards.push(metricCard('En Çok Talep Alınan Konu', topKat.name, null, { isText: true, sub: Math.round(topKat.total).toLocaleString('tr-TR') + ' adet' }));
+  if (topIl) cards.push(metricCard('En Çok Talep Alınan İl', topIl.name, null, { isText: true, sub: Math.round(topIl.total).toLocaleString('tr-TR') + ' adet' }));
   anMetrics.innerHTML = cards.join('');
   playCountAnimations(anMetrics);
+}
+
+function compareTrend(nameA, pctA, nameB, pctB){
+  if (pctA === null || pctB === null) return `${nameA} ile ${nameB} arasında karşılaştırma yapacak yeterli veri yok.`;
+  const diff = Math.abs(pctA - pctB);
+  if (pctA >= 0 && pctB >= 0){
+    if (diff <= 10) return `${nameA} ve ${nameB} bu dönemde paralel hareket ediyor.`;
+    if (pctA > pctB) return `${nameA} artışı, ${nameB}'ndeki artıştan belirgin şekilde daha hızlı.`;
+    return `${nameB} artışı, ${nameA}'ndeki artıştan belirgin şekilde daha hızlı.`;
+  }
+  if (pctA > 0 && pctB < 0) return `${nameA} artmasına rağmen ${nameB} azaldı — bu iki değer bu dönemde ters yönde hareket etti.`;
+  if (pctA < 0 && pctB > 0) return `${nameA} azalmasına rağmen ${nameB} arttı — bu iki değer bu dönemde ters yönde hareket etti.`;
+  return `${nameA} ve ${nameB} her ikisi de aynı yönde azalıyor.`;
 }
 
 // ================= Otomatik İçgörü =================
@@ -8226,38 +8264,29 @@ function buildInsight(from, to){
   const { prevFrom, prevTo } = getPrevRange(from, to);
   const callsCurr = sumField(CALLS_ROWS, 'cevap', from, to);
   const callsPrev = sumField(CALLS_ROWS, 'cevap', prevFrom, prevTo);
-  const talepCurr = sumSeriesInRange(talepSeries, from, to);
-  const talepPrev = sumSeriesInRange(talepSeries, prevFrom, prevTo);
+  const gtdCurr = sumSeriesInRange(gtdSeries, from, to);
+  const gtdPrev = sumSeriesInRange(gtdSeries, prevFrom, prevTo);
+  const kopukCurr = sumSeriesInRange(kopukSeries, from, to);
+  const kopukPrev = sumSeriesInRange(kopukSeries, prevFrom, prevTo);
   const callsPct = pctChange(callsCurr, callsPrev);
-  const talepPct = pctChange(talepCurr, talepPrev);
-  const kaynakAdi = talepLabel();
+  const gtdPct = pctChange(gtdCurr, gtdPrev);
+  const kopukPct = pctChange(kopukCurr, kopukPrev);
+  const gtdAd = gtdLabel();
 
   const sentences = [];
-  if (talepPct === null || callsPct === null){
-    sentences.push('Seçili dönem veya önceki eşit uzunluktaki dönem için karşılaştırma yapacak yeterli veri yok.');
-  } else {
-    sentences.push(`Bu dönemde ${kaynakAdi} %${Math.abs(talepPct).toFixed(1)} ${talepPct >= 0 ? 'arttı' : 'azaldı'}, aynı dönemde çağrı hacmi %${Math.abs(callsPct).toFixed(1)} ${callsPct >= 0 ? 'arttı' : 'azaldı'}.`);
-    const diff = Math.abs(talepPct - callsPct);
-    if (talepPct >= 0 && callsPct >= 0){
-      if (diff <= 10) sentences.push('İki değişim birbirine yakın — talep artışı çağrı hacmine büyük ölçüde paralel görünüyor.');
-      else if (talepPct > callsPct) sentences.push('Talep artışı, çağrı hacmindeki artıştan belirgin şekilde daha hızlı — talep artışının bir kısmı çağrıya yansımıyor olabilir.');
-      else sentences.push('Çağrı hacmindeki artış, bu talep türündeki artıştan daha hızlı — çağrı artışının başka nedenleri de olabilir.');
-    } else if (talepPct > 0 && callsPct < 0){
-      sentences.push('Talep artmasına rağmen çağrı hacmi azaldı — bu dönemde talep artışı çağrıya yansımamış görünüyor.');
-    } else if (talepPct < 0 && callsPct > 0){
-      sentences.push('Talep azalmasına rağmen çağrı hacmi arttı — çağrı artışının kaynağı büyük olasılıkla bu talep türü değil.');
-    } else {
-      sentences.push('Her iki değer de aynı yönde azalıyor.');
-    }
-  }
+  if (callsPct !== null) sentences.push(`Bu dönemde çağrı hacmi %${Math.abs(callsPct).toFixed(1)} ${callsPct >= 0 ? 'arttı' : 'azaldı'}.`);
+  if (gtdPct !== null) sentences.push(`${gtdAd} aynı dönemde %${Math.abs(gtdPct).toFixed(1)} ${gtdPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend(gtdAd, gtdPct, 'Çağrı hacmi', callsPct)}`);
+  if (kopukPct !== null) sentences.push(`Köpük Talep aynı dönemde %${Math.abs(kopukPct).toFixed(1)} ${kopukPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Köpük Talep', kopukPct, 'Çağrı hacmi', callsPct)}`);
+  if (gtdPct !== null && kopukPct !== null) sentences.push(compareTrend(gtdAd, gtdPct, 'Köpük Talep', kopukPct));
+  if (!sentences.length) sentences.push('Seçili dönem veya önceki eşit uzunluktaki dönem için karşılaştırma yapacak yeterli veri yok.');
 
-  if (currentSource === 'gtd'){
-    const topKat = topKategoriInRange(from, to);
-    if (topKat) sentences.push(`Bu dönemde en çok talep alınan konu "${topKat.name}" oldu (${Math.round(topKat.total).toLocaleString('tr-TR')} adet).`);
-  }
+  const topKat = topKategoriInRange(from, to);
+  if (topKat) sentences.push(`Bu dönemde en çok talep alınan konu "${topKat.name}" oldu (${Math.round(topKat.total).toLocaleString('tr-TR')} adet).`);
 
-  const peak = peakMonthOverall();
-  if (peak) sentences.push(`Tüm geçmiş veriye bakıldığında, ${kaynakAdi} en çok ${peak.monthName} ayında yoğunlaşıyor (yıllık ortalama ${Math.round(peak.avg).toLocaleString('tr-TR')} adet/ay).`);
+  const peakGtd = peakMonthOverall(gtdSeries);
+  if (peakGtd) sentences.push(`${gtdAd}, tüm geçmiş veriye göre en çok ${peakGtd.monthName} ayında yoğunlaşıyor (yıllık ortalama ${Math.round(peakGtd.avg).toLocaleString('tr-TR')} adet/ay).`);
+  const peakKopuk = peakMonthOverall(kopukSeries);
+  if (peakKopuk) sentences.push(`Köpük Talep ise en çok ${peakKopuk.monthName} ayında yoğunlaşıyor (yıllık ortalama ${Math.round(peakKopuk.avg).toLocaleString('tr-TR')} adet/ay).`);
 
   anInsightText.innerHTML = sentences.map(s => `<div style="margin-bottom:6px;">• ${s}</div>`).join('');
 }
@@ -8266,19 +8295,25 @@ function buildInsight(from, to){
 let anCorrChart = null;
 function renderCorrChart(from, to){
   const canvas = document.getElementById('anCorrChart-canvas');
-  const talepInRange = talepSeries.filter(p => p.date >= from && p.date <= to);
+  const gtdInRange = gtdSeries.filter(p => p.date >= from && p.date <= to);
+  const kopukInRange = kopukSeries.filter(p => p.date >= from && p.date <= to);
   const callsInRange = CALLS_ROWS.filter(r => r.date >= from && r.date <= to).map(r => ({ date: r.date, value: r.cevap }));
 
-  const dateKeys = [...new Set([...talepInRange, ...callsInRange].map(p => fmtDate(p.date)))].sort();
-  const talepMap = new Map(talepInRange.map(p => [fmtDate(p.date), p.value]));
+  const dateKeys = [...new Set([...gtdInRange, ...kopukInRange, ...callsInRange].map(p => fmtDate(p.date)))].sort();
+  const gtdMap = new Map(gtdInRange.map(p => [fmtDate(p.date), p.value]));
+  const kopukMap = new Map(kopukInRange.map(p => [fmtDate(p.date), p.value]));
   const callsMap = new Map(callsInRange.map(p => [fmtDate(p.date), p.value]));
 
-  const talepBase = dateKeys.map(k => talepMap.get(k)).find(v => v > 0);
+  const gtdBase = dateKeys.map(k => gtdMap.get(k)).find(v => v > 0);
+  const kopukBase = dateKeys.map(k => kopukMap.get(k)).find(v => v > 0);
   const callsBase = dateKeys.map(k => callsMap.get(k)).find(v => v > 0);
 
+  function toIdx(map, base){ return dateKeys.map(k => { const v = map.get(k); return (base && v !== undefined) ? +(v / base * 100).toFixed(1) : null; }); }
+
   const labels = dateKeys.map(k => new Date(k + 'T00:00:00').toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' }));
-  const talepIdx = dateKeys.map(k => { const v = talepMap.get(k); return (talepBase && v !== undefined) ? +(v / talepBase * 100).toFixed(1) : null; });
-  const callsIdx = dateKeys.map(k => { const v = callsMap.get(k); return (callsBase && v !== undefined) ? +(v / callsBase * 100).toFixed(1) : null; });
+  const gtdIdx = toIdx(gtdMap, gtdBase);
+  const kopukIdx = toIdx(kopukMap, kopukBase);
+  const callsIdx = toIdx(callsMap, callsBase);
 
   if (anCorrChart) anCorrChart.destroy();
   const t = chartTheme();
@@ -8287,8 +8322,9 @@ function renderCorrChart(from, to){
     data: {
       labels,
       datasets: [
-        { label: talepLabel() + ' (endeks)', data: talepIdx, borderColor: t.accent, backgroundColor: 'transparent', tension: 0.25, pointRadius: 0, borderWidth: 2, spanGaps: true },
-        { label: 'Çağrı (Cevaplanan, endeks)', data: callsIdx, borderColor: t.blue, backgroundColor: 'transparent', tension: 0.25, pointRadius: 0, borderWidth: 2, spanGaps: true }
+        { label: 'Çağrı (Cevaplanan, endeks)', data: callsIdx, borderColor: t.blue, backgroundColor: 'transparent', tension: 0.25, pointRadius: 0, borderWidth: 2, spanGaps: true },
+        { label: gtdLabel() + ' (endeks)', data: gtdIdx, borderColor: t.accent, backgroundColor: 'transparent', tension: 0.25, pointRadius: 0, borderWidth: 2, spanGaps: true },
+        { label: 'Köpük Talep (endeks)', data: kopukIdx, borderColor: '#a78bfa', backgroundColor: 'transparent', tension: 0.25, pointRadius: 0, borderWidth: 2, spanGaps: true }
       ]
     },
     options: {
@@ -8306,14 +8342,14 @@ function renderCorrChart(from, to){
 }
 
 // ================= Isı Haritası (Yıl × Ay) =================
-function renderHeatmap(){
-  const wrap = document.getElementById('anHeatmapWrap');
-  if (!talepSeries.length){ wrap.innerHTML = '<div class="empty-state">Veri yok.</div>'; return; }
+function renderHeatmap(series, wrapId){
+  const wrap = document.getElementById(wrapId);
+  if (!series.length){ wrap.innerHTML = '<div class="empty-state">Veri yok.</div>'; return; }
 
-  const years = [...new Set(talepSeries.map(p => p.date.getFullYear()))].sort((a,b) => b - a);
+  const years = [...new Set(series.map(p => p.date.getFullYear()))].sort((a,b) => b - a);
   const matrix = {};
   years.forEach(y => matrix[y] = new Array(12).fill(0));
-  talepSeries.forEach(p => { matrix[p.date.getFullYear()][p.date.getMonth()] += p.value; });
+  series.forEach(p => { matrix[p.date.getFullYear()][p.date.getMonth()] += p.value; });
 
   const allVals = years.flatMap(y => matrix[y]).filter(v => v > 0);
   const maxVal = allVals.length ? Math.max(...allVals) : 0;
@@ -8346,9 +8382,6 @@ function deltaCellHtml(pct){
 }
 
 function renderRankTables(from, to){
-  const grid = document.getElementById('anRankGrid');
-  if (currentSource !== 'gtd'){ grid.style.display = 'none'; return; }
-  grid.style.display = '';
   const { prevFrom, prevTo } = getPrevRange(from, to);
 
   // Kategori sıralaması: İl filtresi uygulanır, kategori filtresi UYGULANMAZ (tüm kategoriler kıyaslanır)
@@ -8364,17 +8397,39 @@ function renderRankTables(from, to){
   document.getElementById('anKatRankHead').innerHTML = '<th>#</th><th>Kategori</th><th>Bu Dönem</th><th>Değişim</th>';
   document.getElementById('anKatRankBody').innerHTML = katRows.length ? katRows.map((r,i) => `<tr><td>${i+1}</td><td class="date">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.curr).toLocaleString('tr-TR')}</td><td>${deltaCellHtml(pctChange(r.curr, r.prev))}</td></tr>`).join('') : '<tr><td class="empty-state" colspan="4">Veri yok.</td></tr>';
 
-  // İl sıralaması: Kategori filtresi uygulanır (seçiliyse sadece o kategoriler, yoksa toplam)
-  const ilCurrMap = new Map(), ilPrevMap = new Map();
+  // İl sıralaması: seçili kategoriler YAN YANA sütun olarak + son sütunda TOPLAM.
+  // Hiç kategori seçili değilse tek "Toplam" sütunu (GTD toplam sütunundan).
+  const activeCats = currentKat.length ? currentKat : null;
+  const ilDetail = new Map();   // il -> { catSums:[...], total }
+  const ilPrevTotal = new Map(); // il -> önceki dönem toplamı (aktif filtreye göre)
   GTD_ROWS.forEach(row => {
-    const v = gtdValueForRow(row, currentKat);
-    if (row.date >= from && row.date <= to) ilCurrMap.set(row.il, (ilCurrMap.get(row.il) || 0) + v);
-    else if (row.date >= prevFrom && row.date <= prevTo) ilPrevMap.set(row.il, (ilPrevMap.get(row.il) || 0) + v);
+    if (row.date >= from && row.date <= to){
+      if (!ilDetail.has(row.il)) ilDetail.set(row.il, { catSums: GTD_CATEGORIES.map(() => 0), total: 0 });
+      const d = ilDetail.get(row.il);
+      row.values.forEach((v,i) => d.catSums[i] += (v || 0));
+      d.total += row.toplam || 0;
+    } else if (row.date >= prevFrom && row.date <= prevTo){
+      const v = gtdValueForRow(row, activeCats);
+      ilPrevTotal.set(row.il, (ilPrevTotal.get(row.il) || 0) + v);
+    }
   });
-  const ilRows = [...ilCurrMap.entries()].map(([il,curr]) => ({ name: il, curr, prev: ilPrevMap.get(il) || 0 })).sort((a,b) => b.curr - a.curr).slice(0, 15);
 
-  document.getElementById('anIlRankHead').innerHTML = '<th>#</th><th>İl</th><th>Bu Dönem</th><th>Değişim</th>';
-  document.getElementById('anIlRankBody').innerHTML = ilRows.length ? ilRows.map((r,i) => `<tr><td>${i+1}</td><td class="date">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.curr).toLocaleString('tr-TR')}</td><td>${deltaCellHtml(pctChange(r.curr, r.prev))}</td></tr>`).join('') : '<tr><td class="empty-state" colspan="4">Veri yok.</td></tr>';
+  const headCols = activeCats ? activeCats.map(idx => GTD_CATEGORIES[idx].name) : ['Toplam (Tüm Kategoriler)'];
+  const headExtra = activeCats ? '<th>Toplam</th>' : '';
+  document.getElementById('anIlRankHead').innerHTML = `<th>#</th><th>İl</th>${headCols.map(h => `<th>${h}</th>`).join('')}${headExtra}<th>Değişim</th>`;
+
+  const entries = [...ilDetail.entries()].map(([il,d]) => {
+    const curr = activeCats ? activeCats.reduce((s,idx) => s + (d.catSums[idx] || 0), 0) : d.total;
+    return { il, d, curr, prev: ilPrevTotal.get(il) || 0 };
+  }).sort((a,b) => b.curr - a.curr).slice(0, 15);
+
+  document.getElementById('anIlRankBody').innerHTML = entries.length ? entries.map((e,i) => {
+    const cols = activeCats
+      ? activeCats.map(idx => `<td style="font-family:'IBM Plex Mono',monospace;">${Math.round(e.d.catSums[idx] || 0).toLocaleString('tr-TR')}</td>`).join('')
+      : `<td style="font-family:'IBM Plex Mono',monospace;">${Math.round(e.curr).toLocaleString('tr-TR')}</td>`;
+    const totalCol = activeCats ? `<td style="font-family:'IBM Plex Mono',monospace; font-weight:700;">${Math.round(e.curr).toLocaleString('tr-TR')}</td>` : '';
+    return `<tr><td>${i+1}</td><td class="date">${e.il}</td>${cols}${totalCol}<td>${deltaCellHtml(pctChange(e.curr, e.prev))}</td></tr>`;
+  }).join('') : '<tr><td class="empty-state" colspan="16">Veri yok.</td></tr>';
 }
 
 // ================= Ana Render =================
@@ -8385,7 +8440,8 @@ function renderAll(){
   renderMetrics(range.from, range.to);
   buildInsight(range.from, range.to);
   renderCorrChart(range.from, range.to);
-  renderHeatmap();
+  renderHeatmap(gtdSeries, 'anHeatmapGtdWrap');
+  renderHeatmap(kopukSeries, 'anHeatmapKopukWrap');
   renderRankTables(range.from, range.to);
 }
 
