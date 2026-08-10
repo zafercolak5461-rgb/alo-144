@@ -949,6 +949,26 @@ body{
   </div>
 </div>
 
+<div class="modal-overlay" id="anPresModalOverlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-head">Analiz Sunumu İçin Yıl / Ay Seçin</div>
+    <div class="modal-body">
+      <div class="modal-section-label">Yıl (aşağıdaki ay listesini filtreler)</div>
+      <div id="anPresYearFilter" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;"></div>
+      <div class="modal-section-label" id="anPresMonthLabel">Aylar</div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="refresh-btn" id="anPresSelectAllBtn">Tümünü Seç</button>
+        <button class="refresh-btn" id="anPresClearBtn">Temizle</button>
+      </div>
+      <div id="anPresMonthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="refresh-btn" id="anPresCancelBtn">İptal</button>
+      <button class="refresh-btn" id="anPresConfirmBtn" style="background:var(--accent-dim); color:var(--accent); border-color:var(--accent);">Sunumu Oluştur</button>
+    </div>
+  </div>
+</div>
+
 </div>
 </div>
 <div class="page" id="page-genel-talep-dagilimi">
@@ -1551,7 +1571,7 @@ body{
     </div>
     <div class="status" id="anStatusWrap">
       <button id="anRefreshBtn" class="refresh-btn" title="Tüm veri kaynaklarını yeniden çek">⟳ Yenile</button>
-      <button class="refresh-btn sunum-only" id="anOpenPresBtn" title="Aktif filtreyle sunum oluştur">🎞 Sunum Oluştur</button>
+      <button class="refresh-btn sunum-only" id="anOpenPresBtn" title="Sunum için yıl/ay seçin">🎞 Sunum Oluştur</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="anStatusDot"></span>
       <span id="anStatusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -1656,7 +1676,7 @@ body{
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-head">Kaçan Çağrı Artışına En Çok Katkı Yapan Talepler <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">kaçan çağrının en çok arttığı aylar + o aylarda en çok artan kategori/il</span></div>
+    <div class="panel-head">Kaçan Çağrının Yıl Ortalamasının Üzerinde Kaldığı Aylar <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">o yılın kendi ortalamasına göre %20 ve üzeri kalan her ay + kök neden</span></div>
     <div id="anKacanCulpritWrap" style="padding:18px;"></div>
   </div>
 
@@ -2201,9 +2221,10 @@ document.getElementById('sidebarCloseBtn').addEventListener('click', () => {
 const OAUTH_CLIENT_ID = "334728137950-afbqqtqobh5us03roshseevqh43a4853.apps.googleusercontent.com";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email";
 const AUTH_SHEET_ID = "1PfYdeuiGvuHbHsCx5PTcApepdwdjY-2C491cufssQhU";
-// Sabit yedek yönetici: Yetkilendirme Sheet'i boşalsa/bozulsa/satırı silinse bile bu hesap
-// her zaman tam yetkiye (Güncelleme + Süper Yetkili + Sunum + Excel) sahip olur.
-const FIXED_SUPER_ADMIN_EMAIL = "zafercolak5461@gmail.com";
+// Sabit yedek yöneticiler: Yetkilendirme Sheet'i boşalsa/bozulsa/satır silinse bile bu
+// hesaplar HER ZAMAN tam yetkiye (Güncelleme + Süper Yetkili + Sunum + Excel + tüm sekmeler)
+// sahip olur. Birden fazla e-posta - biriyle Google hesabı sorunu yaşanırsa diğeri devrede.
+const FIXED_SUPER_ADMIN_EMAILS = ["zafercolak5461@gmail.com", "zafer54sema@gmail.com"];
 const LOG_URL = "https://script.google.com/macros/s/AKfycbzeyn_R-Khl7qAMZozWuq4ZWIy6UAGiqi906MFEnRgl9YNpgQiV-Me2KpF4IJW43WbI/exec";
 
 function sendLog(payload){
@@ -2315,8 +2336,8 @@ async function initIslemAccess(){
     AUTH_TABLE = rows || [];
     const myRow = AUTH_TABLE.find(r => r.gmail === userEmail);
     // Sabit yedek yönetici — Sheet boşsa/bozulsa/satır silinse bile bu hesap her zaman tam yetkiye sahiptir.
-    const isFixedAdmin = userEmail === FIXED_SUPER_ADMIN_EMAIL;
-    userName = (myRow && myRow.isim) || (isFixedAdmin ? 'Zafer Çolak' : 'Bilinmeyen Kullanıcı');
+    const isFixedAdmin = FIXED_SUPER_ADMIN_EMAILS.includes(userEmail);
+    userName = (myRow && myRow.isim) || (isFixedAdmin ? (userEmail === 'zafercolak5461@gmail.com' ? 'Zafer Çolak' : 'Zafer Çolak (Yedek)') : 'Bilinmeyen Kullanıcı');
 
     islemAuthorized = isFixedAdmin || !!(myRow && myRow.guncelleme);
     yetkiAuthorized = isFixedAdmin || !!(myRow && myRow.superYetkili);
@@ -8866,18 +8887,33 @@ function renderWeeklyTable(){
     <td style="font-family:'IBM Plex Mono',monospace;">${Math.round(wKopuk[i]).toLocaleString('tr-TR')}</td></tr>`).join('');
 }
 
-// ================= Kaçan Çağrı Artışına En Çok Katkı Yapan Talepler =================
-function findTopKacanIncreaseMonths(topN){
+// ================= Kaçan Çağrının Yıl Ortalamasının Üzerinde Kaldığı Aylar =================
+// ÖNCEKİ YÖNTEM (bir önceki aya göre %değişim/MoM sıçraması) kaldırıldı: bir ay sert
+// sıçrayıp SONRAKİ ay o yüksek seviyede kalırsa (yeni bir sıçrama olmadığı için), o sonraki
+// ay MoM'a göre "sakin" görünüyor ve listeden düşüyordu - kalıcı sorun gözden kaçıyordu.
+// YENİ YÖNTEM: her ayı, O YILIN kendi ortalamasına göre değerlendiriyor (yıl içinde
+// enflasyon/büyüme gibi doğal artışlar yanıltıcı alarm üretmesin diye tüm-yılların ortak
+// ortalaması değil, HER YIL kendi içinde kıyaslanıyor). Ortalamanın %20 ve üzeri kalan
+// HER ay listeye giriyor - art arda gelen aylar (biri sıçrasa, sonraki de yüksek kalsa)
+// artık hiçbiri atlanmadan görünür.
+function findElevatedKacanMonths(thresholdPct){
+  thresholdPct = thresholdPct || 20;
   const kacanMap = buildMonthlySumsFromRows(CALLS_ROWS, 'kacan');
+  const byYear = {};
+  [...kacanMap.values()].forEach(({year, value}) => {
+    if (!byYear[year]) byYear[year] = { sum: 0, count: 0 };
+    byYear[year].sum += value;
+    byYear[year].count++;
+  });
+  const yearAvg = {};
+  Object.keys(byYear).forEach(y => { yearAvg[y] = byYear[y].sum / byYear[y].count; });
+
   return [...kacanMap.values()].map(({year, month, value}) => {
-    const prev = prevMonthOf(year, month);
-    const prevEntry = kacanMap.get(monthKey(prev.year, prev.month));
-    const prevV = prevEntry ? prevEntry.value : null;
-    const momPctV = prevV ? pctChange(value, prevV) : null;
-    return { year, month, value, prevV, momPctV, delta: prevV !== null ? value - prevV : null };
-  }).filter(m => m.momPctV !== null && m.delta > 0)
-    .sort((a,b) => b.momPctV - a.momPctV)
-    .slice(0, topN);
+    const avg = yearAvg[year];
+    const pctAboveAvg = avg ? ((value - avg) / avg) * 100 : null;
+    return { year, month, value, yearAvg: avg, pctAboveAvg };
+  }).filter(m => m.pctAboveAvg !== null && m.pctAboveAvg >= thresholdPct)
+    .sort((a,b) => (a.year - b.year) || (a.month - b.month));
 }
 
 function topCategoriesForMonth(year, month, topN){
@@ -8906,32 +8942,86 @@ function topIllerForMonth(year, month, topN){
     .filter(r => r.delta > 0).sort((a,b) => b.delta - a.delta).slice(0, topN);
 }
 
+// Bir ayın kök neden verisini 3 duruma ayırır - eksik veri VARSA bunu açıkça belirtir,
+// veri UYDURMAZ. (1) hem bu ay hem önceki ay dolu -> artışa göre sırala (mevcut mantık).
+// (2) bu ayın kendisi tamamen boş -> yorum yapılamaz, açıkça söylenir. (3) bu ay dolu ama
+// önceki ay boş (artış hesaplanamaz) -> bu ayın HAM (mutlak) en yüksek kalemleri gösterilir,
+// "artış" değil "seviye" olarak sunulur, eksik veri notu eklenir.
+function rootCauseForMonth(year, month, topN){
+  const cur = monthBounds(year, month);
+  const prev = prevMonthOf(year, month);
+  const prevB = monthBounds(prev.year, prev.month);
+  const curRows = GTD_ROWS.filter(r => r.date >= cur.from && r.date <= cur.to);
+  const prevRows = GTD_ROWS.filter(r => r.date >= prevB.from && r.date <= prevB.to);
+
+  if (!curRows.length) return { status: 'no-data' };
+
+  if (!prevRows.length){
+    const catSums = GTD_CATEGORIES.map(() => 0);
+    curRows.forEach(row => row.values.forEach((v,i) => catSums[i] += (v || 0)));
+    const topKat = GTD_CATEGORIES.map((c,i) => ({ name: c.name, value: catSums[i] }))
+      .filter(r => r.value > 0).sort((a,b) => b.value - a.value).slice(0, topN);
+    const ilMap = new Map();
+    curRows.forEach(row => ilMap.set(row.il, (ilMap.get(row.il) || 0) + (row.toplam || 0)));
+    const topIl = [...ilMap.entries()].map(([il,value]) => ({ name: il, value }))
+      .filter(r => r.value > 0).sort((a,b) => b.value - a.value).slice(0, topN);
+    return { status: 'no-prev-data', topKat, topIl };
+  }
+
+  return { status: 'ok', topKat: topCategoriesForMonth(year, month, topN), topIl: topIllerForMonth(year, month, topN) };
+}
+
 function renderKacanCulprits(){
   const wrap = document.getElementById('anKacanCulpritWrap');
-  const topMonths = findTopKacanIncreaseMonths(3);
-  if (!topMonths.length){ wrap.innerHTML = '<div class="empty-state">Kaçan çağrının belirgin şekilde arttığı bir ay tespit edilemedi.</div>'; return; }
+  const months = findElevatedKacanMonths(20);
+  if (!months.length){ wrap.innerHTML = '<div class="empty-state">Kaçan çağrının yıl ortalamasının belirgin üzerinde kaldığı bir ay tespit edilemedi.</div>'; return; }
 
-  const rowHtml = (items) => items.length
+  const deltaRowHtml = (items) => items.length
     ? items.map(k => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--line); font-size:12.5px;"><span>${k.name}</span><span style="font-family:'IBM Plex Mono',monospace; color:var(--accent); font-weight:700;">+${Math.round(k.delta).toLocaleString('tr-TR')}</span></div>`).join('')
     : '<div class="empty-state" style="padding:10px 0;">Artan kalem yok.</div>';
+  const levelRowHtml = (items) => items.length
+    ? items.map(k => `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--line); font-size:12.5px;"><span>${k.name}</span><span style="font-family:'IBM Plex Mono',monospace; color:var(--text-dim); font-weight:700;">${Math.round(k.value).toLocaleString('tr-TR')}</span></div>`).join('')
+    : '<div class="empty-state" style="padding:10px 0;">Veri yok.</div>';
 
-  wrap.innerHTML = topMonths.map(m => {
-    const topKat = topCategoriesForMonth(m.year, m.month, 5);
-    const topIl = topIllerForMonth(m.year, m.month, 5);
-    return `
-      <div style="margin-bottom:22px; padding-bottom:18px; border-bottom:1px solid var(--line);">
-        <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px;">${monthLabel(m.year, m.month)}</div>
-        <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px;">Kaçan çağrı bu ayda %${m.momPctV.toFixed(1)} arttı (${Math.round(m.prevV).toLocaleString('tr-TR')} → ${Math.round(m.value).toLocaleString('tr-TR')})</div>
+  wrap.innerHTML = months.map(m => {
+    const rc = rootCauseForMonth(m.year, m.month, 5);
+    const infoLine = `Bu ay kaçan çağrı, ${m.year} yılı ortalamasının %${m.pctAboveAvg.toFixed(1)} üzerinde (yıl ortalaması: ${Math.round(m.yearAvg).toLocaleString('tr-TR')}, bu ay: ${Math.round(m.value).toLocaleString('tr-TR')}).`;
+
+    let bodyHtml;
+    if (rc.status === 'no-data'){
+      bodyHtml = `<div class="empty-state" style="padding:10px 0;">Bu ay için talep verisi bulunmadığından kök neden analizi yapılamıyor.</div>`;
+    } else if (rc.status === 'no-prev-data'){
+      bodyHtml = `
+        <div style="font-size:11px; color:var(--text-dim-2); font-style:italic; margin-bottom:10px;">Önceki ay verisi eksik olduğu için artış hesaplanamadı — aşağıda bu ayın en yüksek talep gösteren kalemleri (ham değer) listeleniyor.</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+          <div>
+            <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Yüksek Kategoriler</div>
+            ${levelRowHtml(rc.topKat)}
+          </div>
+          <div>
+            <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Yüksek İller</div>
+            ${levelRowHtml(rc.topIl)}
+          </div>
+        </div>`;
+    } else {
+      bodyHtml = `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
           <div>
             <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Çok Artan Kategoriler</div>
-            ${rowHtml(topKat)}
+            ${deltaRowHtml(rc.topKat)}
           </div>
           <div>
             <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Çok Artan İller</div>
-            ${rowHtml(topIl)}
+            ${deltaRowHtml(rc.topIl)}
           </div>
-        </div>
+        </div>`;
+    }
+
+    return `
+      <div style="margin-bottom:22px; padding-bottom:18px; border-bottom:1px solid var(--line);">
+        <div style="font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px;">${monthLabel(m.year, m.month)}</div>
+        <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px;">${infoLine}</div>
+        ${bodyHtml}
       </div>`;
   }).join('');
 }
@@ -8973,11 +9063,9 @@ function monthsInRangeAsc(from, to){
   return months;
 }
 
-async function presAnalizGenerate(){
+async function presAnalizGenerate(from, to){
   const NAVY='1E2761', ACCENT='E8A53D', DARK='141A44', WHITE='FFFFFF', DIM='5D6572', LINE='E3E6EF', BLUE='5B9CF6', RED='E85D5D', PURPLE='8B7FD8', GREEN='3DDC97';
-  const range = getCurrentRange();
-  if (!range) throw new Error('Geçerli bir tarih aralığı seçili değil.');
-  const { from, to } = range;
+  if (!from || !to) throw new Error('Geçerli bir tarih aralığı seçili değil.');
   const fromLabel = from.toLocaleDateString('tr-TR');
   const toLabel = to.toLocaleDateString('tr-TR');
 
@@ -9101,27 +9189,42 @@ async function presAnalizGenerate(){
     }
   }
 
-  // --- 6) Kaçan Çağrı — Kök Neden (bir slayt / ay) ---
+  // --- 6) Kaçan Çağrının Yıl Ortalamasının Üzerinde Kaldığı Aylar — Kök Neden (bir slayt / ay) ---
   {
-    const topMonths = findTopKacanIncreaseMonths(3);
-    if (!topMonths.length){
+    const elevatedMonths = findElevatedKacanMonths(20);
+    if (!elevatedMonths.length){
       const s = pres.addSlide();
-      s.addText('Kaçan Çağrı Artışına En Çok Katkı Yapan Talepler', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
-      s.addText('Kaçan çağrının belirgin şekilde arttığı bir ay tespit edilemedi.', { x: 0.5, y: 1.1, w: 9, h: 0.4, fontFace: 'Arial', fontSize: 12, color: DIM });
+      s.addText('Kaçan Çağrının Yıl Ortalamasının Üzerinde Kaldığı Aylar', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
+      s.addText('Kaçan çağrının yıl ortalamasının belirgin üzerinde kaldığı bir ay tespit edilemedi.', { x: 0.5, y: 1.1, w: 9, h: 0.4, fontFace: 'Arial', fontSize: 12, color: DIM });
     }
-    topMonths.forEach((m, idx) => {
+    elevatedMonths.forEach((m, idx) => {
       const s = pres.addSlide();
-      s.addText('Kaçan Çağrı — Kök Neden' + (topMonths.length > 1 ? ` (${idx+1}/${topMonths.length})` : ''), { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
+      s.addText('Kaçan Çağrı — Kök Neden' + (elevatedMonths.length > 1 ? ` (${idx+1}/${elevatedMonths.length})` : ''), { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
       s.addText(monthLabel(m.year, m.month), { x: 0.5, y: 0.78, w: 8, h: 0.4, fontFace: 'Georgia', fontSize: 22, color: RED, bold: true });
-      s.addText(`Kaçan çağrı bu ayda %${m.momPctV.toFixed(1)} arttı (${Math.round(m.prevV).toLocaleString('tr-TR')} → ${Math.round(m.value).toLocaleString('tr-TR')})`, { x: 0.5, y: 1.28, w: 11, h: 0.35, fontFace: 'Arial', fontSize: 13, color: DIM });
+      s.addText(`Bu ay kaçan çağrı, ${m.year} yılı ortalamasının %${m.pctAboveAvg.toFixed(1)} üzerinde (yıl ortalaması: ${Math.round(m.yearAvg).toLocaleString('tr-TR')}, bu ay: ${Math.round(m.value).toLocaleString('tr-TR')}).`, { x: 0.5, y: 1.28, w: 11.5, h: 0.35, fontFace: 'Arial', fontSize: 13, color: DIM });
 
-      const topKat = topCategoriesForMonth(m.year, m.month, 5);
-      const topIl = topIllerForMonth(m.year, m.month, 5);
-      s.addText('EN ÇOK ARTAN KATEGORİLER', { x: 0.5, y: 1.9, w: 6, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: ACCENT, bold: true, charSpacing: 1 });
-      s.addText(topKat.length ? topKat.map(k => ({ text: `${k.name}  (+${Math.round(k.delta).toLocaleString('tr-TR')})`, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 12, color: NAVY, paraSpaceAfter: 5 } })) : [{ text: 'Artan kalem yok.', options: { fontSize: 12, color: DIM } }], { x: 0.5, y: 2.25, w: 5.8, h: 3.8 });
+      const rc = rootCauseForMonth(m.year, m.month, 5);
+      if (rc.status === 'no-data'){
+        s.addText('Bu ay için talep verisi bulunmadığından kök neden analizi yapılamıyor.', { x: 0.5, y: 2.0, w: 11, h: 0.4, fontFace: 'Arial', fontSize: 12, italic: true, color: DIM });
+        return;
+      }
 
-      s.addText('EN ÇOK ARTAN İLLER', { x: 6.7, y: 1.9, w: 6, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: ACCENT, bold: true, charSpacing: 1 });
-      s.addText(topIl.length ? topIl.map(k => ({ text: `${k.name}  (+${Math.round(k.delta).toLocaleString('tr-TR')})`, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 12, color: NAVY, paraSpaceAfter: 5 } })) : [{ text: 'Artan kalem yok.', options: { fontSize: 12, color: DIM } }], { x: 6.7, y: 2.25, w: 5.8, h: 3.8 });
+      const katLabel = rc.status === 'no-prev-data' ? 'EN YÜKSEK KATEGORİLER' : 'EN ÇOK ARTAN KATEGORİLER';
+      const ilLabel = rc.status === 'no-prev-data' ? 'EN YÜKSEK İLLER' : 'EN ÇOK ARTAN İLLER';
+      let bodyStartY = 1.9;
+      if (rc.status === 'no-prev-data'){
+        s.addText('Önceki ay verisi eksik olduğu için artış hesaplanamadı — bu ayın en yüksek talep gösteren kalemleri (ham değer) gösteriliyor.', { x: 0.5, y: 1.68, w: 11.5, h: 0.35, fontFace: 'Arial', fontSize: 10, italic: true, color: DIM });
+        bodyStartY = 2.15;
+      }
+      const fmtKat = rc.status === 'no-prev-data'
+        ? (k => ({ text: `${k.name}  (${Math.round(k.value).toLocaleString('tr-TR')})`, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 12, color: NAVY, paraSpaceAfter: 5 } }))
+        : (k => ({ text: `${k.name}  (+${Math.round(k.delta).toLocaleString('tr-TR')})`, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 12, color: NAVY, paraSpaceAfter: 5 } }));
+
+      s.addText(katLabel, { x: 0.5, y: bodyStartY, w: 6, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: ACCENT, bold: true, charSpacing: 1 });
+      s.addText(rc.topKat.length ? rc.topKat.map(fmtKat) : [{ text: 'Kalem yok.', options: { fontSize: 12, color: DIM } }], { x: 0.5, y: bodyStartY + 0.35, w: 5.8, h: 3.6 });
+
+      s.addText(ilLabel, { x: 6.7, y: bodyStartY, w: 6, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: ACCENT, bold: true, charSpacing: 1 });
+      s.addText(rc.topIl.length ? rc.topIl.map(fmtKat) : [{ text: 'Kalem yok.', options: { fontSize: 12, color: DIM } }], { x: 6.7, y: bodyStartY + 0.35, w: 5.8, h: 3.6 });
     });
   }
 
@@ -9164,15 +9267,110 @@ async function presAnalizGenerate(){
   await pres.writeFile({ fileName: fname });
 }
 
-document.getElementById('anOpenPresBtn').addEventListener('click', async () => {
+// ================= Sunum: Yıl/Ay Seçim Modalı =================
+// Gelen Arama Dağılımı'ndaki "Sunum İçin Yıl/Ay Seçin" modalıyla AYNI görsel/etkileşim
+// deseni (bkz. presModalOverlay/presYearFilter/presMonthChips) - kod tekrarı ama kasıtlı:
+// o modal DOM id'leri sabit ve o sayfanın kendi IIFE'ine bağlı, farklı bir kapsamda
+// (bu IIFE) yeniden kullanılamıyor. Aynı UX'i an- önekli kendi id'leriyle burada kuruyoruz.
+let AN_PRES_YEAR_FILTER = null;
+const AN_PRES_SELECTED_MONTHS = new Set();
+
+function anGetAvailableMonths(){
+  const keys = new Set();
+  CALLS_ROWS.forEach(r => keys.add(monthKey(r.date.getFullYear(), r.date.getMonth() + 1)));
+  GTD_ROWS.forEach(r => keys.add(monthKey(r.date.getFullYear(), r.date.getMonth() + 1)));
+  KOPUK_ROWS.forEach(r => keys.add(monthKey(r.date.getFullYear(), r.date.getMonth() + 1)));
+  return [...keys].sort();
+}
+
+const anPresModalOverlay = document.getElementById('anPresModalOverlay');
+const anPresYearFilterEl = document.getElementById('anPresYearFilter');
+const anPresMonthChipsEl = document.getElementById('anPresMonthChips');
+
+function anPresRenderModal(){
+  const months = anGetAvailableMonths();
+  if (!months.length){
+    anPresMonthChipsEl.innerHTML = `<div class="empty-state">Henüz veri yok. Önce "Yenile"ye basın.</div>`;
+    anPresYearFilterEl.innerHTML = '';
+    return;
+  }
+  const years = [...new Set(months.map(mk => mk.split('-')[0]))].sort();
+  if (!AN_PRES_YEAR_FILTER || !years.includes(AN_PRES_YEAR_FILTER)) AN_PRES_YEAR_FILTER = years[years.length - 1];
+
+  anPresYearFilterEl.innerHTML = years.map(y =>
+    `<button class="preset-btn ${y === AN_PRES_YEAR_FILTER ? 'active' : ''}" data-anpresyear="${y}">${y}</button>`
+  ).join('');
+
+  const visibleMonths = months.filter(mk => mk.startsWith(AN_PRES_YEAR_FILTER));
+  anPresMonthChipsEl.innerHTML = visibleMonths.map(mk => {
+    const [y, m] = mk.split('-');
+    const active = AN_PRES_SELECTED_MONTHS.has(mk) ? 'active' : '';
+    return `<button class="month-chip ${active}" data-anpresmonth="${mk}">${DATE_FILTER_MONTH_NAMES[parseInt(m)-1]} ${y}</button>`;
+  }).join('');
+
+  const allSelectedSorted = [...AN_PRES_SELECTED_MONTHS].sort();
+  document.getElementById('anPresMonthLabel').textContent = allSelectedSorted.length
+    ? `Aylar — Seçili (${allSelectedSorted.length}): ${allSelectedSorted.map(mk => { const [y,m] = mk.split('-'); return DATE_FILTER_MONTH_NAMES[parseInt(m)-1] + ' ' + y; }).join(', ')}`
+    : 'Aylar';
+}
+
+document.getElementById('anOpenPresBtn').addEventListener('click', () => {
   if (!CALLS_ROWS.length && !GTD_ROWS.length){ alert('Önce "Yenile"ye basıp veri çekin.'); return; }
   if (typeof PptxGenJS === 'undefined'){ alert('Sunum kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.'); return; }
+  // Varsayılan seçim: dashboard'da o an aktif olan tarih aralığına denk gelen aylar -
+  // kullanıcı hiç dokunmadan "Sunumu Oluştur"a basarsa ekranda gördüğü dönemle aynı sonucu alır.
+  const activeRange = getCurrentRange();
+  AN_PRES_SELECTED_MONTHS.clear();
+  if (activeRange){
+    monthsInRangeAsc(activeRange.from, activeRange.to).forEach(m => AN_PRES_SELECTED_MONTHS.add(monthKey(m.year, m.month)));
+  }
+  const firstSelected = [...AN_PRES_SELECTED_MONTHS].sort()[0];
+  AN_PRES_YEAR_FILTER = firstSelected ? firstSelected.split('-')[0] : null;
+  anPresRenderModal();
+  anPresModalOverlay.style.display = 'flex';
+});
+document.getElementById('anPresCancelBtn').addEventListener('click', () => { anPresModalOverlay.style.display = 'none'; });
+anPresModalOverlay.addEventListener('click', (e) => { if (e.target === anPresModalOverlay) anPresModalOverlay.style.display = 'none'; });
+anPresYearFilterEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-anpresyear]'); if (!btn) return;
+  AN_PRES_YEAR_FILTER = btn.dataset.anpresyear;
+  // Yıl değiştirildiğinde SADECE o yılın ayları seçili kalır - diğer sunum modallarındaki
+  // (Gelen Arama) ile aynı, dashboard genelinde tutarlı davranış.
+  AN_PRES_SELECTED_MONTHS.clear();
+  anGetAvailableMonths().filter(mk => mk.startsWith(AN_PRES_YEAR_FILTER)).forEach(mk => AN_PRES_SELECTED_MONTHS.add(mk));
+  anPresRenderModal();
+});
+anPresMonthChipsEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-anpresmonth]'); if (!btn) return;
+  const mk = btn.dataset.anpresmonth;
+  if (AN_PRES_SELECTED_MONTHS.has(mk)) AN_PRES_SELECTED_MONTHS.delete(mk); else AN_PRES_SELECTED_MONTHS.add(mk);
+  anPresRenderModal();
+});
+document.getElementById('anPresSelectAllBtn').addEventListener('click', () => {
+  anGetAvailableMonths().filter(mk => mk.startsWith(AN_PRES_YEAR_FILTER)).forEach(mk => AN_PRES_SELECTED_MONTHS.add(mk));
+  anPresRenderModal();
+});
+document.getElementById('anPresClearBtn').addEventListener('click', () => {
+  [...AN_PRES_SELECTED_MONTHS].filter(mk => mk.startsWith(AN_PRES_YEAR_FILTER)).forEach(mk => AN_PRES_SELECTED_MONTHS.delete(mk));
+  anPresRenderModal();
+});
+document.getElementById('anPresConfirmBtn').addEventListener('click', async () => {
+  const selected = [...AN_PRES_SELECTED_MONTHS].sort();
+  anPresModalOverlay.style.display = 'none';
+  if (!selected.length){ alert('En az bir ay seçin.'); return; }
+
+  // Seçili ayların en erkeninin başlangıcı - en geç ayının sonu, sunumun tarih aralığı olur.
+  const [firstY, firstM] = selected[0].split('-').map(Number);
+  const [lastY, lastM] = selected[selected.length - 1].split('-').map(Number);
+  const from = monthBounds(firstY, firstM).from;
+  const to = monthBounds(lastY, lastM).to;
+
   const btn = document.getElementById('anOpenPresBtn');
   const original = btn.textContent;
   btn.textContent = '⏳ Oluşturuluyor…';
   btn.disabled = true;
   try {
-    await presAnalizGenerate();
+    await presAnalizGenerate(from, to);
   } catch(e){
     console.error(e);
     alert('Sunum oluşturulurken bir hata oluştu:\n' + e.message);
