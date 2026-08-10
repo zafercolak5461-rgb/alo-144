@@ -1609,12 +1609,14 @@ body{
 
   <div class="chart-panel" style="margin-bottom:16px;">
     <div class="chart-panel-head">Korelasyon — Çağrı × Kaçan × Genel Talep × Köpük Talep <span class="hint" style="font-size:10.5px;">ham rakamlar — istediğiniz metriği aç/kapat, istediğiniz metriği çizgi ya da sütun yapın</span></div>
+    <div id="an-filterrow-corr"></div>
     <div id="anCorrSelectors" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:14px 20px;"></div>
     <div class="chart-wrap" style="height:360px; padding:8px 18px 18px;"><canvas id="anCorrChart-canvas"></canvas></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">Aylık Karşılaştırma — Geçen Aya ve Geçen Yılın Aynı Ayına Göre <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">TÜM geçmiş veri, tarih filtresinden bağımsız — Yön: talep/köpük değişimi çağrıyla aynı yönde mi</span></div>
+    <div id="an-filterrow-monthly"></div>
     <div class="table-scroll">
       <table id="anMonthlyTable">
         <thead><tr id="anMonthlyHead"></tr></thead>
@@ -1625,6 +1627,7 @@ body{
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">Ay İçi Haftalık Dağılım <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili ayın hangi haftasında yoğunluk oluşmuş</span></div>
+    <div id="an-filterrow-weekly"></div>
     <div style="padding:14px 18px 0;">
       <select id="an-weekMonthSelect" style="max-width:260px;"></select>
     </div>
@@ -1640,6 +1643,7 @@ body{
     <div class="panel-head">
       Genel Talep Dağılımı — Aylık Yoğunluk Haritası (Yıl × Ay) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili kategori/il — TÜM geçmiş veri, tarih filtresinden bağımsız</span>
     </div>
+    <div id="an-filterrow-heatmap"></div>
     <div id="anHeatmapGtdWrap" style="padding:18px; overflow-x:auto;"></div>
   </div>
 
@@ -1657,6 +1661,7 @@ body{
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">Genel Talep Dağılımı — Kategori Sıralaması <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili dönem vs önceki eşit dönem</span></div>
+    <div id="an-filterrow-katrank"></div>
     <div class="table-scroll">
       <table id="anKatRankTable">
         <thead><tr id="anKatRankHead"></tr></thead>
@@ -1667,6 +1672,7 @@ body{
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">Genel Talep Dağılımı — İl Sıralaması (İlk 15) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili kategoriler yan yana + son sütunda toplam — seçili dönem</span></div>
+    <div id="an-filterrow-ilrank"></div>
     <div class="table-scroll">
       <table id="anIlRankTable">
         <thead><tr id="anIlRankHead"></tr></thead>
@@ -8086,62 +8092,125 @@ const anDateFilter = createDateFilterController({
   onApply: () => renderAll()
 });
 
+// ================= SENKRON FİLTRE KONTROLLERİ =================
+// İl ve Kategori seçicileri sayfada BİRDEN FAZLA yerde (üst filtre + her ilgili panelin
+// hemen üstünde) tekrar ediyor - GTD sayfasındaki aynı desen. Hepsi currentIl/currentKat
+// durumunu paylaşır, biri değiştiğinde hepsi güncellenir - kullanıcının sayfanın en başına
+// dönmesine gerek kalmaz.
+const AN_FILTER_INSTANCES = ['main', 'corr', 'monthly', 'weekly', 'heatmap', 'katrank', 'ilrank'];
+const anIlSelects = [];
+const anKatControls = []; // {btn, panel}
+
+function anFilterRowHtml(suffix){
+  if (suffix === 'main') return null; // ana filtre satırı zaten statik HTML'de var
+  return `
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 18px; border-bottom:1px solid var(--line);">
+      <div class="date-input-group">
+        <label style="font-size:10px;">İl</label>
+        <select id="an-ilSelect-${suffix}"><option value="all">Tüm İller</option></select>
+      </div>
+      <div class="date-input-group" style="position:relative;">
+        <label style="font-size:10px;">Kategori — Genel Talep Dağılımı</label>
+        <button type="button" id="an-katBtn-${suffix}" class="refresh-btn" style="min-width:200px; text-align:left;">Genel (Tüm Kategoriler) ▾</button>
+        <div id="an-katPanel-${suffix}" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:320px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
+      </div>
+    </div>`;
+}
+
+function anRegisterIlSelect(el){
+  anIlSelects.push(el);
+  el.addEventListener('change', () => anSetIl(el.value));
+}
+function anSetIl(val){
+  currentIl = val;
+  anIlSelects.forEach(el => { el.value = val; });
+  renderAll();
+}
+
+function anRegisterKatControl(btn, panel){
+  anKatControls.push({ btn, panel });
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = panel.style.display === 'none';
+    anKatControls.forEach(k => k.panel.style.display = 'none');
+    panel.style.display = willOpen ? 'block' : 'none';
+  });
+}
+function anSyncKatControls(){
+  anKatControls.forEach(({btn, panel}) => {
+    panel.querySelectorAll('.an-kat-check').forEach(cb => { cb.checked = currentKat.includes(Number(cb.value)); });
+    syncKatBtnLabel(btn);
+  });
+}
+document.addEventListener('click', (e) => {
+  anKatControls.forEach(({btn, panel}) => {
+    if (!panel.contains(e.target) && e.target !== btn) panel.style.display = 'none';
+  });
+});
+
 function populateIlSelect(){
-  const sel = document.getElementById('an-ilSelect');
   const ils = [...new Set(GTD_ROWS.map(r => r.il))].sort((a,b) => a.localeCompare(b, 'tr'));
-  const prev = sel.value;
-  sel.innerHTML = '<option value="all">Tüm İller</option>' + ils.map(il => `<option value="${il}">${il}</option>`).join('');
-  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  const optsHtml = '<option value="all">Tüm İller</option>' + ils.map(il => `<option value="${il}">${il}</option>`).join('');
+  anIlSelects.forEach(el => {
+    const prev = el.value;
+    el.innerHTML = optsHtml;
+    if (ils.includes(currentIl)) el.value = currentIl; else if (prev) el.value = 'all';
+  });
 }
 
 function populateKatPanel(){
-  const panel = document.getElementById('an-katPanel');
   const checksHtml = GTD_CATEGORIES.map((c,i) => `
     <label style="display:flex; align-items:center; gap:8px; padding:5px 4px; font-size:12.5px; cursor:pointer;">
       <input type="checkbox" class="an-kat-check" value="${i}" ${currentKat.includes(i) ? 'checked' : ''}>
       ${c.name}
     </label>`).join('');
-  panel.innerHTML = `
+  const optsHtml = `
     <div style="display:flex; gap:8px; padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid var(--line);">
-      <button type="button" id="an-kat-selectall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Seç</button>
-      <button type="button" id="an-kat-clearall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Sil</button>
+      <button type="button" class="an-kat-selectall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Seç</button>
+      <button type="button" class="an-kat-clearall" style="flex:1; font-size:11px; padding:4px 8px; background:var(--panel2); border:1px solid var(--line); border-radius:6px; color:var(--text-dim); cursor:pointer;">Hepsini Sil</button>
     </div>
     ${checksHtml}`;
-  document.getElementById('an-kat-selectall').addEventListener('click', () => {
-    currentKat = GTD_CATEGORIES.map((_,i) => i);
-    populateKatPanel(); syncKatBtnLabel(); renderAll();
+  anKatControls.forEach(({panel}) => {
+    panel.innerHTML = optsHtml;
+    panel.querySelector('.an-kat-selectall').addEventListener('click', () => {
+      currentKat = GTD_CATEGORIES.map((_,i) => i);
+      populateKatPanel(); anSyncKatControls(); renderAll();
+    });
+    panel.querySelector('.an-kat-clearall').addEventListener('click', () => {
+      currentKat = [];
+      populateKatPanel(); anSyncKatControls(); renderAll();
+    });
+    panel.addEventListener('change', (e) => {
+      if (!e.target.classList.contains('an-kat-check')) return;
+      const idx = Number(e.target.value);
+      if (e.target.checked){ if (!currentKat.includes(idx)) currentKat.push(idx); }
+      else { currentKat = currentKat.filter(i => i !== idx); }
+      anSyncKatControls();
+      renderAll();
+    });
   });
-  document.getElementById('an-kat-clearall').addEventListener('click', () => {
-    currentKat = [];
-    populateKatPanel(); syncKatBtnLabel(); renderAll();
-  });
+  anSyncKatControls();
 }
 
-function syncKatBtnLabel(){
-  const btn = document.getElementById('an-katBtn');
+function syncKatBtnLabel(btn){
+  btn = btn || document.getElementById('an-katBtn-main');
   if (!currentKat.length) btn.textContent = 'Genel (Tüm Kategoriler) ▾';
   else if (currentKat.length === 1) btn.textContent = GTD_CATEGORIES[currentKat[0]].name + ' ▾';
   else btn.textContent = currentKat.length + ' kategori seçili ▾';
 }
 
-document.getElementById('an-ilSelect').addEventListener('change', (e) => { currentIl = e.target.value; renderAll(); });
-document.getElementById('an-katBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
-  const panel = document.getElementById('an-katPanel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-});
-document.getElementById('an-katPanel').addEventListener('change', (e) => {
-  if (!e.target.classList.contains('an-kat-check')) return;
-  const idx = Number(e.target.value);
-  if (e.target.checked){ if (!currentKat.includes(idx)) currentKat.push(idx); }
-  else { currentKat = currentKat.filter(i => i !== idx); }
-  syncKatBtnLabel();
-  renderAll();
-});
-document.addEventListener('click', (e) => {
-  const panel = document.getElementById('an-katPanel');
-  const btn = document.getElementById('an-katBtn');
-  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && e.target !== btn) panel.style.display = 'none';
+// Ana (üstteki) filtre satırı, id'lerini "-main" son ekiyle diğerleriyle aynı düzene sokuyor.
+document.getElementById('an-ilSelect').id = 'an-ilSelect-main';
+document.getElementById('an-katBtn').id = 'an-katBtn-main';
+document.getElementById('an-katPanel').id = 'an-katPanel-main';
+
+AN_FILTER_INSTANCES.forEach(suffix => {
+  if (suffix !== 'main'){
+    const container = document.getElementById(`an-filterrow-${suffix}`);
+    if (container) container.innerHTML = anFilterRowHtml(suffix);
+  }
+  anRegisterIlSelect(document.getElementById(`an-ilSelect-${suffix}`));
+  anRegisterKatControl(document.getElementById(`an-katBtn-${suffix}`), document.getElementById(`an-katPanel-${suffix}`));
 });
 
 // ================= Yardımcı hesaplamalar =================
