@@ -775,6 +775,51 @@ body{
         <div class="prepared-by-title">OSMANİYE ALO 144 TAKIM LİDERİ</div>
       </div>
     </div>
+
+<!-- Sunum ay/yıl seçim modalları BİLEREK burada, TÜM .page div'lerinin DIŞINDA duruyor.
+     Daha önce yanlışlıkla page-gelen-arama-dagilimi'nin İÇİNDE tanımlıydı - o sayfa aktif
+     değilken (başka bir sekmedeyken) .page{display:none} kuralı modalı da görünmez
+     kılıyordu (Analiz'den açılan pencere sadece Gelen Arama'ya geçilince görünüyordu). -->
+<div class="modal-overlay" id="presModalOverlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-head">Sunum İçin Yıl / Ay Seçin</div>
+    <div class="modal-body">
+      <div class="modal-section-label">Yıl (aşağıdaki ay listesini filtreler)</div>
+      <div id="presYearFilter" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;"></div>
+      <div class="modal-section-label" id="presMonthLabel">Aylar</div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="refresh-btn" id="presSelectAllBtn">Tümünü Seç</button>
+        <button class="refresh-btn" id="presClearBtn">Temizle</button>
+      </div>
+      <div id="presMonthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="refresh-btn" id="presCancelBtn">İptal</button>
+      <button class="refresh-btn" id="presConfirmBtn" style="background:var(--accent-dim); color:var(--accent); border-color:var(--accent);">Sunumu Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="anPresModalOverlay" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-head">Analiz Sunumu İçin Yıl / Ay Seçin</div>
+    <div class="modal-body">
+      <div class="modal-section-label">Yıl (aşağıdaki ay listesini filtreler)</div>
+      <div id="anPresYearFilter" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;"></div>
+      <div class="modal-section-label" id="anPresMonthLabel">Aylar</div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="refresh-btn" id="anPresSelectAllBtn">Tümünü Seç</button>
+        <button class="refresh-btn" id="anPresClearBtn">Temizle</button>
+      </div>
+      <div id="anPresMonthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="refresh-btn" id="anPresCancelBtn">İptal</button>
+      <button class="refresh-btn" id="anPresConfirmBtn" style="background:var(--accent-dim); color:var(--accent); border-color:var(--accent);">Sunumu Oluştur</button>
+    </div>
+  </div>
+</div>
+
 <div class="page active" id="page-gelen-arama-dagilimi">
 <div class="dashboard-page">
 <div class="wrap">
@@ -927,46 +972,6 @@ body{
     Veri, Google E-Tablo'daki <b>Sayfa1</b> sekmesinden canlı okunuyor. Boş hücreler API'den hiç gelmediği için "—" olarak gösteriliyor. Bu dosya statik bir HTML'dir — kimseyle e-posta veya dosya olarak paylaşabilirsiniz, açan herkes aynı canlı veriyi görür.
   </div>
 
-</div>
-
-<div class="modal-overlay" id="presModalOverlay" style="display:none;">
-  <div class="modal-box">
-    <div class="modal-head">Sunum İçin Yıl / Ay Seçin</div>
-    <div class="modal-body">
-      <div class="modal-section-label">Yıl (aşağıdaki ay listesini filtreler)</div>
-      <div id="presYearFilter" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;"></div>
-      <div class="modal-section-label" id="presMonthLabel">Aylar</div>
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
-        <button class="refresh-btn" id="presSelectAllBtn">Tümünü Seç</button>
-        <button class="refresh-btn" id="presClearBtn">Temizle</button>
-      </div>
-      <div id="presMonthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="refresh-btn" id="presCancelBtn">İptal</button>
-      <button class="refresh-btn" id="presConfirmBtn" style="background:var(--accent-dim); color:var(--accent); border-color:var(--accent);">Sunumu Oluştur</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="anPresModalOverlay" style="display:none;">
-  <div class="modal-box">
-    <div class="modal-head">Analiz Sunumu İçin Yıl / Ay Seçin</div>
-    <div class="modal-body">
-      <div class="modal-section-label">Yıl (aşağıdaki ay listesini filtreler)</div>
-      <div id="anPresYearFilter" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;"></div>
-      <div class="modal-section-label" id="anPresMonthLabel">Aylar</div>
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
-        <button class="refresh-btn" id="anPresSelectAllBtn">Tümünü Seç</button>
-        <button class="refresh-btn" id="anPresClearBtn">Temizle</button>
-      </div>
-      <div id="anPresMonthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="refresh-btn" id="anPresCancelBtn">İptal</button>
-      <button class="refresh-btn" id="anPresConfirmBtn" style="background:var(--accent-dim); color:var(--accent); border-color:var(--accent);">Sunumu Oluştur</button>
-    </div>
-  </div>
 </div>
 
 </div>
