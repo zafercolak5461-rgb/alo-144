@@ -1551,6 +1551,7 @@ body{
     </div>
     <div class="status" id="anStatusWrap">
       <button id="anRefreshBtn" class="refresh-btn" title="Tüm veri kaynaklarını yeniden çek">⟳ Yenile</button>
+      <button class="refresh-btn sunum-only" id="anOpenPresBtn" title="Aktif filtreyle sunum oluştur">🎞 Sunum Oluştur</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="anStatusDot"></span>
       <span id="anStatusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -2105,32 +2106,38 @@ body{
 </div>
 <div class="page" id="page-yetki-atama">
   <div class="topbar">
-    <div class="topbar-left"><h1>Yetki Atama</h1><p class="subtitle">Sadece Süper Yetkili — kimin hangi özelliği kullanabileceğini yönetin</p></div>
+    <div class="topbar-left"><h1>Yetki Atama</h1><p class="subtitle">Sadece Süper Yetkili — kimin hangi özelliği ve hangi sekmeleri kullanabileceğini yönetin</p></div>
   </div>
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
       <input id="ya-filterInput" placeholder="İsim ya da e-posta ile ara…" style="flex:1; min-width:220px; padding:10px 12px; border-radius:8px; border:1px solid var(--shell-line); background:var(--shell-panel); color:var(--shell-text);">
       <button class="refresh-btn" id="ya-addToggleBtn">+ Yeni Kişi Ekle</button>
     </div>
-    <div class="panel-body" id="ya-addForm" style="display:none; border-top:1px solid var(--shell-line); grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:14px; align-items:end;">
-      <div><div class="hint" style="margin-bottom:6px;">İsim</div><input id="ya-newIsim" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--shell-line); background:var(--shell-bg); color:var(--shell-text);"></div>
-      <div><div class="hint" style="margin-bottom:6px;">Gmail</div><input id="ya-newGmail" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--shell-line); background:var(--shell-bg); color:var(--shell-text);"></div>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-superYetkili"> Süper Yetkili</label>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-guncelleme"> Güncelleme</label>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-sunum"> Sunum</label>
-      <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-excel"> Excel</label>
-      <button class="refresh-btn" id="ya-addSaveBtn">Kaydet</button>
+    <div class="panel-body" id="ya-addForm" style="display:none; border-top:1px solid var(--shell-line); flex-direction:column; gap:14px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:14px; align-items:end;">
+        <div><div class="hint" style="margin-bottom:6px;">İsim</div><input id="ya-newIsim" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--shell-line); background:var(--shell-bg); color:var(--shell-text);"></div>
+        <div><div class="hint" style="margin-bottom:6px;">Gmail</div><input id="ya-newGmail" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--shell-line); background:var(--shell-bg); color:var(--shell-text);"></div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-superYetkili"> Süper Yetkili</label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-guncelleme"> Güncelleme</label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-sunum"> Sunum</label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="ya-new-excel"> Excel</label>
+      </div>
+      <div>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <span class="hint">Sekme Erişimi</span>
+          <button type="button" class="refresh-btn" id="ya-newPagesSelectAll" style="font-size:11px; padding:4px 10px;">Hepsini Seç</button>
+          <button type="button" class="refresh-btn" id="ya-newPagesClearAll" style="font-size:11px; padding:4px 10px;">Hepsini Sil</button>
+        </div>
+        <div id="ya-newPagesGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:10px;"></div>
+      </div>
+      <div><button class="refresh-btn" id="ya-addSaveBtn">Kaydet</button></div>
     </div>
   </div>
   <div class="panel">
-    <div style="overflow-x:auto;">
+    <div class="table-scroll">
       <table style="width:100%; border-collapse:collapse;">
-        <thead><tr style="border-bottom:1px solid var(--shell-line); text-align:left;">
+        <thead><tr id="ya-tableHead" style="border-bottom:1px solid var(--shell-line); text-align:left;">
           <th style="padding:10px 12px;">İsim</th><th style="padding:10px 12px;">Gmail</th>
-          <th style="padding:10px 12px; text-align:center;">Süper Yetkili</th>
-          <th style="padding:10px 12px; text-align:center;">Güncelleme</th>
-          <th style="padding:10px 12px; text-align:center;">Sunum</th>
-          <th style="padding:10px 12px; text-align:center;">Excel</th>
         </tr></thead>
         <tbody id="ya-tableBody"></tbody>
       </table>
@@ -2230,8 +2237,24 @@ function showLoginError(msg){
 
 function isTrueVal(v){ return v === true || String(v || '').trim().toLocaleUpperCase('tr') === 'TRUE'; }
 
+// Sekme erişim sütunları (G-O) - sidebar'daki data-page değerleriyle birebir eşleşir.
+// Süper Yetkili=TRUE olan kullanıcılar bu listeden etkilenmez (her zaman her şeyi görür).
+const PAGE_COLS = [
+  { key: 'page_gelenArama',        page: 'gelen-arama-dagilimi', label: 'Gelen Arama Dağılımı',      letter: 'G' },
+  { key: 'page_genelTalep',        page: 'genel-talep-dagilimi', label: 'Genel Talep Dağılımı',      letter: 'H' },
+  { key: 'page_kopukTalep',        page: 'kopuk-talep-dagilimi', label: 'Köpük Talep Dağılımı',      letter: 'I' },
+  { key: 'page_analiz',            page: 'analiz',               label: 'Analiz',                     letter: 'J' },
+  { key: 'page_vardiya',           page: 'vardiya',               label: 'Vardiya',                    letter: 'K' },
+  { key: 'page_yoklama',           page: 'yoklama',               label: 'Yoklama',                    letter: 'L' },
+  { key: 'page_gunlukOperasyon',   page: 'gunluk-operasyon',      label: 'Günlük Operasyon Verileri',  letter: 'M' },
+  { key: 'page_personelPerformans',page: 'personel-performans',   label: 'Personel Performans',        letter: 'N' },
+  { key: 'page_takimDagilimi',     page: 'takim-dagilimi',        label: 'Takım Dağılımı',             letter: 'O' },
+];
+const PAGE_COLS_FIRST_LETTER = PAGE_COLS[0].letter;
+const PAGE_COLS_LAST_LETTER = PAGE_COLS[PAGE_COLS.length - 1].letter;
+
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('A1:F1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('ALO144!A1:O1000')}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
@@ -2242,7 +2265,7 @@ async function loadAuthTable(token){
     const r = values[i] || [];
     const gmail = String(r[1] || '').trim().toLocaleLowerCase('tr');
     if (!gmail) continue;
-    rows.push({
+    const row = {
       rowNum: i + 1,
       isim: r[0] || '',
       gmail,
@@ -2250,9 +2273,35 @@ async function loadAuthTable(token){
       guncelleme: isTrueVal(r[3]),
       sunum: isTrueVal(r[4]),
       excel: isTrueVal(r[5])
-    });
+    };
+    PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[6 + idx]); });
+    rows.push(row);
   }
   return rows;
+}
+
+// Süper Yetkili/sabit yönetici DIŞINDAKİ kullanıcılar için, erişimi olmayan sekmeleri
+// sol menüden gizler. Aktif sekme gizlenmişse ilk görünen sekmeye otomatik geçer.
+function applyPageAccess(myRow, isFixedAdmin){
+  const superYetkili = isFixedAdmin || !!(myRow && myRow.superYetkili);
+  if (superYetkili) return;
+  let activeHidden = false;
+  const allowedSlugs = [];
+  PAGE_COLS.forEach(c => {
+    const allowed = !!(myRow && myRow[c.key]);
+    if (allowed){ allowedSlugs.push(c.page); return; }
+    document.querySelectorAll(`.nav-item[data-page="${c.page}"]`).forEach(el => {
+      if (el.classList.contains('active')) activeHidden = true;
+      el.style.display = 'none';
+    });
+  });
+  // Geri dönüş hedefi SADECE bu listedeki (PAGE_COLS) izinli sekmelerden seçilir - Yetki
+  // Atama gibi ayrı bir yetki bayrağıyla (class tabanlı) yönetilen öğelere asla düşülmez,
+  // aksi halde sidebar'da görünmeyen ama içerik alanında açılabilen bir sayfa oluşabilirdi.
+  if (activeHidden && allowedSlugs.length){
+    const target = document.querySelector(`.nav-item[data-page="${allowedSlugs[0]}"]`);
+    if (target) target.click();
+  }
 }
 
 async function initIslemAccess(){
@@ -2273,6 +2322,10 @@ async function initIslemAccess(){
     yetkiAuthorized = isFixedAdmin || !!(myRow && myRow.superYetkili);
     sunumAuthorized = isFixedAdmin || !!(myRow && myRow.sunum);
     excelAuthorized = isFixedAdmin || !!(myRow && myRow.excel);
+
+    // Sekme erişimi, üstteki 4 bayraktan BAĞIMSIZ çalışır - Güncelleme/Sunum/Excel/Süper
+    // Yetkili'nin hiçbiri TRUE olmasa bile kişinin belirli sekmeleri görmesi gerekebilir.
+    applyPageAccess(myRow, isFixedAdmin);
 
     if (!islemAuthorized && !yetkiAuthorized && !sunumAuthorized && !excelAuthorized) return;
 
@@ -7333,6 +7386,16 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
     { key: 'excel',        label: 'Excel',         letter: 'F' },
   ];
 
+  function renderYaHead(){
+    const head = document.getElementById('ya-tableHead');
+    if (!head) return;
+    head.innerHTML = `
+      <th style="padding:10px 12px;">İsim</th><th style="padding:10px 12px;">Gmail</th>
+      ${AUTH_COLS.map(c => `<th style="padding:10px 12px; text-align:center;">${c.label}</th>`).join('')}
+      ${PAGE_COLS.map(c => `<th style="padding:10px 12px; text-align:center; font-size:11px;">${c.label}</th>`).join('')}
+      <th style="padding:10px 12px; text-align:center; white-space:nowrap;">Sekmeler</th>`;
+  }
+
   function renderYaTable(){
     const tbody = document.getElementById('ya-tableBody');
     if (!tbody) return;
@@ -7342,15 +7405,27 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
       return r.isim.toLocaleLowerCase('tr').includes(q) || r.gmail.includes(q);
     }).sort((a,b) => a.isim.localeCompare(b.isim, 'tr'));
 
+    const totalCols = 2 + AUTH_COLS.length + PAGE_COLS.length + 1;
     tbody.innerHTML = filtered.map(r => `
       <tr>
         <td style="padding:10px 12px; font-weight:700; color:#ffffff;">${r.isim || '—'}</td>
         <td style="padding:10px 12px; color:#e8eaed; font-size:13px;">${r.gmail}</td>
         ${AUTH_COLS.map(c => `<td style="padding:10px 12px; text-align:center;"><input type="checkbox" data-yatoggle="${c.key}" data-letter="${c.letter}" data-row="${r.rowNum}" ${r[c.key] ? 'checked' : ''}></td>`).join('')}
-      </tr>`).join('') || `<tr><td colspan="6" class="empty-state">Kayıt bulunamadı.</td></tr>`;
+        ${PAGE_COLS.map(c => `<td style="padding:10px 12px; text-align:center;"><input type="checkbox" data-yatoggle="${c.key}" data-letter="${c.letter}" data-row="${r.rowNum}" ${r[c.key] ? 'checked' : ''}></td>`).join('')}
+        <td style="padding:10px 12px; text-align:center; white-space:nowrap;">
+          <button type="button" class="refresh-btn" data-yaselectall="${r.rowNum}" style="font-size:10.5px; padding:3px 8px;">Hepsini Seç</button>
+          <button type="button" class="refresh-btn" data-yaclearall="${r.rowNum}" style="font-size:10.5px; padding:3px 8px;">Hepsini Sil</button>
+        </td>
+      </tr>`).join('') || `<tr><td colspan="${totalCols}" class="empty-state">Kayıt bulunamadı.</td></tr>`;
 
     tbody.querySelectorAll('[data-yatoggle]').forEach(cb => {
       cb.addEventListener('change', () => yaToggle(cb.dataset.row, cb.dataset.letter, cb.checked, cb));
+    });
+    tbody.querySelectorAll('[data-yaselectall]').forEach(btn => {
+      btn.addEventListener('click', () => yaToggleAllPages(btn.dataset.yaselectall, true, btn));
+    });
+    tbody.querySelectorAll('[data-yaclearall]').forEach(btn => {
+      btn.addEventListener('click', () => yaToggleAllPages(btn.dataset.yaclearall, false, btn));
     });
   }
 
@@ -7360,7 +7435,7 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
     checkboxEl.disabled = true;
     try {
       const token = await ensureWriteToken();
-      const range = `${colLetter}${rowNum}`;
+      const range = `ALO144!${colLetter}${rowNum}`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
       const res = await fetch(url, {
         method: 'PUT',
@@ -7377,6 +7452,44 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
     } finally {
       checkboxEl.disabled = false;
     }
+  }
+
+  // Bir kişinin TÜM sekme (G-O) tiklerini TEK istekte toplu açar/kapatır - Süper
+  // Yetkili/Güncelleme/Sunum/Excel'e dokunmaz, sadece sekme görünürlüğünü etkiler.
+  async function yaToggleAllPages(rowNum, newValue, btnEl){
+    const statusEl = document.getElementById('ya-statusMsg');
+    if (statusEl) statusEl.textContent = 'Kaydediliyor…';
+    const row = btnEl.closest('tr');
+    const checkboxes = row ? [...row.querySelectorAll('[data-yatoggle]')].filter(cb => PAGE_COLS.some(c => c.key === cb.dataset.yatoggle)) : [];
+    checkboxes.forEach(cb => cb.disabled = true);
+    if (btnEl) btnEl.disabled = true;
+    try {
+      const token = await ensureWriteToken();
+      const range = `ALO144!${PAGE_COLS_FIRST_LETTER}${rowNum}:${PAGE_COLS_LAST_LETTER}${rowNum}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+      const values = [PAGE_COLS.map(() => newValue ? 'TRUE' : 'FALSE')];
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ range, majorDimension: 'ROWS', values })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || 'Güncelleme başarısız oldu.');
+      AUTH_TABLE = await loadAuthTable(token) || AUTH_TABLE;
+      renderYaTable();
+      if (statusEl) statusEl.textContent = `✓ ${PAGE_COLS.length} sekme ${newValue ? 'açıldı' : 'kapatıldı'} — ` + new Date().toLocaleTimeString('tr-TR');
+    } catch(e){
+      if (statusEl) statusEl.textContent = '✗ Hata: ' + e.message;
+    } finally {
+      checkboxes.forEach(cb => cb.disabled = false);
+      if (btnEl) btnEl.disabled = false;
+    }
+  }
+
+  function renderNewPagesGrid(){
+    const grid = document.getElementById('ya-newPagesGrid');
+    if (!grid) return;
+    grid.innerHTML = PAGE_COLS.map(c => `<label style="display:flex; align-items:center; gap:8px; font-size:12.5px;"><input type="checkbox" class="ya-new-page-check" id="ya-new-${c.key}"> ${c.label}</label>`).join('');
   }
 
   async function yaAdd(){
@@ -7399,12 +7512,13 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
         document.getElementById('ya-new-guncelleme').checked ? 'TRUE' : 'FALSE',
         document.getElementById('ya-new-sunum').checked ? 'TRUE' : 'FALSE',
         document.getElementById('ya-new-excel').checked ? 'TRUE' : 'FALSE',
+        ...PAGE_COLS.map(c => document.getElementById(`ya-new-${c.key}`).checked ? 'TRUE' : 'FALSE'),
       ];
-      const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('A1')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+      const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('ALO144!A1')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
       const res = await fetch(appendUrl, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ range: 'A1', majorDimension: 'ROWS', values: [rowArr] })
+        body: JSON.stringify({ range: 'ALO144!A1', majorDimension: 'ROWS', values: [rowArr] })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error.message || 'Kişi eklenemedi.');
@@ -7426,16 +7540,26 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
   const addForm = document.getElementById('ya-addForm');
   if (addToggleBtn) addToggleBtn.addEventListener('click', () => {
     const showing = addForm.style.display !== 'none';
-    addForm.style.display = showing ? 'none' : 'grid';
+    addForm.style.display = showing ? 'none' : 'flex';
     addToggleBtn.textContent = showing ? '+ Yeni Kişi Ekle' : '✕ Vazgeç';
   });
   const addSaveBtn = document.getElementById('ya-addSaveBtn');
   if (addSaveBtn) addSaveBtn.addEventListener('click', yaAdd);
+  const newPagesSelectAll = document.getElementById('ya-newPagesSelectAll');
+  const newPagesClearAll = document.getElementById('ya-newPagesClearAll');
+  if (newPagesSelectAll) newPagesSelectAll.addEventListener('click', () => {
+    document.querySelectorAll('.ya-new-page-check').forEach(cb => cb.checked = true);
+  });
+  if (newPagesClearAll) newPagesClearAll.addEventListener('click', () => {
+    document.querySelectorAll('.ya-new-page-check').forEach(cb => cb.checked = false);
+  });
 
   // Yetki Atama sayfası her açıldığında (nav tıklamasıyla) tabloyu tazele
   document.querySelectorAll('.nav-item[data-page="yetki-atama"]').forEach(btn => {
     btn.addEventListener('click', renderYaTable);
   });
+  renderYaHead();
+  renderNewPagesGrid();
   renderYaTable();
 })();
 </script>
@@ -8329,7 +8453,7 @@ function metricCard(label, value, deltaPct, opts){
   return `<div class="metric"><div class="label">${label}</div>${valueHtml}${deltaHtml}</div>`;
 }
 
-function renderMetrics(from, to){
+function computeKpiCards(from, to){
   const { prevFrom, prevTo } = getPrevRange(from, to);
   const callsCurr = sumField(CALLS_ROWS, 'cevap', from, to);
   const callsPrev = sumField(CALLS_ROWS, 'cevap', prevFrom, prevTo);
@@ -8342,15 +8466,20 @@ function renderMetrics(from, to){
   const kopukPrev = sumSeriesInRange(kopukSeries, prevFrom, prevTo);
 
   const cards = [
-    metricCard('Toplam Çağrı (Cevaplanan)', callsCurr, pctChange(callsCurr, callsPrev)),
-    metricCard('Toplam ' + gtdLabel(), gtdCurr, pctChange(gtdCurr, gtdPrev)),
-    metricCard('Toplam Köpük Talep', kopukCurr, pctChange(kopukCurr, kopukPrev)),
-    metricCard('Kaçan Çağrı Oranı', kacanOrani, null, { isPct: true })
+    { label: 'Toplam Çağrı (Cevaplanan)', value: callsCurr, deltaPct: pctChange(callsCurr, callsPrev), opts: {} },
+    { label: 'Toplam ' + gtdLabel(), value: gtdCurr, deltaPct: pctChange(gtdCurr, gtdPrev), opts: {} },
+    { label: 'Toplam Köpük Talep', value: kopukCurr, deltaPct: pctChange(kopukCurr, kopukPrev), opts: {} },
+    { label: 'Kaçan Çağrı Oranı', value: kacanOrani, deltaPct: null, opts: { isPct: true } }
   ];
   const topKat = topKategoriInRange(from, to);
   const topIl = topIlInRange(from, to);
-  if (topKat) cards.push(metricCard('En Çok Talep Alınan Konu', topKat.name, null, { isText: true, sub: Math.round(topKat.total).toLocaleString('tr-TR') + ' adet' }));
-  if (topIl) cards.push(metricCard('En Çok Talep Alınan İl', topIl.name, null, { isText: true, sub: Math.round(topIl.total).toLocaleString('tr-TR') + ' adet' }));
+  if (topKat) cards.push({ label: 'En Çok Talep Alınan Konu', value: topKat.name, deltaPct: null, opts: { isText: true, sub: Math.round(topKat.total).toLocaleString('tr-TR') + ' adet' } });
+  if (topIl) cards.push({ label: 'En Çok Talep Alınan İl', value: topIl.name, deltaPct: null, opts: { isText: true, sub: Math.round(topIl.total).toLocaleString('tr-TR') + ' adet' } });
+  return cards;
+}
+
+function renderMetrics(from, to){
+  const cards = computeKpiCards(from, to).map(c => metricCard(c.label, c.value, c.deltaPct, c.opts));
   anMetrics.innerHTML = cards.join('');
   playCountAnimations(anMetrics);
 }
@@ -8369,7 +8498,7 @@ function compareTrend(nameA, pctA, nameB, pctB){
 }
 
 // ================= Otomatik İçgörü =================
-function buildInsight(from, to){
+function computeInsightSentences(from, to){
   const { prevFrom, prevTo } = getPrevRange(from, to);
   const callsCurr = sumField(CALLS_ROWS, 'cevap', from, to);
   const callsPrev = sumField(CALLS_ROWS, 'cevap', prevFrom, prevTo);
@@ -8401,6 +8530,11 @@ function buildInsight(from, to){
   const peakKopuk = peakMonthOverall(kopukSeries);
   if (peakKopuk) sentences.push(`Köpük Talep ise en çok ${peakKopuk.monthName} ayında yoğunlaşıyor (yıllık ortalama ${Math.round(peakKopuk.avg).toLocaleString('tr-TR')} adet/ay).`);
 
+  return sentences;
+}
+
+function buildInsight(from, to){
+  const sentences = computeInsightSentences(from, to);
   anInsightText.innerHTML = sentences.map(s => `<div style="margin-bottom:6px;">• ${s}</div>`).join('');
 }
 
@@ -8508,17 +8642,20 @@ function renderCorrChart(from, to){
 }
 
 // ================= Isı Haritası (Yıl × Ay) =================
-function renderHeatmap(series, wrapId){
-  const wrap = document.getElementById(wrapId);
-  if (!series.length){ wrap.innerHTML = '<div class="empty-state">Veri yok.</div>'; return; }
-
+function computeHeatmapMatrix(series){
   const years = [...new Set(series.map(p => p.date.getFullYear()))].sort((a,b) => b - a);
   const matrix = {};
   years.forEach(y => matrix[y] = new Array(12).fill(0));
   series.forEach(p => { matrix[p.date.getFullYear()][p.date.getMonth()] += p.value; });
-
   const allVals = years.flatMap(y => matrix[y]).filter(v => v > 0);
   const maxVal = allVals.length ? Math.max(...allVals) : 0;
+  return { years, matrix, maxVal };
+}
+
+function renderHeatmap(series, wrapId){
+  const wrap = document.getElementById(wrapId);
+  if (!series.length){ wrap.innerHTML = '<div class="empty-state">Veri yok.</div>'; return; }
+  const { years, matrix, maxVal } = computeHeatmapMatrix(series);
   function colorFor(v){
     if (!v || !maxVal) return 'transparent';
     return HEATMAP_COLORS[Math.min(4, Math.floor((v / maxVal) * 5))];
@@ -8547,10 +8684,8 @@ function deltaCellHtml(pct){
   return `<span style="color:var(--${up ? 'accent' : 'danger'}); font-weight:700;">${up ? '▲' : '▼'} %${Math.abs(pct).toFixed(1)}</span>`;
 }
 
-function renderRankTables(from, to){
+function computeKatRanking(from, to){
   const { prevFrom, prevTo } = getPrevRange(from, to);
-
-  // Kategori sıralaması: İl filtresi uygulanır, kategori filtresi UYGULANMAZ (tüm kategoriler kıyaslanır)
   const katCurr = GTD_CATEGORIES.map(() => 0);
   const katPrev = GTD_CATEGORIES.map(() => 0);
   GTD_ROWS.forEach(row => {
@@ -8558,16 +8693,14 @@ function renderRankTables(from, to){
     if (row.date >= from && row.date <= to) row.values.forEach((v,i) => katCurr[i] += (v || 0));
     else if (row.date >= prevFrom && row.date <= prevTo) row.values.forEach((v,i) => katPrev[i] += (v || 0));
   });
-  const katRows = GTD_CATEGORIES.map((c,i) => ({ name: c.name, curr: katCurr[i], prev: katPrev[i] })).sort((a,b) => b.curr - a.curr);
+  return GTD_CATEGORIES.map((c,i) => ({ name: c.name, curr: katCurr[i], prev: katPrev[i] })).sort((a,b) => b.curr - a.curr);
+}
 
-  document.getElementById('anKatRankHead').innerHTML = '<th>#</th><th>Kategori</th><th>Bu Dönem</th><th>Değişim</th>';
-  document.getElementById('anKatRankBody').innerHTML = katRows.length ? katRows.map((r,i) => `<tr><td>${i+1}</td><td class="date">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.curr).toLocaleString('tr-TR')}</td><td>${deltaCellHtml(pctChange(r.curr, r.prev))}</td></tr>`).join('') : '<tr><td class="empty-state" colspan="4">Veri yok.</td></tr>';
-
-  // İl sıralaması: seçili kategoriler YAN YANA sütun olarak + son sütunda TOPLAM.
-  // Hiç kategori seçili değilse tek "Toplam" sütunu (GTD toplam sütunundan).
+function computeIlRanking(from, to, limit){
+  const { prevFrom, prevTo } = getPrevRange(from, to);
   const activeCats = currentKat.length ? currentKat : null;
-  const ilDetail = new Map();   // il -> { catSums:[...], total }
-  const ilPrevTotal = new Map(); // il -> önceki dönem toplamı (aktif filtreye göre)
+  const ilDetail = new Map();
+  const ilPrevTotal = new Map();
   GTD_ROWS.forEach(row => {
     if (row.date >= from && row.date <= to){
       if (!ilDetail.has(row.il)) ilDetail.set(row.il, { catSums: GTD_CATEGORIES.map(() => 0), total: 0 });
@@ -8579,15 +8712,22 @@ function renderRankTables(from, to){
       ilPrevTotal.set(row.il, (ilPrevTotal.get(row.il) || 0) + v);
     }
   });
-
   const headCols = activeCats ? activeCats.map(idx => GTD_CATEGORIES[idx].name) : ['Toplam (Tüm Kategoriler)'];
-  const headExtra = activeCats ? '<th>Toplam</th>' : '';
-  document.getElementById('anIlRankHead').innerHTML = `<th>#</th><th>İl</th>${headCols.map(h => `<th>${h}</th>`).join('')}${headExtra}<th>Değişim</th>`;
-
   const entries = [...ilDetail.entries()].map(([il,d]) => {
     const curr = activeCats ? activeCats.reduce((s,idx) => s + (d.catSums[idx] || 0), 0) : d.total;
     return { il, d, curr, prev: ilPrevTotal.get(il) || 0 };
-  }).sort((a,b) => b.curr - a.curr).slice(0, 15);
+  }).sort((a,b) => b.curr - a.curr).slice(0, limit || 15);
+  return { activeCats, headCols, entries };
+}
+
+function renderRankTables(from, to){
+  const katRows = computeKatRanking(from, to);
+  document.getElementById('anKatRankHead').innerHTML = '<th>#</th><th>Kategori</th><th>Bu Dönem</th><th>Değişim</th>';
+  document.getElementById('anKatRankBody').innerHTML = katRows.length ? katRows.map((r,i) => `<tr><td>${i+1}</td><td class="date">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.curr).toLocaleString('tr-TR')}</td><td>${deltaCellHtml(pctChange(r.curr, r.prev))}</td></tr>`).join('') : '<tr><td class="empty-state" colspan="4">Veri yok.</td></tr>';
+
+  const { activeCats, headCols, entries } = computeIlRanking(from, to, 15);
+  const headExtra = activeCats ? '<th>Toplam</th>' : '';
+  document.getElementById('anIlRankHead').innerHTML = `<th>#</th><th>İl</th>${headCols.map(h => `<th>${h}</th>`).join('')}${headExtra}<th>Değişim</th>`;
 
   document.getElementById('anIlRankBody').innerHTML = entries.length ? entries.map((e,i) => {
     const cols = activeCats
@@ -8626,7 +8766,7 @@ function buildMonthlySumsFromRows(rows, field){
 }
 
 // ================= Aylık Karşılaştırma Tablosu =================
-function renderMonthlyTable(){
+function computeMonthlyRows(){
   const callsMap = buildMonthlySumsFromRows(CALLS_ROWS, 'cevap');
   const kacanMap = buildMonthlySumsFromRows(CALLS_ROWS, 'kacan');
   const gtdMap = buildMonthlySumsFromSeries(gtdSeries);
@@ -8649,11 +8789,32 @@ function renderMonthlyTable(){
     return pctChange(curr, valAt(map, year - 1, month) || 0);
   }
   function yon(pctA, pctB){
-    if (pctA === null || pctB === null) return '<span style="color:var(--text-dim-2);">—</span>';
-    const same = (pctA >= 0 && pctB >= 0) || (pctA < 0 && pctB < 0);
+    if (pctA === null || pctB === null) return null;
+    return (pctA >= 0 && pctB >= 0) || (pctA < 0 && pctB < 0);
+  }
+
+  return months.map(({year, month}) => {
+    const callsV = valAt(callsMap, year, month), callsMoM = momPct(callsMap, year, month), callsYoY = yoyPct(callsMap, year, month);
+    const kacanV = valAt(kacanMap, year, month), kacanMoM = momPct(kacanMap, year, month), kacanYoY = yoyPct(kacanMap, year, month);
+    const gtdV = valAt(gtdMap, year, month), gtdMoM = momPct(gtdMap, year, month), gtdYoY = yoyPct(gtdMap, year, month);
+    const kopukV = valAt(kopukMap, year, month), kopukMoM = momPct(kopukMap, year, month), kopukYoY = yoyPct(kopukMap, year, month);
+    return {
+      year, month, label: monthLabel(year, month),
+      calls: { v: callsV, mom: callsMoM, yoy: callsYoY },
+      kacan: { v: kacanV, mom: kacanMoM, yoy: kacanYoY },
+      gtd: { v: gtdV, mom: gtdMoM, yoy: gtdYoY, yonVsCalls: yon(gtdMoM, callsMoM) },
+      kopuk: { v: kopukV, mom: kopukMoM, yoy: kopukYoY, yonVsCalls: yon(kopukMoM, callsMoM) }
+    };
+  });
+}
+
+function renderMonthlyTable(){
+  const months = computeMonthlyRows();
+  function cell(v){ return v === null ? '<span style="color:var(--text-dim-2);">—</span>' : `<span style="font-family:'IBM Plex Mono',monospace;">${Math.round(v).toLocaleString('tr-TR')}</span>`; }
+  function yonHtml(same){
+    if (same === null) return '<span style="color:var(--text-dim-2);">—</span>';
     return same ? '<span style="color:var(--accent); font-weight:700;">↗ paralel</span>' : '<span style="color:var(--danger); font-weight:700;">↘ ters</span>';
   }
-  function cell(v){ return v === null ? '<span style="color:var(--text-dim-2);">—</span>' : `<span style="font-family:'IBM Plex Mono',monospace;">${Math.round(v).toLocaleString('tr-TR')}</span>`; }
 
   document.getElementById('anMonthlyHead').innerHTML = `
     <th>Ay</th>
@@ -8662,19 +8823,13 @@ function renderMonthlyTable(){
     <th>${gtdLabel()}</th><th>MoM</th><th>YoY</th><th>Yön (vs Çağrı)</th>
     <th>Köpük Talep</th><th>MoM</th><th>YoY</th><th>Yön (vs Çağrı)</th>`;
 
-  document.getElementById('anMonthlyBody').innerHTML = months.length ? months.map(({year, month}) => {
-    const callsV = valAt(callsMap, year, month), callsMoM = momPct(callsMap, year, month), callsYoY = yoyPct(callsMap, year, month);
-    const kacanV = valAt(kacanMap, year, month), kacanMoM = momPct(kacanMap, year, month), kacanYoY = yoyPct(kacanMap, year, month);
-    const gtdV = valAt(gtdMap, year, month), gtdMoM = momPct(gtdMap, year, month), gtdYoY = yoyPct(gtdMap, year, month);
-    const kopukV = valAt(kopukMap, year, month), kopukMoM = momPct(kopukMap, year, month), kopukYoY = yoyPct(kopukMap, year, month);
-    return `<tr>
-      <td>${monthLabel(year, month)}</td>
-      <td>${cell(callsV)}</td><td>${deltaCellHtml(callsMoM)}</td><td>${deltaCellHtml(callsYoY)}</td>
-      <td>${cell(kacanV)}</td><td>${deltaCellHtml(kacanMoM)}</td><td>${deltaCellHtml(kacanYoY)}</td>
-      <td>${cell(gtdV)}</td><td>${deltaCellHtml(gtdMoM)}</td><td>${deltaCellHtml(gtdYoY)}</td><td>${yon(gtdMoM, callsMoM)}</td>
-      <td>${cell(kopukV)}</td><td>${deltaCellHtml(kopukMoM)}</td><td>${deltaCellHtml(kopukYoY)}</td><td>${yon(kopukMoM, callsMoM)}</td>
-    </tr>`;
-  }).join('') : '<tr><td class="empty-state" colspan="15">Veri yok.</td></tr>';
+  document.getElementById('anMonthlyBody').innerHTML = months.length ? months.map(m => `<tr>
+      <td>${m.label}</td>
+      <td>${cell(m.calls.v)}</td><td>${deltaCellHtml(m.calls.mom)}</td><td>${deltaCellHtml(m.calls.yoy)}</td>
+      <td>${cell(m.kacan.v)}</td><td>${deltaCellHtml(m.kacan.mom)}</td><td>${deltaCellHtml(m.kacan.yoy)}</td>
+      <td>${cell(m.gtd.v)}</td><td>${deltaCellHtml(m.gtd.mom)}</td><td>${deltaCellHtml(m.gtd.yoy)}</td><td>${yonHtml(m.gtd.yonVsCalls)}</td>
+      <td>${cell(m.kopuk.v)}</td><td>${deltaCellHtml(m.kopuk.mom)}</td><td>${deltaCellHtml(m.kopuk.yoy)}</td><td>${yonHtml(m.kopuk.yonVsCalls)}</td>
+    </tr>`).join('') : '<tr><td class="empty-state" colspan="15">Veri yok.</td></tr>';
 }
 
 // ================= Ay İçi Haftalık Dağılım =================
@@ -8798,6 +8953,234 @@ function renderAll(){
 }
 
 document.getElementById('an-weekMonthSelect').addEventListener('change', renderWeeklyTable);
+
+// ================= Sunum Oluştur =================
+// Gelen Arama Dağılımı sayfasındaki presGenerate ile AYNI mimari (pptxgenjs, tamamen
+// tarayıcıda, native pptx grafik/tablo - ekran görüntüsü değil). Farkı: ayrı bir ay-seçim
+// modalı açmıyor, sayfanın O AN AKTİF olan tarih+il+kategori filtresini kapsam olarak
+// kullanıyor - kullanıcı ekranda ne görüyorsa sunumda da onu görür, tek doğruluk kaynağı
+// ekrandaki compute fonksiyonlarının ta kendisi (hesap iki kez yazılmıyor).
+function monthsInRangeAsc(from, to){
+  const months = [];
+  let y = from.getFullYear(), m = from.getMonth() + 1;
+  const endY = to.getFullYear(), endM = to.getMonth() + 1;
+  let guard = 0;
+  while ((y < endY || (y === endY && m <= endM)) && guard < 600){
+    months.push({ year: y, month: m });
+    m++; if (m > 12){ m = 1; y++; }
+    guard++;
+  }
+  return months;
+}
+
+async function presAnalizGenerate(){
+  const NAVY='1E2761', ACCENT='E8A53D', DARK='141A44', WHITE='FFFFFF', DIM='5D6572', LINE='E3E6EF', BLUE='5B9CF6', RED='E85D5D', PURPLE='8B7FD8', GREEN='3DDC97';
+  const range = getCurrentRange();
+  if (!range) throw new Error('Geçerli bir tarih aralığı seçili değil.');
+  const { from, to } = range;
+  const fromLabel = from.toLocaleDateString('tr-TR');
+  const toLabel = to.toLocaleDateString('tr-TR');
+
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_WIDE';
+  pres.author = 'ZAFER ÇOLAK';
+  pres.company = 'ALO 144 Osmaniye';
+  pres.title = 'ALO-144 Analiz Sunumu';
+
+  // --- 1) Kapak ---
+  {
+    const s = pres.addSlide();
+    s.background = { color: DARK };
+    s.addText('ALO 144', { x: 0.6, y: 2.7, w: 10, h: 0.4, fontFace: 'Consolas', fontSize: 13, color: ACCENT, bold: true, charSpacing: 2 });
+    s.addText('Analiz — Çağrı × Talep Korelasyonu', { x: 0.6, y: 3.15, w: 11.5, h: 0.9, fontFace: 'Georgia', fontSize: 30, color: WHITE, bold: true });
+    s.addText(`${fromLabel} — ${toLabel}${currentIl !== 'all' ? '  ·  İl: ' + currentIl : ''}${currentKat.length ? '  ·  Kategori: ' + gtdLabel() : ''}`, { x: 0.6, y: 3.95, w: 11.5, h: 0.4, fontFace: 'Arial', fontSize: 14, color: 'CADCFC' });
+    s.addText(`Hazırlanma tarihi: ${new Date().toLocaleDateString('tr-TR')}`, { x: 0.6, y: 6.7, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 10, color: DIM });
+  }
+
+  // --- 2) Yönetici Özeti: KPI kutuları + otomatik içgörü ---
+  {
+    const s = pres.addSlide();
+    s.addText('Yönetici Özeti', { x: 0.5, y: 0.3, w: 10, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: NAVY, bold: true });
+
+    const cards = computeKpiCards(from, to);
+    const cols = cards.length <= 4 ? cards.length : Math.ceil(cards.length / 2);
+    const gap = 0.15, areaW = 12.3, startX = 0.5, startY = 0.78, bh = 0.95;
+    const bw = (areaW - gap * (cols - 1)) / cols;
+    cards.forEach((c, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const x = startX + col * (bw + gap), y = startY + row * (bh + gap);
+      s.addShape('roundRect', { x, y, w: bw, h: bh, rectRadius: 0.05, fill: { color: 'F4F5F9' }, line: { color: LINE, width: 0.5 } });
+      s.addText(c.label.toUpperCase(), { x: x+0.12, y: y+0.08, w: bw-0.24, h: 0.3, fontFace: 'Consolas', fontSize: 7, color: DIM, bold: true });
+      const valText = c.opts.isText ? String(c.value) : (c.opts.isPct ? (c.value===null?'—':c.value.toFixed(1)+'%') : (c.value===null||c.value===undefined||isNaN(c.value) ? '—' : Math.round(c.value).toLocaleString('tr-TR')));
+      s.addText(valText, { x: x+0.12, y: y+0.36, w: bw-0.24, h: 0.4, fontFace: 'Georgia', fontSize: 14, color: NAVY, bold: true });
+      if (c.deltaPct !== null && c.deltaPct !== undefined && !isNaN(c.deltaPct)){
+        const up = c.deltaPct >= 0;
+        s.addText(`${up?'▲':'▼'} %${Math.abs(c.deltaPct).toFixed(1)}`, { x: x+0.12, y: y+0.72, w: bw-0.24, h: 0.2, fontFace: 'Arial', fontSize: 8.5, color: up?GREEN:RED, bold: true });
+      }
+    });
+
+    const boxRows = Math.ceil(cards.length / cols);
+    const textY = startY + boxRows * (bh + gap) + 0.25;
+    const sentences = computeInsightSentences(from, to);
+    s.addText('OTOMATİK İÇGÖRÜ', { x: 0.5, y: textY, w: 10, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: ACCENT, bold: true, charSpacing: 1 });
+    s.addText(sentences.map(t => ({ text: t, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 11.5, color: NAVY, paraSpaceAfter: 6 } })), { x: 0.5, y: textY + 0.35, w: 12.3, h: 6.9 - (textY + 0.35) });
+  }
+
+  // --- 3) Korelasyon: aylık Çağrı/Talep (sütun) + Kaçan (çizgi) ---
+  {
+    const s = pres.addSlide();
+    s.addText('Korelasyon — Çağrı, Talep, Kaçan (Aylık)', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: NAVY, bold: true });
+
+    let months = monthsInRangeAsc(from, to);
+    if (months.length > 24) months = months.slice(-24); // son 2 yıl - slaytta okunaklı kalsın diye
+    const callsMap = buildMonthlySumsFromRows(CALLS_ROWS, 'cevap');
+    const kacanMap = buildMonthlySumsFromRows(CALLS_ROWS, 'kacan');
+    const gtdMap = buildMonthlySumsFromSeries(gtdSeries);
+    const labels = months.map(m => monthLabel(m.year, m.month).slice(0,3) + ' ' + String(m.year).slice(2));
+    const getV = (map, m) => { const e = map.get(monthKey(m.year, m.month)); return e ? e.value : 0; };
+
+    const barSeries = [
+      { name: 'Çağrı (Cevaplanan)', labels, values: months.map(m => getV(callsMap, m)) },
+      { name: gtdLabel(), labels, values: months.map(m => getV(gtdMap, m)) }
+    ];
+    const chartBlocks = [
+      { type: 'bar', data: barSeries, options: { chartColors: [BLUE, ACCENT] } },
+      { type: 'line', data: [{ name: 'Kaçan Çağrı', labels, values: months.map(m => getV(kacanMap, m)) }], options: { chartColors: [RED] } }
+    ];
+    s.addChart(chartBlocks, {
+      x: 0.5, y: 0.85, w: 12.3, h: 6.0,
+      showLegend: true, legendPos: 'b', legendFontSize: 9,
+      catAxisLabelFontSize: 8.5, valAxisLabelFontSize: 9
+    });
+    s.addText('Not: Köpük Talep bu grafikte gösterilmiyor — detaylı görünüm dashboard\'daki Analiz sayfasında.', { x: 0.5, y: 6.85, w: 12, h: 0.25, fontFace: 'Arial', fontSize: 8.5, italic: true, color: DIM });
+  }
+
+  // --- 4) Aylık Karşılaştırma tablosu (son 12 ay, MoM/YoY renkli) ---
+  {
+    const s = pres.addSlide();
+    s.addText('Aylık Karşılaştırma — MoM / YoY', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: NAVY, bold: true });
+
+    const allMonths = computeMonthlyRows(); // en yeni önce
+    const monthsForSlide = allMonths.slice(0, 12).reverse(); // eskiden yeniye, tabloda okunması daha doğal
+    const pctCell = (v) => {
+      if (v === null || v === undefined || isNaN(v)) return { text: '—', options: { align:'center', fontSize: 8, color: DIM } };
+      const up = v >= 0;
+      return { text: `${up?'▲':'▼'} %${Math.abs(v).toFixed(1)}`, options: { align:'center', fontSize: 8, color: up?'2E7D32':'C62828', bold: true } };
+    };
+    const numCell = (v) => ({ text: v === null ? '—' : Math.round(v).toLocaleString('tr-TR'), options: { align:'center', fontSize: 8 } });
+
+    const header = ['Ay','Çağrı','MoM','YoY','Kaçan','MoM','YoY', gtdLabel(),'MoM','YoY'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:NAVY, align:'center', fontSize:7.5 } }));
+    const bodyRows = monthsForSlide.map(m => [
+      { text: m.label, options: { fontSize: 8, color: NAVY, bold: true } },
+      numCell(m.calls.v), pctCell(m.calls.mom), pctCell(m.calls.yoy),
+      numCell(m.kacan.v), pctCell(m.kacan.mom), pctCell(m.kacan.yoy),
+      numCell(m.gtd.v), pctCell(m.gtd.mom), pctCell(m.gtd.yoy)
+    ]);
+    s.addTable([header, ...bodyRows], { x: 0.3, y: 0.85, w: 12.7, border: { type:'solid', color: LINE, pt: 0.4 }, fontFace: 'Consolas', autoPage: true, newSlideStartY: 0.6, rowH: 0.28 });
+  }
+
+  // --- 5) Mevsimsellik: Yıl x Ay ısı haritası (renkli tablo) ---
+  {
+    const s = pres.addSlide();
+    s.addText(gtdLabel() + ' — Aylık Yoğunluk (Yıl × Ay)', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
+
+    const { years, matrix, maxVal } = computeHeatmapMatrix(gtdSeries);
+    const heatColorsHex = ['1F2A3D','3A3320','6B4A1F','A56B1F','E8A53D']; // HEATMAP_COLORS ile aynı, # olmadan
+    function colorFor(v){ if (!v || !maxVal) return 'FFFFFF'; return heatColorsHex[Math.min(4, Math.floor((v/maxVal)*5))]; }
+    function textColorFor(v){ return (maxVal && (v/maxVal) > 0.55) ? '1A1A1A' : '5D6572'; }
+
+    if (years.length){
+      const header = ['Yıl', ...DATE_FILTER_MONTH_NAMES.map(m => m.slice(0,3))].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:NAVY, align:'center', fontSize:8 } }));
+      const bodyRows = years.slice(0, 6).map(y => [
+        { text: String(y), options: { bold: true, fontSize: 9, color: NAVY } },
+        ...matrix[y].map(v => ({ text: v ? Math.round(v).toLocaleString('tr-TR') : '—', options: { align:'center', fontSize: 8, fill: { color: colorFor(v) }, color: textColorFor(v) } }))
+      ]);
+      s.addTable([header, ...bodyRows], { x: 0.3, y: 0.9, w: 12.7, border: { type:'solid', color: LINE, pt: 0.4 }, fontFace: 'Consolas', rowH: 0.45 });
+    } else {
+      s.addText('Bu kategori/il için yeterli geçmiş veri yok.', { x: 0.5, y: 1.2, w: 8, h: 0.4, fontFace: 'Arial', fontSize: 12, color: DIM });
+    }
+  }
+
+  // --- 6) Kaçan Çağrı — Kök Neden (bir slayt / ay) ---
+  {
+    const topMonths = findTopKacanIncreaseMonths(3);
+    if (!topMonths.length){
+      const s = pres.addSlide();
+      s.addText('Kaçan Çağrı Artışına En Çok Katkı Yapan Talepler', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
+      s.addText('Kaçan çağrının belirgin şekilde arttığı bir ay tespit edilemedi.', { x: 0.5, y: 1.1, w: 9, h: 0.4, fontFace: 'Arial', fontSize: 12, color: DIM });
+    }
+    topMonths.forEach((m, idx) => {
+      const s = pres.addSlide();
+      s.addText('Kaçan Çağrı — Kök Neden' + (topMonths.length > 1 ? ` (${idx+1}/${topMonths.length})` : ''), { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
+      s.addText(monthLabel(m.year, m.month), { x: 0.5, y: 0.78, w: 8, h: 0.4, fontFace: 'Georgia', fontSize: 22, color: RED, bold: true });
+      s.addText(`Kaçan çağrı bu ayda %${m.momPctV.toFixed(1)} arttı (${Math.round(m.prevV).toLocaleString('tr-TR')} → ${Math.round(m.value).toLocaleString('tr-TR')})`, { x: 0.5, y: 1.28, w: 11, h: 0.35, fontFace: 'Arial', fontSize: 13, color: DIM });
+
+      const topKat = topCategoriesForMonth(m.year, m.month, 5);
+      const topIl = topIllerForMonth(m.year, m.month, 5);
+      s.addText('EN ÇOK ARTAN KATEGORİLER', { x: 0.5, y: 1.9, w: 6, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: ACCENT, bold: true, charSpacing: 1 });
+      s.addText(topKat.length ? topKat.map(k => ({ text: `${k.name}  (+${Math.round(k.delta).toLocaleString('tr-TR')})`, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 12, color: NAVY, paraSpaceAfter: 5 } })) : [{ text: 'Artan kalem yok.', options: { fontSize: 12, color: DIM } }], { x: 0.5, y: 2.25, w: 5.8, h: 3.8 });
+
+      s.addText('EN ÇOK ARTAN İLLER', { x: 6.7, y: 1.9, w: 6, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: ACCENT, bold: true, charSpacing: 1 });
+      s.addText(topIl.length ? topIl.map(k => ({ text: `${k.name}  (+${Math.round(k.delta).toLocaleString('tr-TR')})`, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 12, color: NAVY, paraSpaceAfter: 5 } })) : [{ text: 'Artan kalem yok.', options: { fontSize: 12, color: DIM } }], { x: 6.7, y: 2.25, w: 5.8, h: 3.8 });
+    });
+  }
+
+  // --- 7) Kategori / İl Sıralaması (ilk 10, tablo) ---
+  {
+    const s = pres.addSlide();
+    s.addText(gtdLabel() + ' — Sıralamalar (İlk 10)', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
+
+    const katRows = computeKatRanking(from, to).slice(0, 10);
+    const { entries: ilEntries } = computeIlRanking(from, to, 10);
+
+    const katHeader = ['#','Kategori','Bu Dönem','Değişim'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:NAVY, align:'center', fontSize:8 } }));
+    const katBody = katRows.map((r,i) => {
+      const pct = pctChange(r.curr, r.prev);
+      const up = pct !== null && pct >= 0;
+      return [
+        { text: String(i+1), options: { align:'center', fontSize: 8 } },
+        { text: r.name, options: { fontSize: 8 } },
+        { text: Math.round(r.curr).toLocaleString('tr-TR'), options: { align:'center', fontSize: 8 } },
+        { text: pct === null ? '—' : `${up?'▲':'▼'} %${Math.abs(pct).toFixed(1)}`, options: { align:'center', fontSize: 8, color: pct===null?DIM:(up?'2E7D32':'C62828'), bold: true } }
+      ];
+    });
+    s.addTable([katHeader, ...katBody], { x: 0.3, y: 0.85, w: 6.1, border: { type:'solid', color: LINE, pt: 0.4 }, fontFace: 'Consolas', rowH: 0.3 });
+
+    const ilHeader = ['#','İl','Bu Dönem','Değişim'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:NAVY, align:'center', fontSize:8 } }));
+    const ilBody = ilEntries.map((e,i) => {
+      const pct = pctChange(e.curr, e.prev);
+      const up = pct !== null && pct >= 0;
+      return [
+        { text: String(i+1), options: { align:'center', fontSize: 8 } },
+        { text: e.il, options: { fontSize: 8 } },
+        { text: Math.round(e.curr).toLocaleString('tr-TR'), options: { align:'center', fontSize: 8 } },
+        { text: pct === null ? '—' : `${up?'▲':'▼'} %${Math.abs(pct).toFixed(1)}`, options: { align:'center', fontSize: 8, color: pct===null?DIM:(up?'2E7D32':'C62828'), bold: true } }
+      ];
+    });
+    s.addTable([ilHeader, ...ilBody], { x: 6.6, y: 0.85, w: 6.1, border: { type:'solid', color: LINE, pt: 0.4 }, fontFace: 'Consolas', rowH: 0.3 });
+  }
+
+  const fname = `ALO144-Analiz-Sunum-${fmtDate(new Date())}.pptx`;
+  await pres.writeFile({ fileName: fname });
+}
+
+document.getElementById('anOpenPresBtn').addEventListener('click', async () => {
+  if (!CALLS_ROWS.length && !GTD_ROWS.length){ alert('Önce "Yenile"ye basıp veri çekin.'); return; }
+  if (typeof PptxGenJS === 'undefined'){ alert('Sunum kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.'); return; }
+  const btn = document.getElementById('anOpenPresBtn');
+  const original = btn.textContent;
+  btn.textContent = '⏳ Oluşturuluyor…';
+  btn.disabled = true;
+  try {
+    await presAnalizGenerate();
+  } catch(e){
+    console.error(e);
+    alert('Sunum oluşturulurken bir hata oluştu:\n' + e.message);
+  } finally {
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+});
 
 // ================= Olaylar =================
 document.getElementById('anRefreshBtn').addEventListener('click', () => loadData(true));
