@@ -3305,6 +3305,15 @@ function exportActiveTableToExcel(pageId, filenamePrefix){
 </script>
 <script>
 (function(){
+// ===== GELEN ARAMA DAĞILIMI SAYFASI =====
+// Dashboard'un EN ESKİ ve EN OLGUN sayfası - diğer tüm sayfaların örnek aldığı "referans"
+// mimari burada. Sütunlar İSME GÖRE bulunur (computeColumnDefs, "kaçan"/"cevaplanan" gibi
+// anahtar kelimelerle arar) - yani kullanıcı sheet'e serbestçe yeni sütun ekleyebilir,
+// kod otomatik yakalar, kod değişikliği GEREKMEZ (bkz. ABDMAXWAIT/ANSMAXWAIT örneği).
+// Bu, Personel Performans/Karnesi'nin SABİT POZİSYON kısıtından kasıtlı olarak farklıdır -
+// oradaki anlamsal eşik mantığı (KKO<97 kırmızı gibi) burada yok, o yüzden bu sayfa daha
+// esnek olabiliyor. "Talep" sütunu = Genel Talep Dağılımı'nın genel toplamıyla birebir
+// eşleşir (doğrulanmış). Gelen = Cevaplanan + Kaçan (yapısal kimlik).
 const SHEET_ID = "1O9g3ik4k_vAeYL34DbovvrZB5KME3unQCgHqTLn0AHY";
 const RANGE = "Sayfa1!A1:Z5000"; // ~14 yıllık günlük veriye kadar güvenli - sessiz veri kaybını önler
 
@@ -7404,6 +7413,14 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
 
 <script>
 (function(){
+// ===== YETKİ ATAMA SAYFASI =====
+// Bu sayfa Yetkilendirme Sheet'inin "ALO144" sekmesini (A-O sütunları) okuyup/yazıyor.
+// AUTH_COLS = Süper Yetkili/Güncelleme/Sunum/Excel (C-F, "özellik" bazlı izinler).
+// PAGE_COLS = sidebar'daki 9 sekmenin görünürlüğü (G-O, global scope'ta tanımlı, bkz.
+// satır ~2242) - bu ikisi FARKLI kategoriler, "Hepsini Seç/Sil" sadece PAGE_COLS'u
+// kapsar, AUTH_COLS'a dokunmaz (bilinçli tasarım, 10.08.2026'da netleşti).
+// Boş hücre = kapalı (FALSE) sayılır - yeni sütun eklenince o sütun doldurulana kadar
+// Süper Yetkili olmayan herkes ilgili özelliği/sekmeyi kaybeder.
   let yaFilterText = '';
   const AUTH_COLS = [
     { key: 'superYetkili', label: 'Süper Yetkili', letter: 'C' },
@@ -7591,6 +7608,13 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
 </script>
 <script>
 (function(){
+// ===== GENEL TALEP DAĞILIMI SAYFASI =====
+// Satır=gün+il, sütunlar=kategoriler (2. sütundan itibaren, son sütun=Toplam) - Köpük
+// Talep'ten farklı olarak İL kırılımı da var (Türkiye SVG haritası burada). Genel toplamı,
+// Gelen Arama Dağılımı'ndaki "Talep" sütunuyla birebir eşleşir (doğrulanmış: 44.491=44.491) -
+// yani bu sayfa aslında "günlük talep" verisinin il+kategori kırılımlı hali. Kategori
+// sayısı sabit değil - sheet'e yeni kategori sütunu eklenirse (Toplam'dan ÖNCE olmak
+// şartıyla) otomatik yakalanır.
 const SHEET_ID = "1l8-TNGbOg7pILG29Mu5p66-VyTaZBc9pqRIFwmeC7Fo";
 const RANGE = "Sayfa1!A1:Z20000";
 
