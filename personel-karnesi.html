@@ -366,6 +366,17 @@
 
 
 <script>
+// ===== GENEL MİMARİ (bu dosyanın tamamı TEK script/IIFE - ALO-144'ten farklı) =====
+// ALO-144 Dashboard'daki gibi her sayfa kendi ayrı IIFE'i içinde DEĞİL - burada sol
+// menüdeki sekmeler (Personel Bilgileri/Genel Değerlendirme/Parametre/Analiz/Güncelleme/
+// Yetki Atama) aynı script içinde, her biri kendi render***Tab() fonksiyonuyla render
+// ediliyor (renderBilgilerTab, renderGenelTab, renderParametreTab, renderAnalizTab,
+// renderIslemTab, renderYetkiTab - hangisi seçiliyse o çağrılır, sonucu ekrana basılır).
+// Veri kaynağı 4 ayrı Google Sheet: Personel Listesi (SHEET_ID, ana referans),
+// Karne (KARNE_SHEET_ID, sütunlar İSME göre otomatik metrik sayılır), Vardiya
+// (VARDIYA_SHEET_ID, ALO-144 ile PAYLAŞILAN aynı sheet), Yetkilendirme (AUTH_SHEET_ID,
+// "PERSONEL KARNESİ" sekmesi - ALO-144 "ALO144" sekmesini kullanır, aynı dosyada ayrı
+// sekmeler, 10.08.2026'da ayrıştırıldı).
 const SHEET_ID = "1dqGIn5ILyMjCOogkc1ucBk7j2iMJI_cj5lX20gjATMI";
 const RANGE = "PERSONEL LİSTESİ!A1:P1000";
 
@@ -373,9 +384,10 @@ const RANGE = "PERSONEL LİSTESİ!A1:P1000";
 const OAUTH_CLIENT_ID = "424055333288-l3trcss47ovujogkgjq98ego4hhbubbj.apps.googleusercontent.com";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email";
 const AUTH_SHEET_ID = "1PfYdeuiGvuHbHsCx5PTcApepdwdjY-2C491cufssQhU";
-// Sabit yedek yönetici: Yetkilendirme Sheet'i boşalsa/bozulsa/satırı silinse bile bu hesap
-// her zaman tam yetkiye (Güncelleme + Süper Yetkili + Sunum + Excel) sahip olur.
-const FIXED_SUPER_ADMIN_EMAIL = "zafercolak5461@gmail.com";
+// Sabit yedek yöneticiler: Yetkilendirme Sheet'i boşalsa/bozulsa/satır silinse bile bu
+// hesaplar HER ZAMAN tam yetkiye sahip olur. Birden fazla e-posta - biriyle Google hesabı
+// sorunu yaşanırsa diğeri devrede.
+const FIXED_SUPER_ADMIN_EMAILS = ["zafercolak5461@gmail.com", "zafer54sema@gmail.com"];
 const LOG_URL = "https://script.google.com/macros/s/AKfycbzeyn_R-Khl7qAMZozWuq4ZWIy6UAGiqi906MFEnRgl9YNpgQiV-Me2KpF4IJW43WbI/exec";
 
 function sendLog(payload){
@@ -395,6 +407,8 @@ let yetkiAuthorized = false;
 let sunumAuthorized = false;
 let excelAuthorized = false;
 let analizAuthorized = false;
+let yoneticiDetayAuthorized = false; // "Yönetici Detayı" göz ikonu (örn. +1 Vardiya otomatik notu) - K sütunu
+let showYoneticiDetay = false; // göz ikonuna tıklanınca bu oturumda açık/kapalı durumu (varsayılan: gizli)
 let AUTH_TABLE = [];
 let accessToken = null;
 let tokenClient = null;
@@ -428,7 +442,7 @@ const PAGE_COLS_LAST_LETTER = PAGE_COLS[PAGE_COLS.length - 1].letter;
 const PAGE_ACCESS_LEFTTABS = PAGE_COLS.filter(c => c.page !== 'analiz');
 
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1:J1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1:K1000')}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
@@ -447,6 +461,7 @@ async function loadAuthTable(token){
       guncelleme: isTrueVal(r[3]),
       sunum: isTrueVal(r[4]),
       excel: isTrueVal(r[5]),
+      yoneticiDetay: isTrueVal(r[10]), // K sütunu - "+1 Vardiya otomatik" gibi personelin görmemesi gereken teknik notların göz ikonu
     };
     PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[6 + idx]); });
     rows.push(row);
@@ -488,14 +503,15 @@ async function initIslemAccess(){
     AUTH_TABLE = rows || [];
     const myRow = AUTH_TABLE.find(r => r.gmail === userEmail);
     // Sabit yedek yönetici — Sheet boşsa/bozulsa/satır silinse bile bu hesap her zaman tam yetkiye sahiptir.
-    const isFixedAdmin = userEmail === FIXED_SUPER_ADMIN_EMAIL;
-    userName = (myRow && myRow.isim) || (isFixedAdmin ? 'Zafer Çolak' : 'Bilinmeyen Kullanıcı');
+    const isFixedAdmin = FIXED_SUPER_ADMIN_EMAILS.includes(userEmail);
+    userName = (myRow && myRow.isim) || (isFixedAdmin ? (userEmail === 'zafercolak5461@gmail.com' ? 'Zafer Çolak' : 'Zafer Çolak (Yedek)') : 'Bilinmeyen Kullanıcı');
 
     islemAuthorized = isFixedAdmin || !!(myRow && myRow.guncelleme);
     yetkiAuthorized = isFixedAdmin || !!(myRow && myRow.superYetkili);
     sunumAuthorized = isFixedAdmin || !!(myRow && myRow.sunum);
     excelAuthorized = isFixedAdmin || !!(myRow && myRow.excel);
     analizAuthorized = isFixedAdmin || !!(myRow && myRow.analiz);
+    yoneticiDetayAuthorized = isFixedAdmin || !!(myRow && myRow.yoneticiDetay);
 
     // Personel Bilgileri/Genel Değerlendirme/Parametre erişimi, üstteki bayraklardan
     // BAĞIMSIZ çalışır - hiçbiri TRUE olmasa bile kişi belirli sekmeleri görebilmeli.
@@ -2120,6 +2136,9 @@ function renderMarquee(insights){
   wrap.style.display = 'block';
 }
 
+// --- Personel Bilgileri: kimlik şeridi (fotoğraf/isim/kıdem) + izin bakiyesi halkası +
+// üst 3 kutu (Vardiya bonusu dahil). Tek personel seçiliyken anlamlı, sol üstteki arama
+// kutusundan personel seçilir. ---
 function renderBilgilerTab(p){
   const kidem = kidemHesapla(p.iseGirisDate);
   const vardiyaBonus = VARDIYA_IZIN_MAP.get(p.sicil) || 0;
@@ -2172,7 +2191,8 @@ function renderBilgilerTab(p){
       <div class="info-cell"><span class="k">İşe Giriş Tarihi</span><span class="v">${fmtDate(p.iseGirisDate)}</span></div>
       <div class="info-cell"><span class="k">Doğum Tarihi</span><span class="v">${p.dogumRaw || '—'}</span></div>
       <div class="info-cell"><span class="k">Mezuniyet</span><span class="v">${p.mezuniyet || '—'}</span></div>
-      <div class="info-cell"><span class="k">Hakedilen / Kullanılan İzin</span><span class="v">${hakedilen !== null ? hakedilen : '—'} / ${kullanilanToplam !== null ? kullanilanToplam : '—'} gün${vardiyaBonus > 0 ? ` <span style="color:var(--dim); font-size:11.5px;">(+${vardiyaBonus} Vardiya'dan otomatik)</span>` : ''}</span></div>
+      <div class="info-cell"><span class="k">Hakedilen / Kullanılan İzin</span><span class="v">${hakedilen !== null ? hakedilen : '—'} / ${kullanilanToplam !== null ? kullanilanToplam : '—'} gün${vardiyaBonus > 0 && yoneticiDetayAuthorized ? `
+        <button type="button" id="yoneticiDetayToggle" title="${showYoneticiDetay ? 'Yönetici detayını gizle' : 'Yönetici detayını göster'}" style="background:none; border:none; cursor:pointer; padding:0 0 0 4px; vertical-align:middle; opacity:0.6; font-size:13px;">${showYoneticiDetay ? '🙈' : '👁'}</button>${showYoneticiDetay ? ` <span style="color:var(--dim); font-size:11.5px;">(+${vardiyaBonus} Vardiya'dan otomatik)</span>` : ''}` : ''}</span></div>
       <div class="info-cell"><span class="k">Görevi</span><span class="v">${p.gorevi || '—'}</span></div>
       <div class="info-cell full"><span class="k">Adres</span><span class="v">${p.adres || '—'}</span></div>
     </div>
@@ -2476,6 +2496,11 @@ function renderContentArea(){
 
   if (selectedLeftTab === 'bilgiler'){
     playIzinRingAnimation();
+    const toggleBtn = document.getElementById('yoneticiDetayToggle');
+    if (toggleBtn) toggleBtn.addEventListener('click', () => {
+      showYoneticiDetay = !showYoneticiDetay;
+      renderContentArea();
+    });
   }
   if (selectedLeftTab === 'genel'){
     playCountAnimations(contentArea);
@@ -3485,6 +3510,9 @@ function wireAnalizCharts(){
   playCountAnimations(document.getElementById('analizContentWrap'));
 }
 
+// --- Analiz: Karne verisi üzerinde yıl bazlı otomatik bulgu/korelasyon sekmesi. Bekleyen
+// işler listesindeki "Soru Kütüphanesi" fikri buraya eklenecekti - İPTAL EDİLDİ, referans
+// alınmasın. Bu sekmenin kendisi ise ÇALIŞIR durumda, tamamlanmış. ---
 function renderAnalizTab(){
   const years = [...new Set(KARNE_MONTHS.map(m => m.year))].sort((a,b) => b - a);
   if (!analizYear && years.length) analizYear = years[0];
@@ -3584,6 +3612,18 @@ function wireAnalizInnerControls(){
   });
 }
 
+// --- Yetki Atama: Yetkilendirme Sheet'inin "PERSONEL KARNESİ" sekmesini (A-K) okur/yazar.
+// AUTH_COLS = Süper Yetkili/Güncelleme/Sunum/Excel (C-F, "özellik" izinleri).
+// PAGE_COLS = Analiz/Personel Bilgileri/Genel Değerlendirme/Parametre sekme görünürlüğü
+// (G-J, global scope'ta tanımlı) - "analiz" kendi analiz-only CSS class'ıyla YÖNETİLİYOR,
+// diğer 3'ü (bilgiler/genel/parametre) applyPageAccess() ile sidebar'dan gizleniyor.
+// EXTRA_COLS = sayfa değil, tek bir "yetenek" izni: Yönetici Detayı (K) - Personel
+// Bilgileri'ndeki "+1 Vardiya otomatik" gibi personelin görmemesi gereken teknik notların
+// göz ikonunu kimin görebileceğini belirler (10.08.2026'da eklendi).
+// "Hepsini Seç/Sil" SADECE PAGE_COLS'u kapsar, AUTH_COLS ve EXTRA_COLS'a dokunmaz. ---
+const EXTRA_COLS = [
+  { key: 'yoneticiDetay', label: 'Yönetici Detayı', letter: 'K' },
+];
 function renderYetkiTab(){
 
   const filtered = AUTH_TABLE.filter(r => {
@@ -3592,13 +3632,14 @@ function renderYetkiTab(){
     return r.isim.toLocaleLowerCase('tr').includes(q) || r.gmail.includes(q);
   }).sort((a,b) => a.isim.localeCompare(b.isim, 'tr'));
 
-  const totalCols = 2 + AUTH_COLS.length + PAGE_COLS.length + 1;
+  const totalCols = 2 + AUTH_COLS.length + PAGE_COLS.length + EXTRA_COLS.length + 1;
   const rowsHtml = filtered.map(r => `
     <tr data-rownum="${r.rowNum}">
       <td style="padding:10px 12px; font-weight:700; color:#ffffff;">${r.isim || '—'}</td>
       <td style="padding:10px 12px; color:#e8eaed; font-size:13px;">${r.gmail}</td>
       ${AUTH_COLS.map(c => `<td style="padding:10px 12px; text-align:center;"><input type="checkbox" data-yetkitoggle="${c.key}" data-letter="${c.letter}" data-row="${r.rowNum}" ${r[c.key] ? 'checked' : ''}></td>`).join('')}
       ${PAGE_COLS.map(c => `<td style="padding:10px 12px; text-align:center;"><input type="checkbox" data-yetkitoggle="${c.key}" data-letter="${c.letter}" data-row="${r.rowNum}" ${r[c.key] ? 'checked' : ''}></td>`).join('')}
+      ${EXTRA_COLS.map(c => `<td style="padding:10px 12px; text-align:center;"><input type="checkbox" data-yetkitoggle="${c.key}" data-letter="${c.letter}" data-row="${r.rowNum}" ${r[c.key] ? 'checked' : ''}></td>`).join('')}
       <td style="padding:10px 12px; text-align:center; white-space:nowrap;">
         <button type="button" class="refresh-btn" data-yetkiselectall="${r.rowNum}" style="font-size:10.5px; padding:3px 8px;">Hepsini Seç</button>
         <button type="button" class="refresh-btn" data-yetkiclearall="${r.rowNum}" style="font-size:10.5px; padding:3px 8px;">Hepsini Sil</button>
@@ -3620,6 +3661,7 @@ function renderYetkiTab(){
           <div><div class="search-label" style="margin-bottom:6px;">İsim</div><input class="search" id="yetkiNewIsim" placeholder="Ad Soyad"></div>
           <div><div class="search-label" style="margin-bottom:6px;">Gmail</div><input class="search" id="yetkiNewGmail" placeholder="ornek@gmail.com"></div>
           ${AUTH_COLS.map(c => `<label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="yetkiNew_${c.key}"> ${c.label}</label>`).join('')}
+          ${EXTRA_COLS.map(c => `<label style="display:flex; align-items:center; gap:8px; font-size:13px;"><input type="checkbox" id="yetkiNew_${c.key}"> ${c.label}</label>`).join('')}
         </div>
         <div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
@@ -3641,6 +3683,7 @@ function renderYetkiTab(){
             <th style="padding:10px 12px;">İsim</th><th style="padding:10px 12px;">Gmail</th>
             ${AUTH_COLS.map(c => `<th style="padding:10px 12px; text-align:center;">${c.label}</th>`).join('')}
             ${PAGE_COLS.map(c => `<th style="padding:10px 12px; text-align:center; font-size:11px;">${c.label}</th>`).join('')}
+            ${EXTRA_COLS.map(c => `<th style="padding:10px 12px; text-align:center; font-size:11px;">${c.label}</th>`).join('')}
             <th style="padding:10px 12px; text-align:center; white-space:nowrap;">Sekmeler</th>
           </tr></thead>
           <tbody>${rowsHtml || `<tr><td colspan="${totalCols}" class="empty-state" style="padding:30px;">Kayıt bulunamadı.</td></tr>`}</tbody>
@@ -3795,7 +3838,7 @@ async function performYetkiAdd(){
   renderContentArea();
   try {
     const token = await ensureWriteToken();
-    const rowArr = [isim, gmail, ...AUTH_COLS.map(c => document.getElementById(`yetkiNew_${c.key}`).checked ? 'TRUE' : 'FALSE'), ...PAGE_COLS.map(c => document.getElementById(`yetkiNew_${c.key}`).checked ? 'TRUE' : 'FALSE')];
+    const rowArr = [isim, gmail, ...AUTH_COLS.map(c => document.getElementById(`yetkiNew_${c.key}`).checked ? 'TRUE' : 'FALSE'), ...PAGE_COLS.map(c => document.getElementById(`yetkiNew_${c.key}`).checked ? 'TRUE' : 'FALSE'), ...EXTRA_COLS.map(c => document.getElementById(`yetkiNew_${c.key}`).checked ? 'TRUE' : 'FALSE')];
     const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
     const res = await fetch(appendUrl, {
       method: 'POST',
