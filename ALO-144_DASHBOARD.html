@@ -1006,6 +1006,7 @@ body{
     <div class="tab active" data-tab="harita">Harita</div>
     <div class="tab" data-tab="ozet">Özet</div>
     <div class="tab" data-tab="detay">Detaylı Liste</div>
+    <div class="tab" data-tab="katdagilim">Kategori Dağılımı</div>
   </div>
 
   <div class="filterbar">
@@ -1324,6 +1325,22 @@ body{
   </div>
 
   <div class="tab-content" id="gtd-tab-ozet">
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">Filtre</div>
+    <div style="padding:14px 18px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div class="date-input-group">
+        <label>İl</label>
+        <select id="gtdIlOzet" class="gtd-il-select"><option value="all">Tüm İller</option></select>
+      </div>
+      <div class="date-input-group" style="position:relative;">
+        <label>Kategori (çoklu seçim)</label>
+        <button type="button" id="gtdKatBtnOzet" class="refresh-btn gtd-kat-btn" style="min-width:220px; text-align:left;">Genel (Tüm Kategoriler) ▾</button>
+        <div id="gtdKatPanelOzet" class="gtd-kat-panel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
+      </div>
+      <span class="hint" style="font-size:10.5px;">Diğer sekmelerdeki (Harita hariç) filtrelerle senkron çalışır</span>
+    </div>
+  </div>
+
   <div class="metrics" id="gtdMetrics"></div>
 
   <div class="panel" style="margin-bottom:16px;">
@@ -1353,6 +1370,21 @@ body{
       <table id="gtdTable">
         <thead id="gtdTableHead"></thead>
         <tbody id="gtdTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+
+  <div class="tab-content" id="gtd-tab-katdagilim">
+  <div class="panel">
+    <div class="panel-head">
+      Kategori Dağılımı
+      <span class="hint" style="font-size:10.5px;">tüm illerin toplamı, kategori filtresinden bağımsız - amaç kategorileri birbiriyle kıyaslamak</span>
+    </div>
+    <div class="table-scroll">
+      <table id="gtdKatTable">
+        <thead><tr><th>#</th><th>Kategori</th><th>Toplam</th><th>Genel İçindeki Payı</th></tr></thead>
+        <tbody id="gtdKatTableBody"></tbody>
       </table>
     </div>
   </div>
@@ -7736,8 +7768,10 @@ document.addEventListener('click', (e) => {
   });
 });
 
+registerIlSelect(document.getElementById('gtdIlOzet'));
 registerIlSelect(document.getElementById('gtdIlTable'));
 registerKatControl(document.getElementById('gtdKatBtnMap'), document.getElementById('gtdKatPanelMap'));
+registerKatControl(document.getElementById('gtdKatBtnOzet'), document.getElementById('gtdKatPanelOzet'));
 registerKatControl(document.getElementById('gtdKatBtnTable'), document.getElementById('gtdKatPanelTable'));
 
 // ================= Veri Çekme =================
@@ -7790,6 +7824,7 @@ async function loadData(isRefresh){
     populateKatFilter();
     checkConsistency();
     dateFilter.populateYearMonth();
+    mapSlowNextRender = true; // ilk yükleme ve her yenileme YAVAŞ/etkileyici oynasın
     dateFilter.reapplyLast();
   } catch(e){
     statusDot.className = 'dot err';
@@ -7905,6 +7940,31 @@ function renderAll(){
   renderMap(byIlAll);
   renderChart(byIlFiltered);
   renderTable(rowsFiltered, rowsDateOnly);
+  renderKategoriDagilimi(rowsDateOnly);
+}
+
+// Kategori Dağılımı sekmesi: İL AYRIMI YOK (tüm illerin toplamı), kategori filtresi de
+// UYGULANMAZ (her zaman tüm kategoriler tek tek listelenir) - amaç kategorileri kendi
+// aralarında kıyaslamak, bu yüzden hem il hem kategori filtresinden bilerek bağımsız
+// tutuldu. Sadece üstteki TARİH filtresini kullanır. (12.08.2026)
+function renderKategoriDagilimi(rowsDateOnly){
+  const tbody = document.getElementById('gtdKatTableBody');
+  if (!tbody) return;
+  if (!CATEGORIES.length || !rowsDateOnly.length){
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Veri yok.</td></tr>`;
+    return;
+  }
+  const sums = CATEGORIES.map(() => 0);
+  rowsDateOnly.forEach(r => { r.values.forEach((v,i) => { sums[i] += (v || 0); }); });
+  const grandTotal = sums.reduce((a,b) => a+b, 0) || 1;
+
+  const rows = CATEGORIES.map((c,i) => ({ name: c.name, total: sums[i] }))
+    .sort((a,b) => b.total - a.total);
+
+  tbody.innerHTML = rows.map((r,i) => {
+    const pct = ((r.total / grandTotal) * 100).toFixed(1);
+    return `<tr><td>${i+1}</td><td>${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.total).toLocaleString('tr-TR')}</td><td>%${pct}</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="empty-state">Veri yok.</td></tr>`;
 }
 
 // Seçili satırlar (il filtresi uygulanmış) içinde, kategori filtresinden BAĞIMSIZ olarak
@@ -7944,6 +8004,8 @@ function renderMetricsPanel(rowsFiltered, byIlAll){
   if (SELECTED_IL !== 'all'){
     const ilToplam = rowsFiltered.reduce((s,r) => s + rowValue(r), 0);
     cards.push({ label: SELECTED_IL + ' Toplamı', value: ilToplam });
+    const ilPayi = genelToplam > 0 ? ((ilToplam / genelToplam) * 100).toFixed(1) : '—';
+    cards.push({ label: 'İlin Genel İçindeki Payı', value: ilPayi === '—' ? '—' : `%${ilPayi}`, opts: { isText: true } });
   }
 
   const topKat = topCategoryInRows(rowsFiltered);
@@ -8074,6 +8136,7 @@ function colorForRank(value, sorted){
 // Harita HER ZAMAN tüm illeri gösterir - İl filtresi haritayı etkilemez, sadece
 // tarih aralığı ve kategori seçimi etkiler.
 let lastByIlAll = {}; // haritadaki tıklama-büyütme özelliği için son hesaplanan il rakamları
+let mapSlowNextRender = true; // İlk yükleme HER ZAMAN yavaş/etkileyici oynar
 
 function renderMap(byIlAll){
   buildProvinceMap();
@@ -8083,23 +8146,31 @@ function renderMap(byIlAll){
   const values = entries.map(([,v]) => v).filter(v => v > 0).sort((a,b) => a-b);
   lastByIlAll = byIlAll;
 
+  // Yavaş/hızlı ayrımı (12.08.2026): sekmeye geçiş, ilk açılış ve yenilemede YAVAŞ, etkileyici
+  // bir dalga; sadece kategori filtresi değiştirirken HIZLI (sürekli kullanımda yormasın).
+  // Bayrak, loadData() ve harita sekmesine geçiş anında true'ya çekilir, burada TÜKETİLİR
+  // (bir sonraki çağrı otomatik hızlıya döner).
+  const slow = mapSlowNextRender;
+  mapSlowNextRender = false;
+  const delayStep = slow ? 26 : 4;
+  const transitionDur = slow ? '0.6s' : '0.3s';
+
   // Önce hepsi taban renge (geçişsiz) dönsün ki eski renkler karışıklık yaratmasın
   Object.values(provinceMap).forEach(gList => gList.forEach(g => {
     g.querySelectorAll('path').forEach(p => { p.style.transition = 'none'; p.setAttribute('fill', COLOR_SCALE[0]); });
   }));
 
-  // Gerçek renkler KADEMELİ olarak (her il ~10ms arayla) uygulanır - ilk açılışta, yenilemede
-  // ya da Harita sekmesine her geçişte hafif bir "dalga" hissi versin diye (12.08.2026).
+  // Gerçek renkler KADEMELİ olarak uygulanır - hıza göre her il arası gecikme değişir.
   entries.forEach(([il, v], idx) => {
     const kod = nk[il.toLocaleUpperCase('tr')];
     if (!kod || !provinceMap[kod]) return;
     const color = colorForRank(v, values);
     setTimeout(() => {
       provinceMap[kod].forEach(g => g.querySelectorAll('path').forEach(p => {
-        p.style.transition = 'fill 0.5s ease';
+        p.style.transition = `fill ${transitionDur} ease`;
         p.setAttribute('fill', color);
       }));
-    }, idx * 10);
+    }, idx * delayStep);
   });
 
   mapLegend.innerHTML = COLOR_LABELS.map((label,i) => `
@@ -8173,8 +8244,10 @@ function applyMapSelection(){
   const cx = bbox.x + bbox.width / 2;
   const cy = bbox.y + bbox.height / 2;
   const value = lastByIlAll[mapSelectedIl] || 0;
+  const grandTotal = Object.values(lastByIlAll).reduce((a,b) => a+b, 0) || 1;
+  const pct = ((value / grandTotal) * 100).toFixed(1);
   const valueLabel = Math.round(value).toLocaleString('tr-TR');
-  const boxW = Math.max(70, mapSelectedIl.length * 6.2 + 20);
+  const boxW = Math.max(78, mapSelectedIl.length * 6.2 + 20);
 
   const svg = document.getElementById('gtdTurkiyeSvg');
   let overlayEl = overlay;
@@ -8188,9 +8261,10 @@ function applyMapSelection(){
   }
   overlayEl.style.display = 'block';
   overlayEl.innerHTML = `
-    <rect x="${cx - boxW/2}" y="${cy - 17}" width="${boxW}" height="34" rx="7" fill="#141A44" fill-opacity="0.94" stroke="#E8A53D" stroke-width="1.2"/>
-    <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="9" fill="#E8A53D" font-family="'IBM Plex Mono', monospace" font-weight="700">${mapSelectedIl.toLocaleUpperCase('tr')}</text>
-    <text x="${cx}" y="${cy + 11}" text-anchor="middle" font-size="12" fill="#ffffff" font-family="'IBM Plex Mono', monospace" font-weight="700">${valueLabel}</text>
+    <rect x="${cx - boxW/2}" y="${cy - 21}" width="${boxW}" height="42" rx="7" fill="#141A44" fill-opacity="0.94" stroke="#E8A53D" stroke-width="1.2"/>
+    <text x="${cx}" y="${cy - 8}" text-anchor="middle" font-size="9" fill="#E8A53D" font-family="'IBM Plex Mono', monospace" font-weight="700">${mapSelectedIl.toLocaleUpperCase('tr')}</text>
+    <text x="${cx}" y="${cy + 6}" text-anchor="middle" font-size="12" fill="#ffffff" font-family="'IBM Plex Mono', monospace" font-weight="700">${valueLabel}</text>
+    <text x="${cx}" y="${cy + 17}" text-anchor="middle" font-size="8.5" fill="#CADCFC" font-family="'IBM Plex Mono', monospace">Genel payı: %${pct}</text>
   `;
 }
 
@@ -8309,6 +8383,7 @@ document.querySelectorAll('#page-genel-talep-dagilimi .tab').forEach(tab => {
         });
       }
       if (mapSelectedIl) applyMapSelection(); // görünür hale gelince büyütme/etiket geri uygulanır
+      else { mapSlowNextRender = true; renderMap(lastByIlAll); } // seçim yoksa rengi yavaş/etkileyici yeniden oynat
     } else if (tab.dataset.tab === 'ozet'){
       playCountAnimations(metricsEl);
     }
