@@ -1590,17 +1590,19 @@ body{
 
   <div class="tab-content" id="kt-tab-islem">
     <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-head">Bölge ve Gün Seçin</div>
-      <div style="padding:20px; display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="panel-head">Bölge(ler) ve Gün Seçin</div>
+      <div style="padding:20px; display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
         <div class="date-input-group">
-          <label>Bölge</label>
-          <select id="ktIslemRegionSelect">
-            <option value="">— Bölge seçin —</option>
-            <option value="OSMANİYE">Osmaniye</option>
-            <option value="AYDIN">Aydın</option>
-            <option value="AFYON">Afyon</option>
-            <option value="GAZİANTEP">Gaziantep</option>
-          </select>
+          <label>Bölge (çoklu seçim)</label>
+          <div style="display:flex; flex-direction:column; gap:7px; padding:10px 12px; background:var(--bg-panel2, #1a2138); border:1px solid var(--line); border-radius:8px; min-width:200px;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:700; padding-bottom:7px; margin-bottom:2px; border-bottom:1px solid var(--line); cursor:pointer;">
+              <input type="checkbox" id="ktIslemRegionAll"> Tüm Bölgeler
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="kt-islem-region-check" value="OSMANİYE"> Osmaniye</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="kt-islem-region-check" value="AYDIN"> Aydın</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="kt-islem-region-check" value="AFYON"> Afyon</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" class="kt-islem-region-check" value="GAZİANTEP"> Gaziantep</label>
+          </div>
         </div>
         <div class="date-input-group">
           <label>Tarih</label>
@@ -1608,7 +1610,7 @@ body{
         </div>
       </div>
     </div>
-    <div class="panel"><div class="panel-head" id="ktIslemFieldsHead" style="display:none;">Metrikler</div><div id="ktIslemFieldsWrap" style="padding:20px;"></div></div>
+    <div id="ktIslemFieldsWrap"><div class="panel"><div style="padding:20px;" class="hint">Önce bölge(ler) ve tarih seçin.</div></div></div>
   </div>
 
   <div class="note">
@@ -4679,6 +4681,8 @@ function switchRegionView(){
 // Aktif bölge (üstteki Genel/Osmaniye/Aydın/Afyon/Gaziantep seçimi) neyse, bu sekme de
 // OTOMATİK o bölgeye göre çalışır - ayrı bir bölge seçici YOK, filtreler koordineli kalır.
 let SELECTED_MONTHS_KT = new Set();
+let MONTHLY_DEFAULT_APPLIED_KT = false; // Gelen Arama Dağılımı'ndaki aynı düzeltme (12.08.2026) -
+// varsayılan seçim SADECE bir kere uygulanır, Temizle'nin sonucunu bir daha ezmez.
 
 function getAvailableMonthsKT(){
   const data = getActiveData();
@@ -4695,15 +4699,26 @@ function renderMonthChipsKT(){
     chipsEl.innerHTML = `<div class="empty-state">Henüz veri yok.</div>`;
     return;
   }
-  if (SELECTED_MONTHS_KT.size === 0){
-    months.slice(-12).forEach(mk => SELECTED_MONTHS_KT.add(mk));
-  }
 
   const years = [...new Set(months.map(mk => mk.split('-')[0]))].sort((a,b) => b - a);
   const yearFilterEl = document.getElementById('kt-monthlyYearFilter');
-  const prevYearFilter = yearFilterEl.value || 'all';
+  const isFirstRender = !MONTHLY_DEFAULT_APPLIED_KT;
+  const currentYear = String(new Date().getFullYear());
+  // İlk açılışta SADECE içinde bulunduğumuz yıl görünsün diye Yıl filtresi de otomatik o
+  // yıla ayarlanıyor (Gelen Arama Dağılımı'yla aynı mantık, 12.08.2026).
+  const prevYearFilter = isFirstRender
+    ? (years.includes(currentYear) ? currentYear : 'all')
+    : (yearFilterEl.value || 'all');
   yearFilterEl.innerHTML = '<option value="all">Tüm Yıllar</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
   if ([...yearFilterEl.options].some(o => o.value === prevYearFilter)) yearFilterEl.value = prevYearFilter;
+
+  // İlk kez açıldığında (ve SADECE ilk kez) içinde bulunduğumuz YILIN ayları varsayılan
+  // seçili gelir - "son 12 ay" değil.
+  if (isFirstRender){
+    MONTHLY_DEFAULT_APPLIED_KT = true;
+    const currentYearMonths = months.filter(mk => mk.startsWith(currentYear));
+    (currentYearMonths.length ? currentYearMonths : months.slice(-12)).forEach(mk => SELECTED_MONTHS_KT.add(mk));
+  }
 
   const activeYearFilter = yearFilterEl.value;
   const visibleMonths = activeYearFilter === 'all' ? months : months.filter(mk => mk.startsWith(activeYearFilter));
@@ -5104,107 +5119,149 @@ document.getElementById('kt-tableBody').innerHTML =
 renderCompareChips();
 
 // ===== İŞLEM (veri girişi/güncelleme) — sadece yetkili kullanıcıya görünür =====
-let ktIslemRegion = null;
+// ÇOKLU BÖLGE desteği (12.08.2026): kullanıcı 1, 2, 3 ya da "Tüm Bölgeler" seçebilir, her
+// seçili bölge kendi başlıklı bloğunda ALT ALTA açılır. Her blok BAĞIMSIZ yüklenir/kaydedilir
+// - bir bölgeyi kaydederken diğer bloklardaki KAYDEDİLMEMİŞ girdiler ASLA silinmez, çünkü
+// her blok kendisine ait ("ktIslemBlock-" + bölge adı) id'li ayrı bir konteynerde güncellenir,
+// tüm ktIslemFieldsWrap YENİDEN ÇİZİLMEZ (aksi halde tüm bölgelerin input'ları sıfırlanırdı).
+const ALL_KT_REGIONS = ['OSMANİYE', 'AYDIN', 'AFYON', 'GAZİANTEP'];
+let ktIslemRegions = [];       // seçili bölgeler
 let ktIslemDate = null;
-let ktIslemDayInfo = null; // 'loading' | 'missing_tab' | {exists,...} | null
-let ktIslemSaving = false;
+let ktIslemDayInfoByRegion = {};  // { OSMANİYE: 'loading'|'missing_tab'|{error}|{...} }
+let ktIslemSavingByRegion = {};
 
-const ktIslemRegionSelect = document.getElementById('ktIslemRegionSelect');
+const ktIslemRegionAllCheck = document.getElementById('ktIslemRegionAll');
 const ktIslemDateInput = document.getElementById('ktIslemDateInput');
 const ktIslemFieldsWrap = document.getElementById('ktIslemFieldsWrap');
-const ktIslemFieldsHead = document.getElementById('ktIslemFieldsHead');
 
-function ktIslemRange(){ return `${ktIslemRegion}!A1:K5000`; }
+function ktIslemRangeFor(region){ return `${region}!A1:K5000`; }
 
+// İskeleti kurar (hangi bölge blokları görünecek) - SADECE bölge seçimi ya da tarih
+// değiştiğinde çağrılır, kaydetme sırasında ASLA (bkz. yukarıdaki not).
 function renderKtIslemFields(){
-  ktIslemFieldsHead.style.display = ktIslemDayInfo && ktIslemDayInfo !== 'loading' && ktIslemDayInfo !== 'missing_tab' ? '' : 'none';
-  if (!ktIslemRegion || !ktIslemDate){
-    ktIslemFieldsWrap.innerHTML = `<div class="hint">Önce bölge ve tarih seçin.</div>`;
+  if (!ktIslemRegions.length || !ktIslemDate){
+    ktIslemFieldsWrap.innerHTML = `<div class="panel"><div style="padding:20px;" class="hint">Önce bölge(ler) ve tarih seçin.</div></div>`;
     return;
   }
-  if (ktIslemDayInfo === 'loading'){
-    ktIslemFieldsWrap.innerHTML = `<div class="hint">Veri kontrol ediliyor…</div>`;
-    return;
-  }
-  if (ktIslemDayInfo === 'missing_tab'){
-    ktIslemFieldsWrap.innerHTML = `<div class="error-box" style="display:block;">"${ktIslemRegion}" sekmesi bulunamadı ya da başlık satırı yok.</div>`;
-    return;
-  }
-  if (!ktIslemDayInfo) return;
+  ktIslemFieldsWrap.innerHTML = ktIslemRegions.map(region => `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head" style="display:flex; align-items:center; gap:8px;">
+        <span style="width:8px; height:8px; border-radius:50%; background:var(--accent,#E8A53D); display:inline-block;"></span>
+        ${region}
+      </div>
+      <div id="ktIslemBlock-${region}" style="padding:20px;"><div class="hint">Yükleniyor…</div></div>
+    </div>`).join('');
+}
 
-  const headers = ktIslemDayInfo.headersRaw.slice(1); // ilk sütun tarih
-  ktIslemFieldsWrap.innerHTML = `
+// Sadece TEK bir bölgenin bloğunu günceller - diğer bloklar hiç dokunulmaz.
+function renderKtIslemRegionBody(region){
+  const container = document.getElementById(`ktIslemBlock-${region}`);
+  if (!container) return;
+  const info = ktIslemDayInfoByRegion[region];
+
+  if (info === 'loading'){
+    container.innerHTML = `<div class="hint">Veri kontrol ediliyor…</div>`;
+    return;
+  }
+  if (info === 'missing_tab'){
+    container.innerHTML = `<div class="error-box" style="display:block;">"${region}" sekmesi bulunamadı ya da başlık satırı yok.</div>`;
+    return;
+  }
+  if (info && info.error){
+    container.innerHTML = `<div class="error-box" style="display:block;">Veri okunamadı: ${info.error}</div>`;
+    return;
+  }
+  if (!info) return;
+
+  const headers = info.headersRaw.slice(1); // ilk sütun tarih
+  const saving = !!ktIslemSavingByRegion[region];
+  container.innerHTML = `
     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:14px; margin-bottom:20px;">
       ${headers.map((h, i) => {
-        const raw = ktIslemDayInfo.rowValues ? (ktIslemDayInfo.rowValues[i+1] || '') : '';
+        const raw = info.rowValues ? (info.rowValues[i+1] || '') : '';
         return `<div>
           <div class="hint" style="margin-bottom:6px;">${h}</div>
-          <input class="search-input" style="width:100%;" data-ktislemfield="${h}" value="${String(raw).replace(/"/g,'&quot;')}" placeholder="—">
+          <input class="search-input" style="width:100%;" data-ktislemfield="${h}" data-ktislemregion="${region}" value="${String(raw).replace(/"/g,'&quot;')}" placeholder="—">
         </div>`;
       }).join('')}
     </div>
     <div style="display:flex; align-items:center; gap:14px;">
-      <button class="refresh-btn" id="ktIslemSaveBtn" style="background:rgba(232,165,61,0.14); color:var(--ok,#E8A53D); border-color:var(--ok,#E8A53D);">${ktIslemSaving ? 'Kaydediliyor…' : '💾 Kaydet'}</button>
-      <span id="ktIslemStatusMsg" class="hint"></span>
+      <button class="refresh-btn" id="ktIslemSaveBtn-${region}" ${saving ? 'disabled' : ''} style="background:rgba(232,165,61,0.14); color:var(--ok,#E8A53D); border-color:var(--ok,#E8A53D);">${saving ? 'Kaydediliyor…' : '💾 Kaydet'}</button>
+      <span id="ktIslemStatusMsg-${region}" class="hint"></span>
     </div>`;
-  const btn = document.getElementById('ktIslemSaveBtn');
-  if (btn) btn.addEventListener('click', performKtIslemSave);
+  const btn = document.getElementById(`ktIslemSaveBtn-${region}`);
+  if (btn) btn.addEventListener('click', () => performKtIslemSave(region));
 }
 
-async function loadKtIslemDay(){
-  ktIslemDayInfo = 'loading';
-  renderKtIslemFields();
+async function loadKtIslemDay(region){
+  ktIslemDayInfoByRegion[region] = 'loading';
+  renderKtIslemRegionBody(region);
   try {
-    ktIslemDayInfo = await readDailySheetTabRaw(SHEET_ID, ktIslemRegion, ktIslemRange(), ktIslemDate);
+    ktIslemDayInfoByRegion[region] = await readDailySheetTabRaw(SHEET_ID, region, ktIslemRangeFor(region), ktIslemDate);
   } catch(e){
-    ktIslemDayInfo = null;
-    ktIslemFieldsWrap.innerHTML = `<div class="error-box" style="display:block;">Veri okunamadı: ${e.message}</div>`;
-    return;
+    ktIslemDayInfoByRegion[region] = { error: e.message };
   }
-  renderKtIslemFields();
+  renderKtIslemRegionBody(region);
 }
 
 function maybeLoadKtIslemDay(){
-  ktIslemDayInfo = null;
-  if (ktIslemRegion && ktIslemDate) loadKtIslemDay(); else renderKtIslemFields();
+  ktIslemDayInfoByRegion = {};
+  renderKtIslemFields(); // blok kümesi değişti - iskeleti yeniden kur
+  if (ktIslemDate && ktIslemRegions.length){
+    ktIslemRegions.forEach(region => loadKtIslemDay(region));
+  }
 }
-ktIslemRegionSelect.addEventListener('change', () => { ktIslemRegion = ktIslemRegionSelect.value || null; maybeLoadKtIslemDay(); });
+
+function syncKtIslemRegionsFromChecks(){
+  ktIslemRegions = [...document.querySelectorAll('.kt-islem-region-check:checked')].map(el => el.value);
+  ktIslemRegionAllCheck.checked = ktIslemRegions.length === ALL_KT_REGIONS.length;
+  maybeLoadKtIslemDay();
+}
+document.querySelectorAll('.kt-islem-region-check').forEach(cb => {
+  cb.addEventListener('change', syncKtIslemRegionsFromChecks);
+});
+ktIslemRegionAllCheck.addEventListener('change', () => {
+  const checked = ktIslemRegionAllCheck.checked;
+  document.querySelectorAll('.kt-islem-region-check').forEach(cb => { cb.checked = checked; });
+  ktIslemRegions = checked ? [...ALL_KT_REGIONS] : [];
+  maybeLoadKtIslemDay();
+});
 ktIslemDateInput.addEventListener('change', () => { ktIslemDate = ktIslemDateInput.value || null; maybeLoadKtIslemDay(); });
 
-async function performKtIslemSave(){
-  if (ktIslemSaving || !ktIslemRegion || !ktIslemDate) return;
-  const statusEl = document.getElementById('ktIslemStatusMsg');
-  const saveBtn = document.getElementById('ktIslemSaveBtn');
-  ktIslemSaving = true;
-  if (saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor…'; }
-  if (statusEl) statusEl.textContent = 'Yazma yetkisi kontrol ediliyor…';
+async function performKtIslemSave(region){
+  if (ktIslemSavingByRegion[region] || !ktIslemDate) return;
+  ktIslemSavingByRegion[region] = true;
+  renderKtIslemRegionBody(region); // sadece BU bloğun "Kaydediliyor…" durumu
 
   try {
     const token = await ensureWriteToken();
-    if (statusEl) statusEl.textContent = 'Güncel veri kontrol ediliyor…';
-    const fresh = await readDailySheetTabRaw(SHEET_ID, ktIslemRegion, ktIslemRange(), ktIslemDate, token);
+    const fresh = await readDailySheetTabRaw(SHEET_ID, region, ktIslemRangeFor(region), ktIslemDate, token);
     if (fresh === 'missing_tab'){
-      ktIslemDayInfo = 'missing_tab';
-      renderKtIslemFields();
+      ktIslemDayInfoByRegion[region] = 'missing_tab';
+      ktIslemSavingByRegion[region] = false;
+      renderKtIslemRegionBody(region);
       return;
     }
     const enteredValues = {};
-    document.querySelectorAll('[data-ktislemfield]').forEach(inp => { enteredValues[inp.dataset.ktislemfield] = inp.value; });
+    document.querySelectorAll(`[data-ktislemfield][data-ktislemregion="${region}"]`).forEach(inp => { enteredValues[inp.dataset.ktislemfield] = inp.value; });
     const changedFields = computeChangedFields(fresh, enteredValues);
 
-    const result = await writeDailySheetRow(SHEET_ID, ktIslemRegion, fresh, ktIslemDate, enteredValues, token);
-    if (statusEl) statusEl.textContent = (result === 'updated' ? '✓ Kaydedildi (mevcut satır güncellendi) — ' : '✓ Kaydedildi (yeni satır oluşturuldu) — ') + new Date().toLocaleTimeString('tr-TR');
-    sendLog({ type: 'kaydet', dashboard: 'ALO-144', page: 'Köpük Talep Dağılımı', target: ktIslemRegion + ' — ' + ktIslemDate, fields: changedFields.join(', '), action: result === 'updated' ? 'Güncelleme' : 'Yeni Kayıt' });
+    const result = await writeDailySheetRow(SHEET_ID, region, fresh, ktIslemDate, enteredValues, token);
+    ktIslemDayInfoByRegion[region] = await readDailySheetTabRaw(SHEET_ID, region, ktIslemRangeFor(region), ktIslemDate, token);
+    ktIslemSavingByRegion[region] = false;
+    renderKtIslemRegionBody(region);
 
-    if (REGION_DATA[ktIslemRegion]) loadRegion(ktIslemRegion, true, { silent: true }); // arka planda görüntüleme verisini tazele
+    const statusEl = document.getElementById(`ktIslemStatusMsg-${region}`);
+    if (statusEl) statusEl.textContent = (result === 'updated' ? '✓ Kaydedildi (mevcut satır güncellendi) — ' : '✓ Kaydedildi (yeni satır oluşturuldu) — ') + new Date().toLocaleTimeString('tr-TR');
+    sendLog({ type: 'kaydet', dashboard: 'ALO-144', page: 'Köpük Talep Dağılımı', target: region + ' — ' + ktIslemDate, fields: changedFields.join(', '), action: result === 'updated' ? 'Güncelleme' : 'Yeni Kayıt' });
+
+    if (REGION_DATA[region]) loadRegion(region, true, { silent: true }); // arka planda görüntüleme verisini tazele
     genelDataCache = null;
-    await loadKtIslemDay();
   } catch(e){
+    ktIslemSavingByRegion[region] = false;
+    renderKtIslemRegionBody(region);
+    const statusEl = document.getElementById(`ktIslemStatusMsg-${region}`);
     if (statusEl) statusEl.textContent = '✗ Hata: ' + e.message;
-  } finally {
-    ktIslemSaving = false;
-    const btn = document.getElementById('ktIslemSaveBtn');
-    if (btn){ btn.disabled = false; btn.textContent = '💾 Kaydet'; }
   }
 }
 })();
