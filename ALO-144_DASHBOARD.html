@@ -997,6 +997,12 @@ body{
   <div id="gtdErrorBox" style="display:none" class="error-box"></div>
   <div id="gtdWarningBox" style="display:none; background:rgba(232,165,61,0.12); border:1px solid var(--accent); color:var(--accent); padding:12px 16px; border-radius:8px; margin-bottom:16px; font-size:13px; font-weight:600;"></div>
 
+  <div class="tabs">
+    <div class="tab active" data-tab="harita">Harita</div>
+    <div class="tab" data-tab="ozet">Özet</div>
+    <div class="tab" data-tab="detay">Detaylı Liste</div>
+  </div>
+
   <div class="filterbar">
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <div class="preset-group" id="gtd-presetGroup">
@@ -1026,8 +1032,7 @@ body{
     </div>
   </div>
 
-  <div class="metrics" id="gtdMetrics"></div>
-
+  <div class="tab-content active" id="gtd-tab-harita">
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">
       Türkiye Haritası — Seçili Kategori/Dönem Yoğunluk Dağılımı
@@ -1317,12 +1322,18 @@ body{
       </div>
     </div>
   </div>
+  </div>
+
+  <div class="tab-content" id="gtd-tab-ozet">
+  <div class="metrics" id="gtdMetrics"></div>
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">İllere Göre Dağılım (Grafik)</div>
     <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="gtdChart-canvas"></canvas></div>
   </div>
+  </div>
 
+  <div class="tab-content" id="gtd-tab-detay">
   <div class="panel">
     <div class="panel-head">
       Detaylı Tablo
@@ -1345,6 +1356,7 @@ body{
         <tbody id="gtdTableBody"></tbody>
       </table>
     </div>
+  </div>
   </div>
 
 </div>
@@ -7887,32 +7899,107 @@ function aggregateByIlDetailed(rows){
 // ================= Ana Render =================
 function renderAll(){
   if (!ALL_ROWS.length) return;
-  const rowsDateOnly = dateFilter.getFilteredRows();                 // sadece tarih aralığı - harita ve genel payı için
+  const rowsDateOnly = dateFilter.getFilteredRows();                 // sadece tarih aralığı - harita ve genel toplam için
   const rowsFiltered = SELECTED_IL === 'all' ? rowsDateOnly : rowsDateOnly.filter(r => r.il === SELECTED_IL); // + il filtresi - tablo/grafik/metrik için
 
   const byIlAll = aggregateByIl(rowsDateOnly);       // harita HER ZAMAN tüm illeri gösterir
   const byIlFiltered = aggregateByIl(rowsFiltered);
 
-  renderMetricsPanel(rowsFiltered, byIlFiltered);
+  renderMetricsPanel(rowsFiltered, byIlAll);
   renderMap(byIlAll);
   renderChart(byIlFiltered);
   renderTable(rowsFiltered, rowsDateOnly);
 }
 
-function renderMetricsPanel(rows, byIl){
-  const genelToplam = Object.values(byIl).reduce((a,b) => a+b, 0);
-  const ilCount = Object.keys(byIl).filter(k => k !== 'zzBelirtilmemiş').length;
-  let enYogun = '—', enYogunDeger = 0;
-  Object.entries(byIl).forEach(([il, v]) => {
-    if (il === 'zzBelirtilmemiş') return;
-    if (v > enYogunDeger){ enYogunDeger = v; enYogun = il; }
+// Seçili satırlar (il filtresi uygulanmış) içinde, kategori filtresinden BAĞIMSIZ olarak
+// en çok talep edilen kategoriyi bulur - "En Çok Talep Edilen Konu" kartı için.
+function topCategoryInRows(rows){
+  if (!CATEGORIES.length || !rows.length) return null;
+  const sums = CATEGORIES.map(() => 0);
+  rows.forEach(r => { r.values.forEach((v,i) => { sums[i] += (v || 0); }); });
+  let best = -1, bestVal = 0;
+  sums.forEach((v,i) => { if (v > bestVal){ bestVal = v; best = i; } });
+  return best >= 0 ? { name: CATEGORIES[best].name, value: bestVal } : null;
+}
+
+function gtdMetricCardHtml(label, value, opts){
+  opts = opts || {};
+  let valueHtml;
+  if (opts.isText){
+    const color = opts.deltaSign === undefined || opts.deltaSign === null ? '' : (opts.deltaSign >= 0 ? 'var(--accent)' : 'var(--danger)');
+    valueHtml = `<div class="value" style="font-size:20px;${color ? ' color:' + color + ';' : ''}">${value}</div>${opts.sub ? `<div style="font-size:11px; color:var(--text-dim); margin-top:2px;">${opts.sub}</div>` : ''}`;
+  } else {
+    valueHtml = `<div class="value"><span data-count-target="${Math.round(value)}">0</span></div>`;
+  }
+  return `<div class="metric"><div class="label">${label}</div>${valueHtml}</div>`;
+}
+
+// KPI kartları duruma göre değişir (12.08.2026 - "Tüm İller" ve "belirli il" için ayrı
+// senaryolar konuşulup netleştirildi):
+// TÜM İLLER seçiliyken: Genel Toplam / En Çok Talep Edilen Konu / Veri Bulunan İl Sayısı / En Yoğun İl
+// BELİRLİ İL seçiliyken: Genel Toplam / {İl} Toplamı / En Çok Talep Edilen Konu / Aktif Gün Sayısı / Önceki Döneme Göre Değişim
+// "Önceki Döneme Göre Değişim", Analiz sayfasıyla TUTARLI yöntemle hesaplanır: ne kadar gün
+// seçiliyse, hemen öncesindeki AYNI UZUNLUKTAKİ dönemle kıyaslanır (takvim ayı değil).
+function renderMetricsPanel(rowsFiltered, byIlAll){
+  const genelToplam = Object.values(byIlAll).reduce((a,b) => a+b, 0);
+  const cards = [];
+  cards.push({ label: 'Genel Toplam', value: genelToplam });
+
+  if (SELECTED_IL !== 'all'){
+    const ilToplam = rowsFiltered.reduce((s,r) => s + rowValue(r), 0);
+    cards.push({ label: SELECTED_IL + ' Toplamı', value: ilToplam });
+  }
+
+  const topKat = topCategoryInRows(rowsFiltered);
+  cards.push({
+    label: 'En Çok Talep Edilen Konu',
+    value: topKat ? topKat.name : '—',
+    opts: { isText: true, sub: topKat ? Math.round(topKat.value).toLocaleString('tr-TR') + ' adet' : null }
   });
-  metricsEl.innerHTML = `
-    <div class="metric"><div class="label">${SELECTED_IL === 'all' ? 'Genel Toplam' : SELECTED_IL + ' Toplamı'}</div><div class="value">${Math.round(genelToplam).toLocaleString('tr-TR')}</div></div>
-    <div class="metric"><div class="label">Kayıt Sayısı</div><div class="value">${rows.length.toLocaleString('tr-TR')}</div></div>
-    <div class="metric"><div class="label">Veri Bulunan İl Sayısı</div><div class="value">${ilCount}</div></div>
-    <div class="metric"><div class="label">En Yoğun İl</div><div class="value" style="font-size:20px;">${enYogun}</div></div>
-  `;
+
+  if (SELECTED_IL === 'all'){
+    const ilCount = Object.keys(byIlAll).filter(k => k !== 'zzBelirtilmemiş').length;
+    cards.push({ label: 'Veri Bulunan İl Sayısı', value: ilCount });
+
+    let enYogun = '—', enYogunDeger = 0;
+    Object.entries(byIlAll).forEach(([il, v]) => {
+      if (il === 'zzBelirtilmemiş') return;
+      if (v > enYogunDeger){ enYogunDeger = v; enYogun = il; }
+    });
+    cards.push({ label: 'En Yoğun İl', value: enYogun, opts: { isText: true } });
+  } else {
+    const activeDays = new Set(rowsFiltered.map(r => fmtDate(r.date))).size;
+    cards.push({ label: 'Aktif Gün Sayısı', value: activeDays });
+
+    const fromEl = document.getElementById('gtd-dateFrom');
+    const toEl = document.getElementById('gtd-dateTo');
+    let deltaPct = null;
+    if (fromEl.value && toEl.value){
+      const from = new Date(fromEl.value + 'T00:00:00');
+      const to = new Date(toEl.value + 'T23:59:59');
+      // Gün sayısı, saat bileşenini (00:00 vs 23:59:59) atıp SADECE takvim günü farkına göre
+      // hesaplanır - "to - from" doğrudan milisaniye farkı almak, tek gün seçiliyken bile
+      // yanlışlıkla "2 gün" çıkmasına sebep olan bir off-by-one hatası içeriyordu (Analiz
+      // sayfasındaki getPrevRange'de de aynı hata var, ayrıca bakılacak - 12.08.2026).
+      const fromMid = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+      const toMid = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+      const days = Math.round((toMid - fromMid) / 86400000) + 1;
+      const prevTo = new Date(from); prevTo.setDate(prevTo.getDate() - 1); prevTo.setHours(23,59,59,0);
+      const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - (days - 1)); prevFrom.setHours(0,0,0,0);
+      const prevRows = ALL_ROWS.filter(r => r.il === SELECTED_IL && r.date >= prevFrom && r.date <= prevTo);
+      const prevTotal = prevRows.reduce((s,r) => s + rowValue(r), 0);
+      const curTotal = rowsFiltered.reduce((s,r) => s + rowValue(r), 0);
+      if (prevTotal > 0) deltaPct = ((curTotal - prevTotal) / prevTotal) * 100;
+    }
+    cards.push({
+      label: 'Önceki Döneme Göre Değişim',
+      value: deltaPct === null ? '—' : `${deltaPct >= 0 ? '▲ +' : '▼ '}${deltaPct.toFixed(1)}%`,
+      opts: { isText: true, deltaSign: deltaPct }
+    });
+  }
+
+  metricsEl.innerHTML = cards.map(c => gtdMetricCardHtml(c.label, c.value, c.opts)).join('');
+  playCountAnimations(metricsEl);
 }
 
 // ================= Harita =================
@@ -8113,6 +8200,35 @@ document.querySelector('[data-page="genel-talep-dagilimi"]').addEventListener('c
     INITIALIZED = true;
     loadData(false);
   }
+});
+
+// Harita SEKMESİ varsayılan açılan sekme (12.08.2026) - "görsel olarak etkileyici olsun"
+// isteği üzerine haritaya her geçişte hafif bir fade-in (canlanma) efekti uygulanır. Özet
+// sekmesine her geçişte de KPI kartlarının sayaç animasyonu yeniden oynatılır - diğer
+// sekmeler değişmeden kalıyor, sadece görsel giriş efekti.
+document.querySelectorAll('#page-genel-talep-dagilimi .tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('#page-genel-talep-dagilimi .tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#page-genel-talep-dagilimi .tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('gtd-tab-' + tab.dataset.tab).classList.add('active');
+
+    if (tab.dataset.tab === 'harita'){
+      const svgEl = document.getElementById('gtdTurkiyeSvg');
+      if (svgEl){
+        svgEl.style.transition = 'none';
+        svgEl.style.opacity = '0';
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            svgEl.style.transition = 'opacity 0.5s ease';
+            svgEl.style.opacity = '1';
+          });
+        });
+      }
+    } else if (tab.dataset.tab === 'ozet'){
+      playCountAnimations(metricsEl);
+    }
+  });
 });
 
 })();
