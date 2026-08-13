@@ -3179,12 +3179,16 @@ function aloWireSlotSelectors(idPrefix, slots, onChange){
 }
 
 // KULLANIM: createSlotChartPanel({ idPrefix, selectorsId, canvasId, getContext: () => ({labels, metrics}), getDefaultMetricKeys: (ctx) => ['1','2'] })
-// getDefaultMetricKeys, ilk render'da SIRAYLA slot 0,1,2... doldurmak için kullanılır (opsiyonel, boşsa tüm slotlar boş başlar).
+// getDefaultMetricKeys birden fazla anahtar döndürse bile, İLK KEZ açılışta SADECE 1. slot
+// doldurulur (Sütun grafik olarak) - diğer 4 slot "Yok" kalır. 5 metriğin birden aynı anda
+// çizilmesi ilk bakışta kalabalık/okunaksız bulunduğu için 12.08.2026'da böyle değiştirildi.
+// Kullanıcı isterse diğer slotları kendisi açabilir - bu TEK ORTAK MOTOR olduğu için,
+// buradaki değişiklik dashboard genelindeki TÜM 5-slot grafiklere otomatik yayılır.
 function createSlotChartPanel(config){
   const selectorsEl = document.getElementById(config.selectorsId);
   const canvasEl = document.getElementById(config.canvasId);
   const slots = [
-    { metricKey: '', type: 'line' },
+    { metricKey: '', type: 'bar' },
     { metricKey: '', type: 'line' },
     { metricKey: '', type: 'line' },
     { metricKey: '', type: 'line' },
@@ -3198,7 +3202,9 @@ function createSlotChartPanel(config){
     if (!initialized){
       initialized = true;
       const defaults = config.getDefaultMetricKeys ? (config.getDefaultMetricKeys(ctx) || []) : [];
-      defaults.slice(0,5).forEach((key,i) => { if (key !== undefined && key !== null) slots[i].metricKey = String(key); });
+      if (defaults.length && defaults[0] !== undefined && defaults[0] !== null){
+        slots[0].metricKey = String(defaults[0]);
+      }
     }
     selectorsEl.innerHTML = aloSlotSelectorsHtml(config.idPrefix, slots, ctx.metrics);
     aloWireSlotSelectors(config.idPrefix, slots, render);
@@ -3637,6 +3643,9 @@ singleDate.addEventListener('change', () => renderSingleDay(singleDate.value));
 
 // --- Monthly summary view ---
 let SELECTED_MONTHS = new Set(); // "YYYY-MM" formatında
+let MONTHLY_DEFAULT_APPLIED = false; // varsayılan seçim SADECE bir kere, ilk açılışta uygulanır -
+// "Temizle" butonuyla bilerek boşaltılan seçim bir daha otomatik doldurulmaz (bu ikisi eskiden
+// karışıyordu: Temizle boşaltıyor, hemen ardından "boşsa doldur" kuralı anında yeniden dolduruyordu)
 const MONTH_NAMES = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 
 function getAvailableMonths(){
@@ -3652,9 +3661,15 @@ function renderMonthChips(){
     chipsEl.innerHTML = `<div class="empty-state">Henüz veri yok.</div>`;
     return;
   }
-  // İlk kez açıldığında son 12 ay (ya da hepsi, 12'den az varsa) varsayılan seçili gelir.
-  if (SELECTED_MONTHS.size === 0){
-    months.slice(-12).forEach(mk => SELECTED_MONTHS.add(mk));
+  // İlk kez açıldığında (ve SADECE ilk kez - MONTHLY_DEFAULT_APPLIED bayrağı bunu garantiler)
+  // içinde bulunduğumuz YILIN ayları varsayılan seçili gelir - "son 12 ay" değil, çünkü veri
+  // yıllar içinde büyüdükçe hangi yılların karıştığı belirsizleşiyordu. Farklı bir yıl görmek
+  // isteyen kullanıcı zaten yukarıdaki Yıl filtresinden kendisi seçer. (12.08.2026)
+  if (!MONTHLY_DEFAULT_APPLIED){
+    MONTHLY_DEFAULT_APPLIED = true;
+    const currentYear = String(new Date().getFullYear());
+    const currentYearMonths = months.filter(mk => mk.startsWith(currentYear));
+    (currentYearMonths.length ? currentYearMonths : months.slice(-12)).forEach(mk => SELECTED_MONTHS.add(mk));
   }
 
   // Yıl filtresi seçenekleri (bir kere doldurulur, veri büyüdükçe yeni yıllar eklenir)
@@ -4140,6 +4155,18 @@ document.querySelectorAll('#page-gelen-arama-dagilimi .tab').forEach(tab => {
     document.getElementById('dailyFilterSection').style.display = (isAylik || isIslem) ? 'none' : 'block';
     document.getElementById('rangeDateControls').style.display = isTekgun ? 'none' : 'flex';
     document.getElementById('singleDateControls').style.display = isTekgun ? 'flex' : 'none';
+
+    // Tek Gün sekmesinde, seçili güne ait bilgiler (Tek Gün Görünümü paneli) genel özet
+    // bloğunun (#metrics) ÜSTÜNDE görünsün - genel bir toplamla karışmasın diye #metrics
+    // DOM'da geçici olarak panelin altına taşınıyor. Başka sekmeye geçilince #dailyFilterSection
+    // içindeki asıl yerine (filtre çubuğunun hemen altı) geri konuyor. Diğer sekmelerde davranış
+    // hiç değişmedi. (12.08.2026)
+    const metricsEl = document.getElementById('metrics');
+    if (isTekgun){
+      document.getElementById('tab-tekgun').appendChild(metricsEl);
+    } else if (metricsEl.parentElement !== document.getElementById('dailyFilterSection')){
+      document.getElementById('dailyFilterSection').appendChild(metricsEl);
+    }
   });
 });
 
