@@ -2349,6 +2349,12 @@ async function initIslemAccess(){
     sunumAuthorized = isFixedAdmin || !!(myRow && myRow.sunum);
     excelAuthorized = isFixedAdmin || !!(myRow && myRow.excel);
 
+    // Giriş/çıkış kaydı ARTIK yetkiden bağımsız - başarıyla giriş yapan HERKES loglanır (sadece
+    // Güncelleme yetkisi olanlar değil). Kullanıcı listeyi manuel olarak (Sheet'ten satır silerek)
+    // yönetiyor, kalabalıklaşırsa kendisi kısaltıyor. (12.08.2026)
+    sendLog({ type: 'giris', dashboard: 'ALO-144' });
+    window.addEventListener('pagehide', () => { sendLog({ type: 'cikis', dashboard: 'ALO-144' }); });
+
     // Sekme erişimi, üstteki 4 bayraktan BAĞIMSIZ çalışır - Güncelleme/Sunum/Excel/Süper
     // Yetkili'nin hiçbiri TRUE olmasa bile kişinin belirli sekmeleri görmesi gerekebilir.
     applyPageAccess(myRow, isFixedAdmin);
@@ -2365,12 +2371,6 @@ async function initIslemAccess(){
         client_id: OAUTH_CLIENT_ID,
         scope: WRITE_SCOPE,
         callback: () => {} // performIslemSave / Yetki Atama kaydında dinamik olarak değiştirilir
-      });
-    }
-    if (islemAuthorized){
-      sendLog({ type: 'giris', dashboard: 'ALO-144' });
-      window.addEventListener('pagehide', () => {
-        if (islemAuthorized) sendLog({ type: 'cikis', dashboard: 'ALO-144' });
       });
     }
   } catch(e){
