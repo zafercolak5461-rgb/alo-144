@@ -684,6 +684,11 @@ body{
 #gtdTurkiyeSvg #kuzey-kibris, #gtdTurkiyeSvg #guney-kibris{ display:none; }
 #gtdTurkiyeSvg path{ stroke:var(--bg); stroke-width:0.6; transition:opacity .15s; cursor:pointer; }
 #gtdTurkiyeSvg g:hover path{ opacity:0.75; stroke:var(--accent); stroke-width:1.2; }
+#gtdTurkiyeSvg g.gtd-il-secili path{
+  stroke:var(--accent); stroke-width:1.6;
+  filter:drop-shadow(0 0 8px rgba(232,165,61,0.75));
+}
+#gtdMapValueOverlay{ transition:opacity .2s ease; }
 </style>
 </head>
 <body>
@@ -1036,20 +1041,14 @@ body{
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">
       Türkiye Haritası — Seçili Kategori/Dönem Yoğunluk Dağılımı
-      <span class="hint" style="font-size:10.5px;">bir ile tıklayarak İl filtresini tetikleyebilirsiniz</span>
+      <span class="hint" style="font-size:10.5px;">bir ile tıklayarak o ilin rakamını görebilirsiniz — bu, diğer sekmelerdeki filtreleri etkilemez</span>
     </div>
     <div style="padding:16px 18px 4px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-      <button type="button" id="gtdMapAllBtn" class="preset-btn active">🔄 Tüm İller</button>
-      <div class="date-input-group">
-        <label>İl</label>
-        <select id="gtdIlMap" class="gtd-il-select"><option value="all">Tüm İller</option></select>
-      </div>
       <div class="date-input-group" style="position:relative;">
         <label>Kategori (çoklu seçim)</label>
         <button type="button" id="gtdKatBtnMap" class="refresh-btn gtd-kat-btn" style="min-width:220px; text-align:left;">Genel (Tüm Kategoriler) ▾</button>
         <div id="gtdKatPanelMap" class="gtd-kat-panel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
       </div>
-      <span class="hint" style="font-size:10.5px;">Not: İl seçimi haritanın renklerini değiştirmez — harita her zaman tüm illeri gösterir</span>
     </div>
     <div style="padding:16px 18px;">
       <div id="gtdMapWrap" style="width:100%; max-width:980px; margin:0 auto;"><svg version="1.1" id="gtdTurkiyeSvg" style="width:100%;height:auto;max-height:780px;" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1007.478 527.323" xml:space="preserve">
@@ -7701,7 +7700,6 @@ function registerIlSelect(el){
 function setIl(val){
   SELECTED_IL = val;
   ilSelects.forEach(el => { el.value = val; });
-  document.getElementById('gtdMapAllBtn').classList.toggle('active', val === 'all');
   renderAll();
 }
 
@@ -7738,11 +7736,9 @@ document.addEventListener('click', (e) => {
   });
 });
 
-registerIlSelect(document.getElementById('gtdIlMap'));
 registerIlSelect(document.getElementById('gtdIlTable'));
 registerKatControl(document.getElementById('gtdKatBtnMap'), document.getElementById('gtdKatPanelMap'));
 registerKatControl(document.getElementById('gtdKatBtnTable'), document.getElementById('gtdKatPanelTable'));
-document.getElementById('gtdMapAllBtn').addEventListener('click', () => setIl('all'));
 
 // ================= Veri Çekme =================
 async function loadData(isRefresh){
@@ -8077,22 +8073,33 @@ function colorForRank(value, sorted){
 
 // Harita HER ZAMAN tüm illeri gösterir - İl filtresi haritayı etkilemez, sadece
 // tarih aralığı ve kategori seçimi etkiler.
+let lastByIlAll = {}; // haritadaki tıklama-büyütme özelliği için son hesaplanan il rakamları
+
 function renderMap(byIlAll){
   buildProvinceMap();
   buildMapLabels();
   const nk = buildNameToKod();
   const entries = Object.entries(byIlAll).filter(([il]) => il !== 'zzBelirtilmemiş');
   const values = entries.map(([,v]) => v).filter(v => v > 0).sort((a,b) => a-b);
+  lastByIlAll = byIlAll;
 
+  // Önce hepsi taban renge (geçişsiz) dönsün ki eski renkler karışıklık yaratmasın
   Object.values(provinceMap).forEach(gList => gList.forEach(g => {
-    g.querySelectorAll('path').forEach(p => p.setAttribute('fill', COLOR_SCALE[0]));
+    g.querySelectorAll('path').forEach(p => { p.style.transition = 'none'; p.setAttribute('fill', COLOR_SCALE[0]); });
   }));
 
-  entries.forEach(([il, v]) => {
+  // Gerçek renkler KADEMELİ olarak (her il ~10ms arayla) uygulanır - ilk açılışta, yenilemede
+  // ya da Harita sekmesine her geçişte hafif bir "dalga" hissi versin diye (12.08.2026).
+  entries.forEach(([il, v], idx) => {
     const kod = nk[il.toLocaleUpperCase('tr')];
     if (!kod || !provinceMap[kod]) return;
     const color = colorForRank(v, values);
-    provinceMap[kod].forEach(g => g.querySelectorAll('path').forEach(p => p.setAttribute('fill', color)));
+    setTimeout(() => {
+      provinceMap[kod].forEach(g => g.querySelectorAll('path').forEach(p => {
+        p.style.transition = 'fill 0.5s ease';
+        p.setAttribute('fill', color);
+      }));
+    }, idx * 10);
   });
 
   mapLegend.innerHTML = COLOR_LABELS.map((label,i) => `
@@ -8109,15 +8116,91 @@ function renderMap(byIlAll){
         <span>${i+1}. ${il}</span><span style="font-family:'IBM Plex Mono',monospace;">${Math.round(v).toLocaleString('tr-TR')}</span>
       </div>
     `).join('');
+
+  // Bir il büyütülmüş/seçili haldeyse (bkz. aşağıdaki tıklama mantığı), veri yenilendiğinde
+  // onu ve rakamını günceller - ama SADECE Harita sekmesi o an görünürse (getBBox, gizli/
+  // display:none bir ağaç içindeyken güvenilmez sonuç verebilir).
+  const haritaTabEl = document.getElementById('gtd-tab-harita');
+  if (mapSelectedIl && haritaTabEl && haritaTabEl.classList.contains('active')) applyMapSelection();
+}
+
+// ================= Harita: tıkla-büyüt-göster (diğer sekmelerden BAĞIMSIZ) =================
+// Bu, SELECTED_IL'e (global filtre) hiç dokunmaz - sadece Harita sekmesine özel, görsel bir
+// seçim. Bir ile tıklandığında o ilin alanı belirgin şekilde büyür, üzerinde/yakınında seçili
+// kategori için toplam rakamı gösteren bir etiket belirir. Aynı ile tekrar tıklanırsa ya da
+// haritanın boş bir yerine tıklanırsa seçim kalkar. (12.08.2026)
+let mapSelectedIl = null;
+
+function getCombinedBBox(gList){
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  gList.forEach(g => {
+    const b = g.getBBox();
+    minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width); maxY = Math.max(maxY, b.y + b.height);
+  });
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+function applyMapSelection(){
+  Object.values(provinceMap).forEach(gList => gList.forEach(g => {
+    g.style.transform = '';
+    g.style.transformBox = '';
+    g.style.transformOrigin = '';
+    g.classList.remove('gtd-il-secili');
+  }));
+  const overlay = document.getElementById('gtdMapValueOverlay');
+
+  if (!mapSelectedIl){
+    if (overlay) overlay.style.display = 'none';
+    return;
+  }
+  const nk = buildNameToKod();
+  const kod = nk[mapSelectedIl.toLocaleUpperCase('tr')];
+  if (!kod || !provinceMap[kod]){
+    if (overlay) overlay.style.display = 'none';
+    return;
+  }
+  const gList = provinceMap[kod];
+  gList.forEach(g => {
+    g.style.transformBox = 'fill-box';
+    g.style.transformOrigin = 'center';
+    g.style.transform = 'scale(1.22)';
+    g.classList.add('gtd-il-secili');
+    g.parentNode.appendChild(g); // en üstte çizilsin diye DOM sırasında sona taşı
+  });
+
+  const bbox = getCombinedBBox(gList);
+  const cx = bbox.x + bbox.width / 2;
+  const cy = bbox.y + bbox.height / 2;
+  const value = lastByIlAll[mapSelectedIl] || 0;
+  const valueLabel = Math.round(value).toLocaleString('tr-TR');
+  const boxW = Math.max(70, mapSelectedIl.length * 6.2 + 20);
+
+  const svg = document.getElementById('gtdTurkiyeSvg');
+  let overlayEl = overlay;
+  if (!overlayEl){
+    overlayEl = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    overlayEl.setAttribute('id', 'gtdMapValueOverlay');
+    overlayEl.style.pointerEvents = 'none';
+    svg.appendChild(overlayEl);
+  } else {
+    svg.appendChild(overlayEl); // en üstte kalsın
+  }
+  overlayEl.style.display = 'block';
+  overlayEl.innerHTML = `
+    <rect x="${cx - boxW/2}" y="${cy - 17}" width="${boxW}" height="34" rx="7" fill="#141A44" fill-opacity="0.94" stroke="#E8A53D" stroke-width="1.2"/>
+    <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="9" fill="#E8A53D" font-family="'IBM Plex Mono', monospace" font-weight="700">${mapSelectedIl.toLocaleUpperCase('tr')}</text>
+    <text x="${cx}" y="${cy + 11}" text-anchor="middle" font-size="12" fill="#ffffff" font-family="'IBM Plex Mono', monospace" font-weight="700">${valueLabel}</text>
+  `;
 }
 
 mapWrap.addEventListener('click', (e) => {
   const g = e.target.closest('g[data-iladi]');
-  if (!g) return;
+  if (!g){ mapSelectedIl = null; applyMapSelection(); return; }
   const ad = (g.getAttribute('data-iladi') || '').replace(/\s*\((Asya|Avrupa)\)\s*/i, '').trim();
   if (!ad) return;
-  const exists = ilSelects[0] && [...ilSelects[0].options].some(o => o.value === ad);
-  if (exists) setIl(ad);
+  mapSelectedIl = (mapSelectedIl === ad) ? null : ad;
+  applyMapSelection();
 });
 
 // ================= Grafik =================
@@ -8225,6 +8308,7 @@ document.querySelectorAll('#page-genel-talep-dagilimi .tab').forEach(tab => {
           });
         });
       }
+      if (mapSelectedIl) applyMapSelection(); // görünür hale gelince büyütme/etiket geri uygulanır
     } else if (tab.dataset.tab === 'ozet'){
       playCountAnimations(metricsEl);
     }
