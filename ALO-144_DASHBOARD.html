@@ -1376,21 +1376,26 @@ body{
   </div>
 
   <div class="tab-content" id="gtd-tab-katdagilim">
-  <div class="panel">
+  <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">
       Kategori Dağılımı
       <span class="hint" style="font-size:10.5px;">tüm illerin toplamı, kategori filtresinden bağımsız - amaç kategorileri birbiriyle kıyaslamak</span>
     </div>
-    <div style="display:flex; flex-wrap:wrap; gap:0;">
-      <div class="table-scroll" style="flex:1 1 480px; min-width:0;">
-        <table id="gtdKatTable">
-          <thead><tr><th>#</th><th style="text-align:left;">Kategori</th><th>Toplam</th><th>Genel İçindeki Payı</th><th>En Çok Olduğu İl</th><th>O İldeki Miktar</th></tr></thead>
-          <tbody id="gtdKatTableBody"></tbody>
-        </table>
-      </div>
-      <div style="flex:1 1 320px; min-width:280px; max-width:420px; padding:20px; border-left:1px solid var(--line); display:flex; align-items:center; justify-content:center;">
+    <div class="table-scroll">
+      <table id="gtdKatTable">
+        <thead><tr><th>#</th><th style="text-align:left;">Kategori</th><th>Toplam</th><th>Genel İçindeki Payı</th><th>En Çok Olduğu İl</th><th>O İldeki Miktar</th></tr></thead>
+        <tbody id="gtdKatTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">Kategori Dağılımı — Grafik</div>
+    <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:40px; padding:28px 24px;">
+      <div style="position:relative; width:340px; height:340px; flex-shrink:0;">
         <canvas id="gtdKatChart-canvas"></canvas>
       </div>
+      <div id="gtdKatLegend" style="display:flex; flex-direction:column; gap:9px; min-width:260px; max-width:420px;"></div>
     </div>
   </div>
   </div>
@@ -7961,21 +7966,46 @@ const GTD_DONUT_COLORS = [
   '#B983FF', '#6FCF97', '#EB5757', '#56CCF2',
 ];
 
+// Chart.js'in kendi (alta/yanlara sarılan) lejantı yerine, referans görseldeki gibi sağ
+// tarafta renkli nokta + isim + rakam listesi olan ÖZEL bir lejant kuruyoruz - hem daha
+// kompakt hem tablo genişliğini bölmüyor (12.08.2026, önceki "yan yana" deneme geri alındı).
+const GTD_CENTER_TEXT_PLUGIN = {
+  id: 'gtdCenterText',
+  afterDraw(chart){
+    if (chart.config.type !== 'doughnut' || !chart._gtdCenterText) return;
+    const { ctx, chartArea: { left, right, top, bottom } } = chart;
+    const cx = (left + right) / 2, cy = (top + bottom) / 2;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#8FA3C9';
+    ctx.font = "11px 'IBM Plex Mono', monospace";
+    ctx.fillText('TÜMÜ', cx, cy - 12);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = "bold 20px 'IBM Plex Mono', monospace";
+    ctx.fillText(chart._gtdCenterText, cx, cy + 10);
+    ctx.restore();
+  }
+};
+
 let gtdKatChart = null;
 function renderKategoriDagilimiChart(rows){
   const canvas = document.getElementById('gtdKatChart-canvas');
+  const legendEl = document.getElementById('gtdKatLegend');
   if (!canvas) return;
   if (gtdKatChart){ gtdKatChart.destroy(); gtdKatChart = null; }
-  if (!rows.length) return;
+  if (!rows.length){ if (legendEl) legendEl.innerHTML = ''; return; }
 
-  const t = chartTheme();
+  const colors = rows.map((_,i) => GTD_DONUT_COLORS[i % GTD_DONUT_COLORS.length]);
+  const grandTotal = rows.reduce((s,r) => s + r.total, 0);
+
   gtdKatChart = new Chart(canvas.getContext('2d'), {
     type: 'doughnut',
     data: {
       labels: rows.map(r => r.name),
       datasets: [{
         data: rows.map(r => Math.round(r.total)),
-        backgroundColor: rows.map((_,i) => GTD_DONUT_COLORS[i % GTD_DONUT_COLORS.length]),
+        backgroundColor: colors,
         borderColor: '#141A2E',
         borderWidth: 2,
         hoverOffset: 22, // dilimin üzerine gelince belirgin şekilde dışa taşıp büyür
@@ -7986,22 +8016,32 @@ function renderKategoriDagilimiChart(rows){
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      cutout: '55%',
+      cutout: '62%',
       plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { color: t.text, font: { family: 'Inter', size: 10.5 }, boxWidth: 12, padding: 10 }
-        },
+        legend: { display: false }, // özel HTML lejant aşağıda kuruluyor
         tooltip: {
-          callbacks: {
-            label: (ctx) => `${ctx.label}: ${ctx.parsed.toLocaleString('tr-TR')}`
-          },
+          callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed.toLocaleString('tr-TR')}` },
           backgroundColor: '#141A44', borderColor: '#E8A53D', borderWidth: 1,
           titleFont: { family: 'IBM Plex Mono' }, bodyFont: { family: 'IBM Plex Mono', size: 12 }
         }
       }
-    }
+    },
+    plugins: [GTD_CENTER_TEXT_PLUGIN]
   });
+  gtdKatChart._gtdCenterText = Math.round(grandTotal).toLocaleString('tr-TR');
+  gtdKatChart.update();
+
+  if (legendEl){
+    legendEl.innerHTML = rows.map((r,i) => `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px;">
+        <span style="display:flex; align-items:center; gap:8px; min-width:0;">
+          <span style="width:10px; height:10px; border-radius:50%; background:${colors[i]}; flex-shrink:0;"></span>
+          <span style="color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.name}</span>
+        </span>
+        <span style="font-family:'IBM Plex Mono',monospace; color:var(--text); flex-shrink:0;">${Math.round(r.total).toLocaleString('tr-TR')}</span>
+      </div>
+    `).join('');
+  }
 }
 
 function renderKategoriDagilimi(rowsDateOnly){
