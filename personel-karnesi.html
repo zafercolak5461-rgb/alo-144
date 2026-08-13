@@ -513,6 +513,12 @@ async function initIslemAccess(){
     analizAuthorized = isFixedAdmin || !!(myRow && myRow.analiz);
     yoneticiDetayAuthorized = isFixedAdmin || !!(myRow && myRow.yoneticiDetay);
 
+    // Giriş/çıkış kaydı ARTIK yetkiden bağımsız - başarıyla giriş yapan HERKES loglanır (sadece
+    // Güncelleme yetkisi olanlar değil). Kullanıcı listeyi manuel olarak (Sheet'ten satır silerek)
+    // yönetiyor, kalabalıklaşırsa kendisi kısaltıyor. (12.08.2026, ALO-144 ile aynı mantık)
+    sendLog({ type: 'giris', dashboard: 'Personel Karnesi' });
+    window.addEventListener('pagehide', () => { sendLog({ type: 'cikis', dashboard: 'Personel Karnesi' }); });
+
     // Personel Bilgileri/Genel Değerlendirme/Parametre erişimi, üstteki bayraklardan
     // BAĞIMSIZ çalışır - hiçbiri TRUE olmasa bile kişi belirli sekmeleri görebilmeli.
     applyPageAccess(myRow, isFixedAdmin);
@@ -530,12 +536,6 @@ async function initIslemAccess(){
         client_id: OAUTH_CLIENT_ID,
         scope: WRITE_SCOPE,
         callback: () => {} // performIslemSave / Yetki Atama kaydında ve sunum fotoğrafı çekerken dinamik olarak değiştirilir
-      });
-    }
-    if (islemAuthorized){
-      sendLog({ type: 'giris', dashboard: 'Personel Karnesi' });
-      window.addEventListener('pagehide', () => {
-        if (islemAuthorized) sendLog({ type: 'cikis', dashboard: 'Personel Karnesi' });
       });
     }
   } catch(e){
