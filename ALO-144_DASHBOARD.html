@@ -1381,11 +1381,16 @@ body{
       Kategori Dağılımı
       <span class="hint" style="font-size:10.5px;">tüm illerin toplamı, kategori filtresinden bağımsız - amaç kategorileri birbiriyle kıyaslamak</span>
     </div>
-    <div class="table-scroll">
-      <table id="gtdKatTable">
-        <thead><tr><th>#</th><th>Kategori</th><th>Toplam</th><th>Genel İçindeki Payı</th></tr></thead>
-        <tbody id="gtdKatTableBody"></tbody>
-      </table>
+    <div style="display:flex; flex-wrap:wrap; gap:0;">
+      <div class="table-scroll" style="flex:1 1 480px; min-width:0;">
+        <table id="gtdKatTable">
+          <thead><tr><th>#</th><th style="text-align:left;">Kategori</th><th>Toplam</th><th>Genel İçindeki Payı</th><th>En Çok Olduğu İl</th><th>O İldeki Miktar</th></tr></thead>
+          <tbody id="gtdKatTableBody"></tbody>
+        </table>
+      </div>
+      <div style="flex:1 1 320px; min-width:280px; max-width:420px; padding:20px; border-left:1px solid var(--line); display:flex; align-items:center; justify-content:center;">
+        <canvas id="gtdKatChart-canvas"></canvas>
+      </div>
     </div>
   </div>
   </div>
@@ -7947,24 +7952,88 @@ function renderAll(){
 // UYGULANMAZ (her zaman tüm kategoriler tek tek listelenir) - amaç kategorileri kendi
 // aralarında kıyaslamak, bu yüzden hem il hem kategori filtresinden bilerek bağımsız
 // tutuldu. Sadece üstteki TARİH filtresini kullanır. (12.08.2026)
+// Kategori Dağılımı halka grafiği için özel, geniş renk paleti - 5-slot sisteminin
+// ALO_SLOT_COLORS'ından bağımsız, çünkü burada 5'ten fazla kategori olabilir (13'e kadar).
+// Kategori sayısı paletten fazlaysa renkler baştan tekrar kullanılır.
+const GTD_DONUT_COLORS = [
+  '#E8A53D', '#5b9cf6', '#3ddc97', '#e85d5d', '#8B7FD8',
+  '#F2A6C6', '#4FC3F7', '#FFD966', '#7ED957', '#FF8A5B',
+  '#B983FF', '#6FCF97', '#EB5757', '#56CCF2',
+];
+
+let gtdKatChart = null;
+function renderKategoriDagilimiChart(rows){
+  const canvas = document.getElementById('gtdKatChart-canvas');
+  if (!canvas) return;
+  if (gtdKatChart){ gtdKatChart.destroy(); gtdKatChart = null; }
+  if (!rows.length) return;
+
+  const t = chartTheme();
+  gtdKatChart = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(r => r.name),
+      datasets: [{
+        data: rows.map(r => Math.round(r.total)),
+        backgroundColor: rows.map((_,i) => GTD_DONUT_COLORS[i % GTD_DONUT_COLORS.length]),
+        borderColor: '#141A2E',
+        borderWidth: 2,
+        hoverOffset: 22, // dilimin üzerine gelince belirgin şekilde dışa taşıp büyür
+        hoverBorderColor: '#ffffff',
+        hoverBorderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '55%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: t.text, font: { family: 'Inter', size: 10.5 }, boxWidth: 12, padding: 10 }
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${ctx.parsed.toLocaleString('tr-TR')}`
+          },
+          backgroundColor: '#141A44', borderColor: '#E8A53D', borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' }, bodyFont: { family: 'IBM Plex Mono', size: 12 }
+        }
+      }
+    }
+  });
+}
+
 function renderKategoriDagilimi(rowsDateOnly){
   const tbody = document.getElementById('gtdKatTableBody');
   if (!tbody) return;
   if (!CATEGORIES.length || !rowsDateOnly.length){
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Veri yok.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Veri yok.</td></tr>`;
+    renderKategoriDagilimiChart([]);
     return;
   }
   const sums = CATEGORIES.map(() => 0);
-  rowsDateOnly.forEach(r => { r.values.forEach((v,i) => { sums[i] += (v || 0); }); });
+  const byIlPerCat = CATEGORIES.map(() => ({})); // her kategori için ayrı {il: toplam} - "en çok olduğu il" için
+  rowsDateOnly.forEach(r => {
+    r.values.forEach((v,i) => {
+      sums[i] += (v || 0);
+      byIlPerCat[i][r.il] = (byIlPerCat[i][r.il] || 0) + (v || 0);
+    });
+  });
   const grandTotal = sums.reduce((a,b) => a+b, 0) || 1;
 
-  const rows = CATEGORIES.map((c,i) => ({ name: c.name, total: sums[i] }))
-    .sort((a,b) => b.total - a.total);
+  const rows = CATEGORIES.map((c,i) => {
+    let topIl = '—', topIlVal = 0;
+    Object.entries(byIlPerCat[i]).forEach(([il, v]) => { if (v > topIlVal){ topIlVal = v; topIl = il; } });
+    return { name: c.name, total: sums[i], topIl, topIlVal };
+  }).sort((a,b) => b.total - a.total);
+
+  renderKategoriDagilimiChart(rows);
 
   tbody.innerHTML = rows.map((r,i) => {
     const pct = ((r.total / grandTotal) * 100).toFixed(1);
-    return `<tr><td>${i+1}</td><td>${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.total).toLocaleString('tr-TR')}</td><td>%${pct}</td></tr>`;
-  }).join('') || `<tr><td colspan="4" class="empty-state">Veri yok.</td></tr>`;
+    return `<tr><td>${i+1}</td><td style="text-align:left;">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.total).toLocaleString('tr-TR')}</td><td>%${pct}</td><td>${r.topIl}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.topIlVal).toLocaleString('tr-TR')}</td></tr>`;
+  }).join('') || `<tr><td colspan="6" class="empty-state">Veri yok.</td></tr>`;
 }
 
 // Seçili satırlar (il filtresi uygulanmış) içinde, kategori filtresinden BAĞIMSIZ olarak
