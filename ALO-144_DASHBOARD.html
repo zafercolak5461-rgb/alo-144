@@ -3661,23 +3661,29 @@ function renderMonthChips(){
     chipsEl.innerHTML = `<div class="empty-state">Henüz veri yok.</div>`;
     return;
   }
+
+  // Yıl filtresi seçenekleri (veri büyüdükçe yeni yıllar eklenir)
+  const years = [...new Set(months.map(mk => mk.split('-')[0]))].sort((a,b) => b - a);
+  const yearFilterEl = document.getElementById('monthlyYearFilter');
+  const isFirstRender = !MONTHLY_DEFAULT_APPLIED; // bayrak henüz çevrilmeden ÖNCE oku - "gerçekten ilk mi" bunu belirliyor
+  const currentYear = String(new Date().getFullYear());
+  // İlk açılışta SADECE içinde bulunduğumuz yıl görünsün diye Yıl filtresi de otomatik o yıla
+  // ayarlanıyor - aksi halde geçmiş yılların ayları seçili olmasa bile ekranda durup kalabalık
+  // görüntü yaratıyordu. Farklı bir yıl istersen filtreden kendin değiştirirsin. (12.08.2026)
+  const prevYearFilter = isFirstRender
+    ? (years.includes(currentYear) ? currentYear : 'all')
+    : (yearFilterEl.value || 'all');
+  yearFilterEl.innerHTML = '<option value="all">Tüm Yıllar</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if ([...yearFilterEl.options].some(o => o.value === prevYearFilter)) yearFilterEl.value = prevYearFilter;
+
   // İlk kez açıldığında (ve SADECE ilk kez - MONTHLY_DEFAULT_APPLIED bayrağı bunu garantiler)
   // içinde bulunduğumuz YILIN ayları varsayılan seçili gelir - "son 12 ay" değil, çünkü veri
-  // yıllar içinde büyüdükçe hangi yılların karıştığı belirsizleşiyordu. Farklı bir yıl görmek
-  // isteyen kullanıcı zaten yukarıdaki Yıl filtresinden kendisi seçer. (12.08.2026)
-  if (!MONTHLY_DEFAULT_APPLIED){
+  // yıllar içinde büyüdükçe hangi yılların karıştığı belirsizleşiyordu. (12.08.2026)
+  if (isFirstRender){
     MONTHLY_DEFAULT_APPLIED = true;
-    const currentYear = String(new Date().getFullYear());
     const currentYearMonths = months.filter(mk => mk.startsWith(currentYear));
     (currentYearMonths.length ? currentYearMonths : months.slice(-12)).forEach(mk => SELECTED_MONTHS.add(mk));
   }
-
-  // Yıl filtresi seçenekleri (bir kere doldurulur, veri büyüdükçe yeni yıllar eklenir)
-  const years = [...new Set(months.map(mk => mk.split('-')[0]))].sort((a,b) => b - a);
-  const yearFilterEl = document.getElementById('monthlyYearFilter');
-  const prevYearFilter = yearFilterEl.value || 'all';
-  yearFilterEl.innerHTML = '<option value="all">Tüm Yıllar</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
-  if ([...yearFilterEl.options].some(o => o.value === prevYearFilter)) yearFilterEl.value = prevYearFilter;
 
   const activeYearFilter = yearFilterEl.value;
   const visibleMonths = activeYearFilter === 'all' ? months : months.filter(mk => mk.startsWith(activeYearFilter));
