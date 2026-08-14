@@ -1271,19 +1271,19 @@ async function exportSelectedMetricsToExcel(selectedKeys){
 
     const lastUsedRow = r - 1;
 
-    // Sütun genişliği
-    if (cfg.sutunGenisligi.uygula){
-      for (let c = 1; c <= totalCols; c++){
-        let maxLen = 8;
-        ws.eachRow(row => {
-          const v = row.getCell(c).value;
-          if (v != null && v !== '') maxLen = Math.max(maxLen, String(v).length);
-        });
-        ws.getColumn(c).width = Math.min(maxLen + 2, 40);
-      }
-    } else {
-      ws.getColumn(1).width = 26;
-      for (let c = 2; c <= totalCols; c++) ws.getColumn(c).width = 12;
+    // Sütun genişliği: artık koşula bağlı DEĞİL, her export'ta otomatik hesaplanır.
+    // Birleşmiş (merge) hücreler ExcelJS'te tüm aralığa aynı değeri "yansıtır" - genişlik
+    // hesabında bu yansımalar sayılırsa (özellikle uzun bir başlık birleşmişse) TÜM sütunlar
+    // yanlışlıkla genişler. Bu yüzden sadece gerçek sol-üst (master) hücreler sayılır.
+    for (let c = 1; c <= totalCols; c++){
+      let maxLen = 8;
+      ws.eachRow(row => {
+        const cell = row.getCell(c);
+        if (cell.isMerged && cell.master !== cell) return; // birleşmiş hücrenin yansıması - atla
+        const v = cell.value;
+        if (v != null && v !== '') maxLen = Math.max(maxLen, String(v).length);
+      });
+      ws.getColumn(c).width = Math.min(maxLen + 2, 40);
     }
 
     // Üst satır dondurma + kılavuz çizgileri (ikisi de aynı ws.views nesnesinde)
