@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
@@ -860,6 +861,205 @@ function playIzinRingAnimation(){
 
 // ===== Excel'e Aktar: kullanıcı istediği kadar parametre seçer, hepsi TEK sayfada
 // (her parametre kendi bloğunda) birleşip tek dosya olarak iner. =====
+// Biçimlendirme kaynağı: Drive'da ayrı bir "personel_karnesi_excel_format" tablosu,
+// "PERSONEL KARNESİ" sekmesi. Zafer o tabloyu düzenleyip export'un görünümünü kontrol eder.
+const EXPORT_FORMAT_SHEET_ID = "1MirwFDXn9coybCur-yTCLoAEaEcXlCyNENCU-bD0b8Y";
+const EXPORT_FORMAT_RANGE = "PERSONEL KARNESİ!A1:H200";
+let EXPORT_FORMAT_CONFIG = null; // ilk okumadan sonra bu oturumda önbelleğe alınır
+
+const EXPORT_TARGET_KEYS = {
+  'Kişi Başlığı': 'kisiBasligi',
+  'Metrik Adı Satırı': 'metrikAdi',
+  'Tablo Başlık Satırı': 'tabloBaslik',
+  'Veri Satırları': 'veriSatirlari',
+  'Yıllık Özet Başlık Satırı': 'ozetBaslik',
+  'Kişi Satırı (özet)': 'kisiSatiri',
+  'Lokasyon Ortalaması Satırı (özet)': 'lokasyonSatiri',
+  'Bloklar Arası Boşluk': 'blokBosluk',
+  'Genel Tablo Kenarlığı': 'genelKenarlik',
+  'Sütun Genişliği': 'sutunGenisligi',
+  'Üst Satır Dondurma': 'ustSatirDondurma',
+};
+
+function exportNormYesNo(v){
+  return String(v || '').trim().toLocaleUpperCase('tr') === 'EVET';
+}
+function exportNormHex(v){
+  const s = String(v || '').trim().replace(/^#/, '');
+  if (!/^[0-9A-Fa-f]{6}$/.test(s)) return null;
+  return 'FF' + s.toUpperCase();
+}
+function exportNormAlign(v){
+  const s = String(v || '').trim().toLocaleUpperCase('tr');
+  if (s === 'SOL') return 'left';
+  if (s === 'ORTA') return 'center';
+  if (s === 'SAĞ' || s === 'SAG') return 'right';
+  return null;
+}
+function exportEmptyTargetCfg(){
+  return { uygula: false, kalin: false, yaziRengi: null, argPlan: null, hizalama: null, kenarlik: false, sayiFormat: null };
+}
+
+// Google renk nesnesini (0-1 aralığında kesirli r/g/b) hex'e çevirir.
+// Alan hiç yoksa (kullanıcı o hücreyi hiç boyamamışsa) null döner - "-" ile aynı anlam.
+function exportGoogleColorToHex(colorObj){
+  if (!colorObj) return null;
+  const toByte = (v) => Math.round((v || 0) * 255);
+  const r = toByte(colorObj.red), g = toByte(colorObj.green), b = toByte(colorObj.blue);
+  const hex = [r, g, b].map(n => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+  return 'FF' + hex;
+}
+
+// Format tablosunu Sheets API'den okur. D (Yazı Rengi) ve E (Arka Plan Rengi)
+// sütunları artık metin/hex DEĞİL - Zafer o hücreleri doğrudan Sheets'te boyuyor,
+// biz hücrenin gerçek yazı rengini / dolgu rengini okuyup uyguluyoruz.
+// Okunamazsa (yetki/ağ hatası vb.) hiçbir biçim uygulanmadan düz bir Excel üretilir.
+async function fetchExportFormatConfig(){
+  if (EXPORT_FORMAT_CONFIG) return EXPORT_FORMAT_CONFIG;
+  const cfg = {};
+  try {
+    const fields = 'sheets.data.rowData.values(formattedValue,userEnteredFormat(backgroundColor,numberFormat,textFormat.foregroundColor))';
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?ranges=${encodeURIComponent(EXPORT_FORMAT_RANGE)}&fields=${encodeURIComponent(fields)}`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    const rowData = (data.sheets && data.sheets[0] && data.sheets[0].data && data.sheets[0].data[0] && data.sheets[0].data[0].rowData) || [];
+    for (let i = 1; i < rowData.length; i++){
+      const cells = (rowData[i] && rowData[i].values) || [];
+      const cellText = (idx) => (cells[idx] && cells[idx].formattedValue) || '';
+      const label = cellText(0).trim();
+      const key = EXPORT_TARGET_KEYS[label];
+      if (!key) continue;
+      const yaziRengiCell = cells[3];
+      const argPlanCell = cells[4];
+      const sayiFormatCell = cells[7];
+      const sayiFormatPattern = sayiFormatCell && sayiFormatCell.userEnteredFormat && sayiFormatCell.userEnteredFormat.numberFormat && sayiFormatCell.userEnteredFormat.numberFormat.pattern;
+      cfg[key] = {
+        uygula: exportNormYesNo(cellText(1)),
+        kalin: exportNormYesNo(cellText(2)),
+        yaziRengi: exportGoogleColorToHex(yaziRengiCell && yaziRengiCell.userEnteredFormat && yaziRengiCell.userEnteredFormat.textFormat && yaziRengiCell.userEnteredFormat.textFormat.foregroundColor),
+        argPlan: exportGoogleColorToHex(argPlanCell && argPlanCell.userEnteredFormat && argPlanCell.userEnteredFormat.backgroundColor),
+        hizalama: exportNormAlign(cellText(5)),
+        kenarlik: exportNormYesNo(cellText(6)),
+        sayiFormat: sayiFormatPattern || null,
+      };
+    }
+  } catch (e){
+    console.warn('Export format tablosu okunamadı, varsayılan (biçimsiz) export üretilecek:', e);
+  }
+  Object.values(EXPORT_TARGET_KEYS).forEach(k => { if (!cfg[k]) cfg[k] = exportEmptyTargetCfg(); });
+  EXPORT_FORMAT_CONFIG = cfg;
+  return cfg;
+}
+
+function exportThinBorder(){
+  const side = { style: 'thin', color: { argb: 'FFB7BDC9' } };
+  return { top: side, left: side, bottom: side, right: side };
+}
+
+// Bir satırın 1..colCount hücrelerine, ilgili hedefin config'ini uygular.
+// targetCfg.uygula = false ise hiçbir şey yapmadan çıkar (hücreler varsayılan kalır).
+function applyExportRowStyle(row, targetCfg, colCount){
+  if (!targetCfg || !targetCfg.uygula) return;
+  for (let c = 1; c <= colCount; c++){
+    const cell = row.getCell(c);
+    cell.font = {
+      name: 'Arial',
+      bold: !!targetCfg.kalin,
+      color: targetCfg.yaziRengi ? { argb: targetCfg.yaziRengi } : undefined,
+    };
+    if (targetCfg.argPlan){
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: targetCfg.argPlan } };
+    }
+    if (targetCfg.hizalama){
+      cell.alignment = { horizontal: targetCfg.hizalama, vertical: 'middle' };
+    }
+    if (targetCfg.kenarlik){
+      cell.border = exportThinBorder();
+    }
+    if (targetCfg.sayiFormat && c > 1){
+      cell.numFmt = targetCfg.sayiFormat;
+    }
+  }
+}
+
+// ===== Koşullu Biçimlendirme (Excel export, veri hücreleri) =====
+// Aynı format tablosunda ayrı bir sekme: "KOŞULLU BİÇİMLENDİRME"
+// Sütunlar: A=Metrik  B=Operatör  C=Değer 1  D=Değer 2 (Aralık için)  E=Renk (boyanır)  F=Öncelik
+const CONDITIONAL_FORMAT_RANGE = "KOŞULLU BİÇİMLENDİRME!A1:F300";
+let CONDITIONAL_FORMAT_RULES = null; // metric label (upper,trim) -> sıralı kural dizisi
+
+function exportNormOperator(v){
+  const s = String(v || '').trim().toLocaleUpperCase('tr');
+  if (['>=','≥'].includes(s)) return '>=';
+  if (['<=','≤'].includes(s)) return '<=';
+  if (s === '>') return '>';
+  if (s === '<') return '<';
+  if (['=','=='].includes(s)) return '=';
+  if (['≠','!=','<>'].includes(s)) return '≠';
+  if (s === 'ARALIK' || s === 'ARALıK') return 'ARALIK';
+  return null;
+}
+function exportParseNum(v){
+  const s = String(v == null ? '' : v).trim().replace(',', '.');
+  if (s === '' || s === '-') return null;
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? null : n;
+}
+function conditionalRuleMatches(rule, value){
+  if (value === null || value === undefined || Number.isNaN(value)) return false;
+  switch(rule.operator){
+    case '>=' : return value >= rule.val1;
+    case '>'  : return value >  rule.val1;
+    case '<=' : return value <= rule.val1;
+    case '<'  : return value <  rule.val1;
+    case '='  : return Math.abs(value - rule.val1) < 0.0001;
+    case '≠'  : return Math.abs(value - rule.val1) >= 0.0001;
+    case 'ARALIK': return rule.val2 != null && value >= Math.min(rule.val1, rule.val2) && value <= Math.max(rule.val1, rule.val2);
+    default: return false;
+  }
+}
+
+async function fetchConditionalFormatRules(){
+  if (CONDITIONAL_FORMAT_RULES) return CONDITIONAL_FORMAT_RULES;
+  const rulesByMetric = {};
+  try {
+    const fields = 'sheets.data.rowData.values(formattedValue,userEnteredFormat.backgroundColor)';
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?ranges=${encodeURIComponent(CONDITIONAL_FORMAT_RANGE)}&fields=${encodeURIComponent(fields)}`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    const rowData = (data.sheets && data.sheets[0] && data.sheets[0].data && data.sheets[0].data[0] && data.sheets[0].data[0].rowData) || [];
+    for (let i = 1; i < rowData.length; i++){
+      const cells = (rowData[i] && rowData[i].values) || [];
+      const cellText = (idx) => (cells[idx] && cells[idx].formattedValue) || '';
+      const metric = cellText(0).trim();
+      const operator = exportNormOperator(cellText(1));
+      const val1 = exportParseNum(cellText(2));
+      if (!metric || !operator || val1 === null) continue; // eksik/geçersiz satır atlanır
+      const val2 = exportParseNum(cellText(3));
+      const colorCell = cells[4];
+      const colorHex = exportGoogleColorToHex(colorCell && colorCell.userEnteredFormat && colorCell.userEnteredFormat.backgroundColor);
+      if (!colorHex) continue; // rengi boyanmamış kural uygulanamaz
+      const priority = exportParseNum(cellText(5));
+      const key = metric.toLocaleUpperCase('tr');
+      if (!rulesByMetric[key]) rulesByMetric[key] = [];
+      rulesByMetric[key].push({ operator, val1, val2, colorHex, priority: priority == null ? 999 : priority });
+    }
+    Object.values(rulesByMetric).forEach(list => list.sort((a, b) => a.priority - b.priority));
+  } catch (e){
+    console.warn('Koşullu biçimlendirme tablosu okunamadı, kural uygulanmayacak:', e);
+  }
+  CONDITIONAL_FORMAT_RULES = rulesByMetric;
+  return rulesByMetric;
+}
+
+// metricLabel'a ait kuralları öncelik sırasıyla dener, ilk uyanın rengini döner. Yoksa null.
+function resolveConditionalColor(rules, metricLabel, value){
+  const list = rules[String(metricLabel || '').trim().toLocaleUpperCase('tr')];
+  if (!list || !list.length) return null;
+  const match = list.find(rule => conditionalRuleMatches(rule, value));
+  return match ? match.colorHex : null;
+}
+
 function currentPersonLabel(){
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   return p ? `${p.adSoyad}  (Sicil: ${p.sicil})` : '';
@@ -871,47 +1071,173 @@ function exportYearsList(){
   years.sort((a,b)=>a-b);
   return years;
 }
-function buildCombinedExportAOA(selectedKeys){
-  const years = exportYearsList();
-  const aoa = [];
-  const personLabel = currentPersonLabel();
-  if (personLabel) aoa.push([personLabel]);
-  aoa.push([]);
-
-  selectedKeys.forEach(key => {
-    const metric = KARNE_METRICS.find(m => m.key === key);
-    if (!metric) return;
-    aoa.push([metric.label]);
-    aoa.push(['Yıl', ...TR_MONTHS.map(m => m.slice(0,3).toUpperCase())]);
-    years.forEach(y => {
-      const row = [y];
-      TR_MONTHS.forEach((_, mi) => {
-        const has = KARNE_MONTHS.some(m => m.year === y && m.month === mi);
-        if (!has){ row.push('—'); return; }
-        const r = KARNE_RECORDS.find(x => x.sicil === selectedSicil && x.yil === y && x.ayIndex === mi);
-        row.push(fmtKarneVal(r ? r[key] : null));
-      });
-      aoa.push(row);
-    });
-    aoa.push([]);
-    aoa.push(['Yıllık Özet', ...years.map(String)]);
-    aoa.push(['Kişi', ...years.map(y => fmtKarneVal(personYearlyValue(selectedSicil, y, metric)))]);
-    aoa.push(['Lokasyon Ortalaması', ...years.map(y => fmtKarneVal(locationYearlyValue(y, metric)))]);
-    aoa.push([]);
-    aoa.push([]);
-  });
-  return aoa;
-}
-function exportSelectedMetricsToExcel(selectedKeys){
+async function exportSelectedMetricsToExcel(selectedKeys){
   if (!selectedKeys.length){ alert('En az bir parametre seçin.'); return; }
   try {
-    const ws = XLSX.utils.aoa_to_sheet(buildCombinedExportAOA(selectedKeys));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Karne');
-    const stamp = new Date().toISOString().slice(0, 10);
+    const cfg = await fetchExportFormatConfig();
+    const condRules = await fetchConditionalFormatRules();
+    const years = exportYearsList();
+    const monthColCount = 1 + TR_MONTHS.length;      // Yıl + 12 ay sütunu
+    const yearColCount = 1 + years.length;            // Etiket + yıl sayısı kadar sütun
+    const totalCols = Math.max(monthColCount, yearColCount);
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ALO 144 Osmaniye';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Karne');
+
     const personLabel = currentPersonLabel();
-    const safeName = personLabel ? '-' + personLabel.split('(')[0].trim().replace(/\s+/g,'_') : '';
-    XLSX.writeFile(wb, `personel-karnesi${safeName}-${stamp}.xlsx`);
+    let r = 1;
+    if (personLabel){
+      ws.getCell(r, 1).value = personLabel;
+      applyExportRowStyle(ws.getRow(r), cfg.kisiBasligi, totalCols);
+      r++;
+      r++; // kişi başlığından sonra her zaman 1 boş satır (yapısal, format tablosuna bağlı değil)
+    }
+
+    selectedKeys.forEach(key => {
+      const metric = KARNE_METRICS.find(m => m.key === key);
+      if (!metric) return;
+
+      // Metrik adı satırı
+      ws.getCell(r, 1).value = metric.label;
+      applyExportRowStyle(ws.getRow(r), cfg.metrikAdi, totalCols);
+      r++;
+
+      // Tablo başlık satırı (Yıl + ay kısaltmaları)
+      const headerRow = ws.getRow(r);
+      headerRow.getCell(1).value = 'Yıl';
+      TR_MONTHS.forEach((m, mi) => { headerRow.getCell(2 + mi).value = m.slice(0, 3).toUpperCase(); });
+      applyExportRowStyle(headerRow, cfg.tabloBaslik, monthColCount);
+      r++;
+
+      // Veri satırları (yıl bazlı, her ay bir sütun)
+      years.forEach(y => {
+        const dataRow = ws.getRow(r);
+        dataRow.getCell(1).value = y;
+        TR_MONTHS.forEach((_, mi) => {
+          const has = KARNE_MONTHS.some(m => m.year === y && m.month === mi);
+          let val = '—';
+          let rawVal = null;
+          if (has){
+            const rec = KARNE_RECORDS.find(x => x.sicil === selectedSicil && x.yil === y && x.ayIndex === mi);
+            rawVal = rec ? rec[key] : null;
+            val = fmtKarneVal(rawVal);
+          }
+          dataRow.getCell(2 + mi).value = val;
+        });
+        applyExportRowStyle(dataRow, cfg.veriSatirlari, monthColCount);
+        // Koşullu biçimlendirme: satırın temel stilinden BAĞIMSIZ, sadece değere göre
+        // eşleşen dolgu rengi varsa o ay hücresinin dolgusunu geçersiz kılar.
+        TR_MONTHS.forEach((_, mi) => {
+          const has = KARNE_MONTHS.some(m => m.year === y && m.month === mi);
+          if (!has) return;
+          const rec = KARNE_RECORDS.find(x => x.sicil === selectedSicil && x.yil === y && x.ayIndex === mi);
+          const rawVal = rec ? rec[key] : null;
+          const condColor = resolveConditionalColor(condRules, metric.label, rawVal);
+          if (condColor){
+            dataRow.getCell(2 + mi).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: condColor } };
+          }
+        });
+        r++;
+      });
+
+      // Bloklar arası boşluk hedefi "Hayır" ise veri ile özet arasındaki ekstra
+      // boşluk atlanır (daha derli toplu); "Evet" ise 1 satır ara verilir.
+      if (cfg.blokBosluk.uygula) r++;
+
+      // Yıllık özet başlık satırı
+      const summaryHeaderRow = ws.getRow(r);
+      summaryHeaderRow.getCell(1).value = 'Yıllık Özet';
+      years.forEach((y, yi) => { summaryHeaderRow.getCell(2 + yi).value = String(y); });
+      applyExportRowStyle(summaryHeaderRow, cfg.ozetBaslik, yearColCount);
+      r++;
+
+      // Kişi satırı (özet)
+      const kisiRow = ws.getRow(r);
+      kisiRow.getCell(1).value = 'Kişi';
+      years.forEach((y, yi) => {
+        const rawVal = personYearlyValue(selectedSicil, y, metric);
+        kisiRow.getCell(2 + yi).value = fmtKarneVal(rawVal);
+      });
+      applyExportRowStyle(kisiRow, cfg.kisiSatiri, yearColCount);
+      years.forEach((y, yi) => {
+        const rawVal = personYearlyValue(selectedSicil, y, metric);
+        const condColor = resolveConditionalColor(condRules, metric.label, rawVal);
+        if (condColor) kisiRow.getCell(2 + yi).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: condColor } };
+      });
+      r++;
+
+      // Lokasyon Ortalaması satırı (özet)
+      const lokRow = ws.getRow(r);
+      lokRow.getCell(1).value = 'Lokasyon Ortalaması';
+      years.forEach((y, yi) => {
+        const rawVal = locationYearlyValue(y, metric);
+        lokRow.getCell(2 + yi).value = fmtKarneVal(rawVal);
+      });
+      applyExportRowStyle(lokRow, cfg.lokasyonSatiri, yearColCount);
+      years.forEach((y, yi) => {
+        const rawVal = locationYearlyValue(y, metric);
+        const condColor = resolveConditionalColor(condRules, metric.label, rawVal);
+        if (condColor) lokRow.getCell(2 + yi).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: condColor } };
+      });
+      r++;
+
+      // Blok sonu: bir sonraki metrik bloğundan ayırmak için her zaman 1 boş satır
+      r++;
+      if (cfg.blokBosluk.uygula) r++;
+    });
+
+    const lastUsedRow = r - 1;
+
+    // Sütun genişliği
+    if (cfg.sutunGenisligi.uygula){
+      for (let c = 1; c <= totalCols; c++){
+        let maxLen = 8;
+        ws.eachRow(row => {
+          const v = row.getCell(c).value;
+          if (v != null && v !== '') maxLen = Math.max(maxLen, String(v).length);
+        });
+        ws.getColumn(c).width = Math.min(maxLen + 2, 40);
+      }
+    } else {
+      ws.getColumn(1).width = 26;
+      for (let c = 2; c <= totalCols; c++) ws.getColumn(c).width = 12;
+    }
+
+    // Üst satır dondurma
+    if (cfg.ustSatirDondurma.uygula){
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+    }
+
+    // Genel tablo kenarlığı: kullanılan tüm alanın dış çerçevesi
+    if (cfg.genelKenarlik.uygula && lastUsedRow >= 1){
+      const side = { style: 'thin', color: { argb: 'FF6B7280' } };
+      for (let c = 1; c <= totalCols; c++){
+        const topCell = ws.getCell(1, c);
+        topCell.border = Object.assign({}, topCell.border, { top: side });
+        const botCell = ws.getCell(lastUsedRow, c);
+        botCell.border = Object.assign({}, botCell.border, { bottom: side });
+      }
+      for (let rr = 1; rr <= lastUsedRow; rr++){
+        const leftCell = ws.getCell(rr, 1);
+        leftCell.border = Object.assign({}, leftCell.border, { left: side });
+        const rightCell = ws.getCell(rr, totalCols);
+        rightCell.border = Object.assign({}, rightCell.border, { right: side });
+      }
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const stamp = new Date().toISOString().slice(0, 10);
+    const safeName = personLabel ? '-' + personLabel.split('(')[0].trim().replace(/\s+/g, '_') : '';
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `personel-karnesi${safeName}-${stamp}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
   } catch (e) {
     alert("Excel'e aktarma sırasında bir hata oluştu: " + e.message);
   }
