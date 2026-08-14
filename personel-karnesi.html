@@ -990,14 +990,24 @@ const CONDITIONAL_FORMAT_RANGE = "KOŞULLU BİÇİMLENDİRME!A1:F300";
 let CONDITIONAL_FORMAT_RULES = null; // artık önbellek YOK - her export'ta taze okunur
 
 function exportNormOperator(v){
-  const s = String(v || '').trim().toLocaleUpperCase('tr');
+  const s = String(v || '').trim().toLocaleUpperCase('tr').replace(/\s+/g, ' ');
+  // Tamamen Türkçe kelimeler - işaret yok, hem Sheets'te "=" formül tetiklemesi
+  // sorununu ortadan kaldırıyor hem dropdown'dan seçilince yazım hatası riski kalmıyor.
+  if (s === 'BÜYÜK EŞİT') return '>=';
+  if (s === 'BÜYÜK') return '>';
+  if (s === 'KÜÇÜK EŞİT') return '<=';
+  if (s === 'KÜÇÜK') return '<';
+  if (s === 'EŞİT') return '=';
+  if (s === 'FARKLI') return '≠';
+  if (s === 'ARALIK') return 'ARALIK';
+  if (s === 'İÇERİR') return 'İÇERİR';
+  // Geriye dönük uyumluluk - eski işaretli sürümle kurulmuş satırlar hâlâ çalışsın
   if (['>=','≥'].includes(s)) return '>=';
   if (['<=','≤'].includes(s)) return '<=';
   if (s === '>') return '>';
   if (s === '<') return '<';
   if (['=','=='].includes(s)) return '=';
   if (['≠','!=','<>'].includes(s)) return '≠';
-  if (s === 'ARALIK' || s === 'ARALıK') return 'ARALIK';
   return null;
 }
 function exportParseNum(v){
@@ -1007,6 +1017,18 @@ function exportParseNum(v){
   return Number.isNaN(n) ? null : n;
 }
 function conditionalRuleMatches(rule, value){
+  // İçerir ve metin tabanlı Eşit/Farklı: değeri metne çevirip karşılaştırır (sayısal
+  // hücreler için de çalışır - örn. "9" değeri "97" içinde arar).
+  if (rule.operator === 'İÇERİR'){
+    if (value === null || value === undefined) return false;
+    return String(value).toLocaleUpperCase('tr').includes(String(rule.val1Text).toLocaleUpperCase('tr'));
+  }
+  if ((rule.operator === '=' || rule.operator === '≠') && rule.val1 === null){
+    // Değer 1 sayı değilse (örn. "Evet") metin karşılaştırması yapılır
+    if (value === null || value === undefined) return false;
+    const eq = String(value).trim().toLocaleUpperCase('tr') === String(rule.val1Text).trim().toLocaleUpperCase('tr');
+    return rule.operator === '=' ? eq : !eq;
+  }
   if (value === null || value === undefined || Number.isNaN(value)) return false;
   switch(rule.operator){
     case '>=' : return value >= rule.val1;
@@ -1033,8 +1055,13 @@ async function fetchConditionalFormatRules(){
       const cellText = (idx) => (cells[idx] && cells[idx].formattedValue) || '';
       const metric = cellText(0).trim();
       const operator = exportNormOperator(cellText(1));
-      const val1 = exportParseNum(cellText(2));
-      if (!metric || !operator || val1 === null) continue; // eksik/geçersiz satır atlanır
+      const val1Text = cellText(2).trim();
+      const val1 = exportParseNum(val1Text);
+      if (!metric || !operator) continue; // eksik/geçersiz satır atlanır
+      // Sayısal operatörler (aralık dahil) mutlaka sayı gerektirir; İçerir/metin-Eşit için gerekmez
+      const numericOps = ['>=','>','<=','<','ARALIK'];
+      if (numericOps.includes(operator) && val1 === null) continue;
+      if (operator === 'İÇERİR' && !val1Text) continue;
       const val2 = exportParseNum(cellText(3));
       const colorCell = cells[4];
       const colorHex = exportGoogleColorToHex(colorCell && colorCell.userEnteredFormat && colorCell.userEnteredFormat.backgroundColor);
@@ -1042,7 +1069,7 @@ async function fetchConditionalFormatRules(){
       const priority = exportParseNum(cellText(5));
       const key = metric.toLocaleUpperCase('tr');
       if (!rulesByMetric[key]) rulesByMetric[key] = [];
-      rulesByMetric[key].push({ operator, val1, val2, colorHex, priority: priority == null ? 999 : priority });
+      rulesByMetric[key].push({ operator, val1, val1Text, val2, colorHex, priority: priority == null ? 999 : priority });
     }
     Object.values(rulesByMetric).forEach(list => list.sort((a, b) => a.priority - b.priority));
   } catch (e){
