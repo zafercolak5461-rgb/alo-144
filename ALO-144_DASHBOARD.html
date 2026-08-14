@@ -1967,6 +1967,7 @@ body{
     <div class="panel-head">
       Ay Seçimi <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">bu veri günlük değil, aylık anlık görüntüdür</span>
       <div style="display:flex; align-items:center; gap:10px;">
+        <select id="pp-yearFilter" style="margin-right:4px;"><option value="all">Tüm Yıllar</option></select>
         <button class="refresh-btn" id="pp-monthSelectAllBtn">Tümünü Seç</button>
         <button class="refresh-btn" id="pp-monthClearBtn">Temizle</button>
       </div>
@@ -6425,20 +6426,51 @@ document.getElementById('pp-metricClearBtn').addEventListener('click', () => {
 });
 
 // --- Ay Seçimi (çoklu, global - tüm sekmeler bunu kullanır) ---
+// Gelen Arama Dağılımı'ndaki aynı düzeltme (12.08.2026): Yıl filtresi eklendi, ilk açılışta
+// SADECE içinde bulunduğumuz yılın ayları görünür/seçili gelir ("son 3 ay" değil), ve
+// MONTHLY_DEFAULT_APPLIED_PP bayrağı sayesinde Temizle'nin sonucu bir daha otomatik doldurulmaz.
+let MONTHLY_DEFAULT_APPLIED_PP = false;
+
 function initMonthChipsPP(){
-  if (selectedMonths.size === 0){
-    AVAILABLE_MONTHS.slice(-3).forEach(m => selectedMonths.add(m.key)); // varsayılan: son 3 ay
-  }
   renderMonthChipsPP();
 }
 function renderMonthChipsPP(){
   const el = document.getElementById('pp-monthChips');
+  const yearFilterEl = document.getElementById('pp-yearFilter');
   if (!AVAILABLE_MONTHS.length){ el.innerHTML = `<div class="empty-state">Önce Yenile'ye basın.</div>`; return; }
-  el.innerHTML = AVAILABLE_MONTHS.map(m => {
+
+  const years = [...new Set(AVAILABLE_MONTHS.map(m => m.year))].sort((a,b) => b - a);
+  const isFirstRender = !MONTHLY_DEFAULT_APPLIED_PP;
+  const currentYear = new Date().getFullYear();
+  const prevYearFilter = isFirstRender
+    ? (years.includes(currentYear) ? String(currentYear) : 'all')
+    : (yearFilterEl.value || 'all');
+  yearFilterEl.innerHTML = '<option value="all">Tüm Yıllar</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if ([...yearFilterEl.options].some(o => o.value === prevYearFilter)) yearFilterEl.value = prevYearFilter;
+
+  if (isFirstRender){
+    MONTHLY_DEFAULT_APPLIED_PP = true;
+    const currentYearMonths = AVAILABLE_MONTHS.filter(m => m.year === currentYear);
+    (currentYearMonths.length ? currentYearMonths : AVAILABLE_MONTHS.slice(-3)).forEach(m => selectedMonths.add(m.key));
+  }
+
+  const activeYearFilter = yearFilterEl.value;
+  const visibleMonths = activeYearFilter === 'all' ? AVAILABLE_MONTHS : AVAILABLE_MONTHS.filter(m => String(m.year) === activeYearFilter);
+
+  el.innerHTML = visibleMonths.length ? visibleMonths.map(m => {
     const active = selectedMonths.has(m.key) ? 'active' : '';
     return `<button class="month-chip ${active}" data-month="${m.key}">${m.label}</button>`;
-  }).join('');
+  }).join('') : `<div class="empty-state">Bu yıl için veri yok.</div>`;
 }
+document.getElementById('pp-yearFilter').addEventListener('change', () => {
+  const yearFilterEl = document.getElementById('pp-yearFilter');
+  selectedMonths.clear();
+  const target = yearFilterEl.value === 'all' ? AVAILABLE_MONTHS : AVAILABLE_MONTHS.filter(m => String(m.year) === yearFilterEl.value);
+  target.forEach(m => selectedMonths.add(m.key));
+  renderMonthChipsPP();
+  syncRankMonthSelect();
+  renderAllViewsPP();
+});
 document.getElementById('pp-monthChips').addEventListener('click', (e) => {
   const btn = e.target.closest('.month-chip');
   if (!btn) return;
@@ -6698,13 +6730,7 @@ function renderPersonCard(){
   const personAvg = avg(personRecs.map(r => r.performans).filter(v => v !== null));
 
   let html = `
-    <div class="metrics" style="margin-bottom:20px;">
-      <div class="metric"><div class="label">${personel} — Ortalama Performans</div><div class="value ok" data-count-target="${personAvg !== null ? personAvg : ''}" data-count-decimals="1">0</div></div>
-      <div class="metric"><div class="label">Takım (${takim}) Ortalaması</div><div class="value" data-count-target="${teamAvg !== null ? teamAvg : ''}" data-count-decimals="1">0</div></div>
-      <div class="metric"><div class="label">Lokasyon Ortalaması</div><div class="value" data-count-target="${locAvg !== null ? locAvg : ''}" data-count-decimals="1">0</div></div>
-    </div>
-    ${personRecs.length === 1 ? `<div class="panel" style="margin-bottom:16px; padding:18px 22px;"><div id="pp-cardComment"></div></div>` : ''}
-    <div class="panel">
+    <div class="panel" style="margin-bottom:16px;">
       <div class="panel-head">${personel} — Aylık Detay</div>
       <div class="table-scroll">
         <table id="ppXlsxCard">
@@ -6713,6 +6739,12 @@ function renderPersonCard(){
         </table>
       </div>
     </div>
+    <div class="metrics" style="margin-bottom:20px;">
+      <div class="metric"><div class="label">${personel} — Ortalama Performans</div><div class="value ok" data-count-target="${personAvg !== null ? personAvg : ''}" data-count-decimals="1">0</div></div>
+      <div class="metric"><div class="label">Takım (${takim}) Ortalaması</div><div class="value" data-count-target="${teamAvg !== null ? teamAvg : ''}" data-count-decimals="1">0</div></div>
+      <div class="metric"><div class="label">Lokasyon Ortalaması</div><div class="value" data-count-target="${locAvg !== null ? locAvg : ''}" data-count-decimals="1">0</div></div>
+    </div>
+    ${personRecs.length === 1 ? `<div class="panel" style="margin-bottom:16px; padding:18px 22px;"><div id="pp-cardComment"></div></div>` : ''}
   `;
 
   container.innerHTML = html;
