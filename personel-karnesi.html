@@ -1000,7 +1000,7 @@ function exportNormOperator(v){
   if (s === 'EŞİT') return '=';
   if (s === 'FARKLI') return '≠';
   if (s === 'ARALIK') return 'ARALIK';
-  if (s === 'İÇERİR') return 'İÇERİR';
+  if (s === 'İÇERİR' || s === 'İÇERDİĞİ METİN' || s === 'İÇERİĞİ METİN') return 'İÇERİR';
   // Geriye dönük uyumluluk - eski işaretli sürümle kurulmuş satırlar hâlâ çalışsın
   if (['>=','≥'].includes(s)) return '>=';
   if (['<=','≤'].includes(s)) return '<=';
