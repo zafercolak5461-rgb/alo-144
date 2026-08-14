@@ -864,7 +864,7 @@ function playIzinRingAnimation(){
 // Biçimlendirme kaynağı: Drive'da ayrı bir "personel_karnesi_excel_format" tablosu,
 // "PERSONEL KARNESİ" sekmesi. Zafer o tabloyu düzenleyip export'un görünümünü kontrol eder.
 const EXPORT_FORMAT_SHEET_ID = "1MirwFDXn9coybCur-yTCLoAEaEcXlCyNENCU-bD0b8Y";
-const EXPORT_FORMAT_RANGE = "PERSONEL KARNESİ!A1:H200";
+const EXPORT_FORMAT_RANGE = "PERSONEL KARNESİ!A1:L200";
 let EXPORT_FORMAT_CONFIG = null; // artık önbellek YOK - her export'ta taze okunur (test aşamasında yenileme gerekmesin diye)
 
 const EXPORT_TARGET_KEYS = {
@@ -879,6 +879,7 @@ const EXPORT_TARGET_KEYS = {
   'Genel Tablo Kenarlığı': 'genelKenarlik',
   'Sütun Genişliği': 'sutunGenisligi',
   'Üst Satır Dondurma': 'ustSatirDondurma',
+  'Kılavuz Çizgileri': 'kilavuzCizgileri',
 };
 
 function exportNormYesNo(v){
@@ -897,7 +898,7 @@ function exportNormAlign(v){
   return null;
 }
 function exportEmptyTargetCfg(){
-  return { uygula: false, kalin: false, yaziRengi: null, argPlan: null, hizalama: null, kenarlik: false, sayiFormat: null };
+  return { uygula: false, kalin: false, yaziRengi: null, argPlan: null, hizalama: null, kenarlik: false, sayiFormat: null, kaydir: false, birlestir: false, birlestirAralik: null, yaziBoyutu: null };
 }
 
 // Google renk nesnesini (0-1 aralığında kesirli r/g/b) hex'e çevirir.
@@ -942,6 +943,10 @@ async function fetchExportFormatConfig(){
         hizalama: exportNormAlign(cellText(5)),
         kenarlik: exportNormYesNo(cellText(6)),
         sayiFormat: sayiFormatPattern || null,
+        kaydir: exportNormYesNo(cellText(8)),
+        birlestir: exportNormYesNo(cellText(9)),
+        birlestirAralik: cellText(10).trim() || null,
+        yaziBoyutu: exportParseNum(cellText(11)),
       };
     }
   } catch (e){
@@ -966,14 +971,16 @@ function applyExportRowStyle(row, targetCfg, colCount){
     cell.font = {
       name: 'Arial',
       bold: !!targetCfg.kalin,
+      size: targetCfg.yaziBoyutu || undefined,
       color: targetCfg.yaziRengi ? { argb: targetCfg.yaziRengi } : undefined,
     };
     if (targetCfg.argPlan){
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: targetCfg.argPlan } };
     }
-    if (targetCfg.hizalama){
-      cell.alignment = { horizontal: targetCfg.hizalama, vertical: 'middle' };
-    }
+    const alignment = {};
+    if (targetCfg.hizalama){ alignment.horizontal = targetCfg.hizalama; alignment.vertical = 'middle'; }
+    if (targetCfg.kaydir){ alignment.wrapText = true; }
+    if (Object.keys(alignment).length) cell.alignment = alignment;
     if (targetCfg.kenarlik){
       cell.border = exportThinBorder();
     }
@@ -981,6 +988,46 @@ function applyExportRowStyle(row, targetCfg, colCount){
       cell.numFmt = targetCfg.sayiFormat;
     }
   }
+}
+
+// "3-8" gibi bir aralık metnini {start,end} sütun numarasına çevirir. Boş/"Tümü"/
+// geçersiz ise satırın kullandığı tüm genişlik (1..colCount) döner.
+function exportParseMergeRange(text, colCount){
+  const raw = String(text || '').trim();
+  if (!raw || raw.toLocaleUpperCase('tr') === 'TÜMÜ' || raw === '-'){
+    return { start: 1, end: colCount };
+  }
+  const m = raw.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!m) return { start: 1, end: colCount };
+  let start = parseInt(m[1], 10), end = parseInt(m[2], 10);
+  if (start > end){ const t = start; start = end; end = t; }
+  start = Math.max(1, start);
+  end = Math.min(colCount, end);
+  if (start > end) return { start: 1, end: colCount };
+  return { start, end };
+}
+
+// "Birleştir Et" = Evet ise, aralığı hesaplar; aralık 1'den başlamıyorsa 1. sütundaki
+// değeri aralığın başına taşır (birleşmede sadece sol-üst hücrenin değeri kalır).
+function applyExportMerge(ws, rowNum, targetCfg, colCount){
+  if (!targetCfg || !targetCfg.uygula || !targetCfg.birlestir) return;
+  const { start, end } = exportParseMergeRange(targetCfg.birlestirAralik, colCount);
+  if (end <= start) return; // tek hücre, birleştirmeye gerek yok
+  const row = ws.getRow(rowNum);
+  if (start !== 1){
+    const originalVal = row.getCell(1).value;
+    if (originalVal !== null && originalVal !== undefined && originalVal !== ''){
+      row.getCell(start).value = originalVal;
+      row.getCell(1).value = null;
+    }
+  }
+  ws.mergeCells(rowNum, start, rowNum, end);
+  const mergedCell = row.getCell(start);
+  mergedCell.alignment = Object.assign({}, mergedCell.alignment, {
+    horizontal: targetCfg.hizalama || 'center',
+    vertical: 'middle',
+    wrapText: !!targetCfg.kaydir,
+  });
 }
 
 // ===== Koşullu Biçimlendirme (Excel export, veri hücreleri) =====
@@ -1118,6 +1165,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
     if (personLabel){
       ws.getCell(r, 1).value = personLabel;
       applyExportRowStyle(ws.getRow(r), cfg.kisiBasligi, totalCols);
+      applyExportMerge(ws, r, cfg.kisiBasligi, totalCols);
       r++;
       r++; // kişi başlığından sonra her zaman 1 boş satır (yapısal, format tablosuna bağlı değil)
     }
@@ -1129,6 +1177,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
       // Metrik adı satırı
       ws.getCell(r, 1).value = metric.label;
       applyExportRowStyle(ws.getRow(r), cfg.metrikAdi, totalCols);
+      applyExportMerge(ws, r, cfg.metrikAdi, totalCols);
       r++;
 
       // Tablo başlık satırı (Yıl + ay kısaltmaları)
@@ -1136,6 +1185,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
       headerRow.getCell(1).value = 'Yıl';
       TR_MONTHS.forEach((m, mi) => { headerRow.getCell(2 + mi).value = m.slice(0, 3).toUpperCase(); });
       applyExportRowStyle(headerRow, cfg.tabloBaslik, monthColCount);
+      applyExportMerge(ws, r, cfg.tabloBaslik, monthColCount);
       r++;
 
       // Veri satırları (yıl bazlı, her ay bir sütun)
@@ -1166,6 +1216,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
             dataRow.getCell(2 + mi).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: condColor } };
           }
         });
+        applyExportMerge(ws, r, cfg.veriSatirlari, monthColCount);
         r++;
       });
 
@@ -1178,6 +1229,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
       summaryHeaderRow.getCell(1).value = 'Yıllık Özet';
       years.forEach((y, yi) => { summaryHeaderRow.getCell(2 + yi).value = String(y); });
       applyExportRowStyle(summaryHeaderRow, cfg.ozetBaslik, yearColCount);
+      applyExportMerge(ws, r, cfg.ozetBaslik, yearColCount);
       r++;
 
       // Kişi satırı (özet)
@@ -1193,6 +1245,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
         const condColor = resolveConditionalColor(condRules, metric.label, rawVal);
         if (condColor) kisiRow.getCell(2 + yi).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: condColor } };
       });
+      applyExportMerge(ws, r, cfg.kisiSatiri, yearColCount);
       r++;
 
       // Lokasyon Ortalaması satırı (özet)
@@ -1208,6 +1261,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
         const condColor = resolveConditionalColor(condRules, metric.label, rawVal);
         if (condColor) lokRow.getCell(2 + yi).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: condColor } };
       });
+      applyExportMerge(ws, r, cfg.lokasyonSatiri, yearColCount);
       r++;
 
       // Blok sonu: bir sonraki metrik bloğundan ayırmak için her zaman 1 boş satır
@@ -1232,10 +1286,13 @@ async function exportSelectedMetricsToExcel(selectedKeys){
       for (let c = 2; c <= totalCols; c++) ws.getColumn(c).width = 12;
     }
 
-    // Üst satır dondurma
+    // Üst satır dondurma + kılavuz çizgileri (ikisi de aynı ws.views nesnesinde)
+    const viewOpts = { showGridLines: !!cfg.kilavuzCizgileri.uygula };
     if (cfg.ustSatirDondurma.uygula){
-      ws.views = [{ state: 'frozen', ySplit: 1 }];
+      viewOpts.state = 'frozen';
+      viewOpts.ySplit = 1;
     }
+    ws.views = [viewOpts];
 
     // Genel tablo kenarlığı: kullanılan tüm alanın dış çerçevesi
     if (cfg.genelKenarlik.uygula && lastUsedRow >= 1){
