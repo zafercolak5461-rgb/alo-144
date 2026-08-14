@@ -958,7 +958,7 @@ async function fetchExportFormatConfig(){
 }
 
 function exportBorderSide(kalin){
-  return { style: kalin ? 'medium' : 'thin', color: { argb: 'FFB7BDC9' } };
+  return { style: kalin ? 'medium' : 'thin', color: { argb: 'FF000000' } };
 }
 function exportBorderObj(kalin){
   const side = exportBorderSide(kalin);
@@ -1304,7 +1304,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
 
     // Genel tablo kenarlığı: kullanılan tüm alanın dış çerçevesi
     if (cfg.genelKenarlik.uygula && lastUsedRow >= 1){
-      const side = { style: 'thin', color: { argb: 'FF6B7280' } };
+      const side = { style: 'thin', color: { argb: 'FF000000' } };
       for (let c = 1; c <= totalCols; c++){
         const topCell = ws.getCell(1, c);
         topCell.border = Object.assign({}, topCell.border, { top: side });
