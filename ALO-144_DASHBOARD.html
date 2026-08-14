@@ -742,21 +742,12 @@ body{
         <button class="nav-item" data-page="vardiya">
           <span class="dot-indicator"></span> Vardiya
         </button>
-        <button class="nav-item" data-page="yoklama">
-          <span class="dot-indicator"></span> Yoklama
-        </button>
-        <button class="nav-item" data-page="gunluk-operasyon">
-          <span class="dot-indicator"></span> Günlük Operasyon Verileri
-        </button>
       </div>
 
       <div class="nav-group">
         <div class="nav-group-title">Personel Verileri</div>
         <button class="nav-item" data-page="personel-performans">
           <span class="dot-indicator"></span> Personel Performans
-        </button>
-        <button class="nav-item" data-page="takim-dagilimi">
-          <span class="dot-indicator"></span> Takım Dağılımı
         </button>
       </div>
       <div class="nav-group yetki-only">
@@ -2117,73 +2108,6 @@ body{
 </div>
 </div>
 </div>
-<div class="page" id="page-takim-dagilimi">
-<div class="dashboard-page theme-orange">
-<div class="wrap">
-
-  <header>
-    <div>
-      <h1>Takım Dağılımı</h1>
-      <div class="sub">Adil ve dengeli yeni takım ataması — Google Sheets API</div>
-    </div>
-    <div class="status" id="td-status">
-      <button id="td-refreshBtn" class="refresh-btn">⟳ Yenile</button>
-      <button id="td-generateBtn" class="refresh-btn" disabled>🔀 Dağıtımı Oluştur</button>
-      <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-takim-dagilimi', 'takim-dagilimi')">⇩ Excel'e Aktar</button>
-      <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
-      <span class="dot" id="td-statusDot"></span>
-      <span id="td-statusText">Veri çekilmedi — Yenile'ye basın</span>
-    </div>
-  </header>
-
-  <div id="td-errorBox" style="display:none" class="error-box"></div>
-
-  <div class="note" style="margin-bottom:16px;">
-    Her personel mevcut (eski) takım liderinden FARKLI bir takıma atanır. Rapor kullanımı ve performans puanı ortalaması takımlar arasında dengeli dağıtılmaya çalışılır. 4 özel personel (engelli statüsünde) hem eski liderlerinden hem birbirlerinden farklı takımlara atanır. "Dağıtımı Oluştur" her bastığınızda, tüm şartlara uyan ama FARKLI bir dağılım üretir.
-  </div>
-
-  <!-- Takım Lideri (tekli seçim) - YENİ ataması bu lidere göre filtrelenir -->
-  <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-head">Takım Lideri (Yeni Atama)</div>
-    <div id="td-teamList" style="padding:14px 18px; display:flex; flex-wrap:wrap; gap:8px;"></div>
-  </div>
-
-  <div class="metrics" id="td-metrics" style="margin-bottom:20px;"></div>
-
-  <div class="panel">
-    <div class="panel-head">
-      Yeni Takım Ataması
-      <span class="count" id="td-rowCount"></span>
-    </div>
-    <div class="table-scroll">
-      <table id="tdXlsxAtama">
-        <thead><tr id="td-tableHead"></tr></thead>
-        <tbody id="td-tableBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-</div>
-</div>
-</div>
-<div class="page" id="page-gunluk-operasyon">
-  <div class="placeholder-page">
-    <div class="placeholder-box">
-      <div class="icon">◇</div>
-      <h2>Günlük Operasyon Verileri</h2>
-      <p>Bu bölüm için henüz bir veri kaynağı bağlanmadı. Veri dosyası hazır olduğunda burada canlı dashboard görünecek.</p>
-    </div>
-  </div>
-</div>
-<div class="page" id="page-yoklama">
-  <div class="placeholder-page">
-    <div class="placeholder-box">
-      <div class="icon">◇</div>
-      <h2>Yoklama</h2>
-      <p>Bu bölüm için henüz bir veri kaynağı bağlanmadı. Veri dosyası hazır olduğunda burada canlı dashboard görünecek.</p>
-    </div>
-  </div>
-</div>
 <div class="page" id="page-yetki-atama">
   <div class="topbar">
     <div class="topbar-left"><h1>Yetki Atama</h1><p class="subtitle">Sadece Süper Yetkili — kimin hangi özelliği ve hangi sekmeleri kullanabileceğini yönetin</p></div>
@@ -2318,21 +2242,25 @@ function showLoginError(msg){
 
 function isTrueVal(v){ return v === true || String(v || '').trim().toLocaleUpperCase('tr') === 'TRUE'; }
 
-// Sekme erişim sütunları (G-O) - sidebar'daki data-page değerleriyle birebir eşleşir.
+// Sekme erişim sütunları - sidebar'daki data-page değerleriyle birebir eşleşir.
 // Süper Yetkili=TRUE olan kullanıcılar bu listeden etkilenmez (her zaman her şeyi görür).
+// Yoklama/Günlük Operasyon/Takım Dağılımı sayfaları 12.08.2026'da KALDIRILDI (Yoklama ve
+// Günlük Operasyon ayrı bir veri hazırlama projesine taşınacak, Takım Dağılımı tamamen
+// kapatıldı). Kalan sayfaların harfleri BİLEREK aynı bırakıldı (L/M/O artık kullanılmıyor,
+// atıl kaldı) - ALO144 sheet'inde bu sütunlarda halihazırda veri var, harfleri "sıkıştırıp"
+// yeniden numaralandırmak mevcut TRUE/FALSE verisinin yanlış sütuna denk gelmesine sebep
+// olurdu. Bu yüzden PAGE_COLS artık G-N arası ARALIKLI (contiguous olmayan) bir liste.
 const PAGE_COLS = [
   { key: 'page_gelenArama',        page: 'gelen-arama-dagilimi', label: 'Gelen Arama Dağılımı',      letter: 'G' },
   { key: 'page_genelTalep',        page: 'genel-talep-dagilimi', label: 'Genel Talep Dağılımı',      letter: 'H' },
   { key: 'page_kopukTalep',        page: 'kopuk-talep-dagilimi', label: 'Köpük Talep Dağılımı',      letter: 'I' },
   { key: 'page_analiz',            page: 'analiz',               label: 'Analiz',                     letter: 'J' },
   { key: 'page_vardiya',           page: 'vardiya',               label: 'Vardiya',                    letter: 'K' },
-  { key: 'page_yoklama',           page: 'yoklama',               label: 'Yoklama',                    letter: 'L' },
-  { key: 'page_gunlukOperasyon',   page: 'gunluk-operasyon',      label: 'Günlük Operasyon Verileri',  letter: 'M' },
   { key: 'page_personelPerformans',page: 'personel-performans',   label: 'Personel Performans',        letter: 'N' },
-  { key: 'page_takimDagilimi',     page: 'takim-dagilimi',        label: 'Takım Dağılımı',             letter: 'O' },
 ];
-const PAGE_COLS_FIRST_LETTER = PAGE_COLS[0].letter;
-const PAGE_COLS_LAST_LETTER = PAGE_COLS[PAGE_COLS.length - 1].letter;
+// Not: PAGE_COLS_FIRST_LETTER/LAST_LETTER sabitleri kaldırıldı (12.08.2026) - PAGE_COLS artık
+// aralıklı olduğu için "ilk/son harf" kavramı anlamsızlaştı, yaToggleAllPages artık her
+// sütuna kendi harfiyle ayrı ayrı (batchUpdate ile) yazıyor.
 
 async function loadAuthTable(token){
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('ALO144!A1:O1000')}`;
@@ -6021,18 +5949,21 @@ const vdCovChart = createSlotChartPanel({
 });
 
 // ===== SEKME 4: Günlük Detay — Personel × Gün matrisi =====
-// Sadece Metrik/Durum Filtresi'nde SEÇİLİ olan durumlar (Rapor, Yıllık İzin vb.) gösterilir.
-// Sütunlar (günler) sadece bu durumlardan en az birinin GERÇEKTEN görüldüğü tarihlerdir -
-// tüm tarih aralığını (bazen aylarca) boş sütunlarla doldurmamak için.
+// Sadece Metrik/Durum Filtresi'nde SEÇİLİ olan durumlar (Rapor, Yıllık İzin vb.) GÖSTERİLİR
+// - "Çalışma Gün Sayısı" da bu filtreye dahil: seçiliyse, çalışılan günlerde hücrede durum
+// etiketi değil GERÇEK VARDİYA SAATİ (örn. "08:00-18:00") görünür - ham veride zaten bu
+// formatta duruyor (bkz. classifyVardiyaCell 'calisti' tipi). Önceden bu filtre hiç işlemiyordu
+// (12.08.2026'da düzeltildi).
 function renderGunlukDetay(){
   const head = document.getElementById('vd-gunlukTableHead');
   const body = document.getElementById('vd-gunlukTableBody');
   const countEl = document.getElementById('vd-gunlukRowCount');
 
   const activeDurumLabels = ALL_DURUM_LABELS.filter(l => selectedMetrics && selectedMetrics.has(l));
-  if (!activeDurumLabels.length){
+  const includeWorkDay = !!(selectedMetrics && selectedMetrics.has(WORK_DAY_METRIC_KEY));
+  if (!activeDurumLabels.length && !includeWorkDay){
     head.innerHTML = '';
-    body.innerHTML = `<tr><td class="empty-state" colspan="99">Yukarıdan Metrik/Durum Filtresi'nde en az bir durum seçin (Rapor, Yıllık İzin vb.).</td></tr>`;
+    body.innerHTML = `<tr><td class="empty-state" colspan="99">Yukarıdan Metrik/Durum Filtresi'nde en az bir durum (Rapor, Yıllık İzin vb.) ya da "${WORK_DAY_METRIC_LABEL}" seçin.</td></tr>`;
     countEl.textContent = '';
     return;
   }
@@ -6040,7 +5971,10 @@ function renderGunlukDetay(){
   const filtered = getFilteredRecords();
   const relevantRecords = filtered.filter(r => {
     const c = classifyVardiyaCell(r.durum);
-    return c && c.type === 'durum' && activeDurumLabels.includes(r.durum);
+    if (!c) return false;
+    if (c.type === 'durum') return activeDurumLabels.includes(r.durum);
+    if (c.type === 'calisti') return includeWorkDay;
+    return false;
   });
 
   if (!relevantRecords.length){
@@ -6056,7 +5990,7 @@ function renderGunlukDetay(){
 
   const dateKeys = [...new Set(relevantRecords.map(r => r.tarih.getTime()))].sort((a,b) => a - b);
 
-  const cellMap = new Map(); // "sicil|tarih" -> durum etiketi
+  const cellMap = new Map(); // "sicil|tarih" -> durum etiketi YA DA "08:00-18:00" gibi vardiya saati
   relevantRecords.forEach(r => { cellMap.set(`${r.sicil}|${r.tarih.getTime()}`, r.durum); });
 
   head.innerHTML = `<th>Personel</th>` + dateKeys.map(t =>
@@ -7209,349 +7143,6 @@ renderPpIslemSelectors();
 renderPpIslemFields();
 })();
 </script>
-<script>
-(function(){
-// ===== TAKIM DAĞILIMI SAYFASI =====
-// Personel Listesi (mevcut/eski takım lideri) + Personel Performans (tüm aylardaki
-// toplam Rapor/Ücretsiz İzin ve ortalama Performans Puanı) verilerini birleştirip,
-// belirli kısıtlara uyan YENİ bir takım dağılımı üretir. Vardiya'ya İHTİYAÇ YOK.
-
-const PERSONEL_LISTESI_SHEET_ID = "1dqGIn5ILyMjCOogkc1ucBk7j2iMJI_cj5lX20gjATMI";
-const PERF_SHEET_ID = "1X37_Dk7DAYIZCls-ZudA5U7LOznX9eMdxPEadNqzqys";
-
-const TR_MONTHS_UPPER = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
-const TR_MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-
-// 4 özel (engelli statüsünde) personel - hem eski liderlerinden hem BİRBİRLERİNDEN
-// farklı takımlara atanmak zorundalar.
-const ENGELLI_SICILLER = ['10835', '10838', '10837', '10836'];
-// SEMAHAT ÇOLAK (10835) - ek özel kural: ZAFER ÇOLAK'ın takımına KESİNLİKLE düşemez.
-const SEMAHAT_SICIL = '10835';
-const SEMAHAT_FORBIDDEN_LEADER = 'ZAFER ÇOLAK';
-
-let PERSONNEL = []; // { sicil, personel, eskiTakim, totalRapor, avgPerformans }
-let TEAMS = []; // 5 takım lideri adı (Personel Listesi'nden otomatik keşfedilir)
-let ASSIGNMENT = null; // { sicil: yeniTakim } - "Dağıtımı Oluştur"a basılana kadar null
-let selectedTeamLeader = 'ALL';
-
-const tdStatusDot = document.getElementById('td-statusDot');
-const tdStatusText = document.getElementById('td-statusText');
-const tdErrorBox = document.getElementById('td-errorBox');
-const tdRefreshBtn = document.getElementById('td-refreshBtn');
-const tdGenerateBtn = document.getElementById('td-generateBtn');
-
-// --- Ay listesi: SABİT başlangıç YOK - sheet'teki GERÇEK "AY-YIL" sekmeleri metadata
-// uç noktasından bir kerede keşfedilir (Vardiya ile aynı mantık).
-async function fetchExistingMonthTabsTD(sheetId){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`;
-  const res = await authFetch(url);
-  const data = await res.json();
-  if (data.error) throw new Error('Sekme listesi alınamadı: ' + (data.error.message || 'Bilinmeyen hata'));
-  return (data.sheets || []).map(s => s.properties.title);
-}
-
-function parseMonthTabTitlesTD(titles){
-  const list = [];
-  titles.forEach(title => {
-    const parts = String(title).trim().split('-');
-    if (parts.length !== 2) return;
-    const monthIdx = TR_MONTHS_UPPER.indexOf(parts[0]);
-    const year = parseInt(parts[1], 10);
-    if (monthIdx === -1 || isNaN(year)) return;
-    list.push({ year, month: monthIdx, tabName: title, label: `${TR_MONTHS[monthIdx]} ${year}` });
-  });
-  list.sort((a,b) => (a.year - b.year) || (a.month - b.month));
-  return list;
-}
-
-// --- Personel Listesi'nden Sicil/Ad/Eski Takım Lideri ---
-async function fetchPersonelListesi(){
-  const range = "PERSONEL LİSTESİ!A1:C1000";
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERSONEL_LISTESI_SHEET_ID}/values/${encodeURIComponent(range)}`;
-  const res = await authFetch(url);
-  const data = await res.json();
-  if (data.error) throw new Error('Personel Listesi: ' + (data.error.message || 'Bilinmeyen API hatası'));
-  const values = data.values || [];
-  const list = [];
-  values.slice(1).forEach(row => {
-    if (!row[0]) return;
-    list.push({ sicil: String(row[0]).trim(), personel: (row[1] || '').trim(), eskiTakim: (row[2] || '').trim() });
-  });
-  return list;
-}
-
-// --- Bir Personel Performans ay sekmesinden sadece Rapor ve Performans sütunlarını çeker ---
-async function fetchPerformansMonth(monthInfo){
-  const range = `${monthInfo.tabName}!A1:O500`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${encodeURIComponent(range)}`;
-  const res = await authFetch(url);
-  const data = await res.json();
-  if (data.error){
-    const msg = data.error.message || '';
-    if (msg.includes('Unable to parse range')){
-      const err = new Error('missing_tab');
-      err.isMissingTab = true;
-      throw err;
-    }
-    throw new Error(`${monthInfo.label}: ${msg || 'Bilinmeyen API hatası'}`);
-  }
-  const values = data.values || [];
-  if (values.length < 2) return [];
-  const records = [];
-  values.slice(1).forEach(row => {
-    if (!row[0]) return;
-    records.push({
-      sicil: String(row[0]).trim(),
-      rapor: parseNum(row[4]),      // E: Rapor/Ücretsiz İzin
-      performans: parseNum(row[14]) // O: Performans Puanı
-    });
-  });
-  return records;
-}
-
-// --- Yenile: Personel Listesi + TÜM Performans aylarını çeker, kişi başına özetler ---
-async function loadData(){
-  tdRefreshBtn.disabled = true;
-  tdRefreshBtn.textContent = '⟳ Yenileniyor…';
-  tdGenerateBtn.disabled = true;
-  tdStatusDot.className = 'dot loading';
-  tdStatusText.textContent = 'Personel Listesi ve performans verileri taranıyor…';
-  tdErrorBox.style.display = 'none';
-  ASSIGNMENT = null;
-
-  const errors = [];
-  let personelListesi = [];
-  try {
-    personelListesi = await fetchPersonelListesi();
-  } catch (e){
-    errors.push(e.message);
-  }
-
-  const months = [];
-  try {
-    const titles = await fetchExistingMonthTabsTD(PERF_SHEET_ID);
-    months.push(...parseMonthTabTitlesTD(titles));
-  } catch (e){
-    errors.push('Sekme listesi: ' + e.message);
-  }
-
-  const results = await Promise.allSettled(months.map(m => fetchPerformansMonth(m)));
-  let allPerfRecords = [];
-  results.forEach((r, i) => {
-    if (r.status === 'fulfilled'){
-      allPerfRecords = allPerfRecords.concat(r.value);
-    } else if (!(r.reason && r.reason.isMissingTab)){
-      errors.push(months[i].label + ': ' + r.reason.message);
-    }
-  });
-
-  // Sicil bazında topla: toplam Rapor + tüm ayların Performans Puanı listesi
-  const perfMap = new Map();
-  allPerfRecords.forEach(r => {
-    if (!perfMap.has(r.sicil)) perfMap.set(r.sicil, { raporSum: 0, perfValues: [] });
-    const agg = perfMap.get(r.sicil);
-    if (r.rapor !== null) agg.raporSum += r.rapor;
-    if (r.performans !== null) agg.perfValues.push(r.performans);
-  });
-
-  PERSONNEL = personelListesi.map(p => {
-    const agg = perfMap.get(p.sicil) || { raporSum: 0, perfValues: [] };
-    return {
-      sicil: p.sicil,
-      personel: p.personel,
-      eskiTakim: p.eskiTakim,
-      totalRapor: agg.raporSum,
-      avgPerformans: agg.perfValues.length ? avg(agg.perfValues) : null
-    };
-  });
-
-  TEAMS = [...new Set(personelListesi.map(p => p.eskiTakim).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'tr'));
-
-  if (errors.length){
-    tdErrorBox.style.display = 'block';
-    tdErrorBox.textContent = 'Bazı veriler çekilemedi: ' + errors.join(' | ');
-  } else {
-    tdErrorBox.style.display = 'none';
-  }
-
-  let statusMsg = `Bağlantı ${errors.length ? 'kısmen ' : ''}başarılı — ${PERSONNEL.length} personel, ${TEAMS.length} takım lideri`;
-  tdStatusDot.className = errors.length ? 'dot err' : 'dot';
-  tdStatusText.textContent = statusMsg;
-
-  tdRefreshBtn.disabled = false;
-  tdRefreshBtn.textContent = '⟳ Yenile';
-  tdGenerateBtn.disabled = !(PERSONNEL.length && TEAMS.length >= 2);
-
-  if (!TEAMS.includes(selectedTeamLeader)) selectedTeamLeader = 'ALL';
-  renderTeamListFilter();
-  renderTable();
-}
-tdRefreshBtn.addEventListener('click', () => loadData());
-
-// --- Takım Lideri filtresi (tekli seçim: Tümü / 5 lider) ---
-function renderTeamListFilter(){
-  const el = document.getElementById('td-teamList');
-  if (!TEAMS.length){
-    el.innerHTML = `<div class="empty-state">Önce Yenile'ye basın.</div>`;
-    return;
-  }
-  const items = ['ALL', ...TEAMS];
-  el.innerHTML = items.map(t => {
-    const label = t === 'ALL' ? 'Tümü' : t;
-    const active = selectedTeamLeader === t;
-    return `<button class="preset-btn ${active ? 'active' : ''}" data-team="${t}">${label}</button>`;
-  }).join('');
-}
-document.getElementById('td-teamList').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-team]');
-  if (!btn) return;
-  selectedTeamLeader = btn.dataset.team;
-  renderTeamListFilter();
-  renderTable();
-});
-
-// --- Rastgele karıştırma (Fisher-Yates) - her "Dağıtımı Oluştur" farklı sonuç versin diye ---
-function shuffleArray(arr){
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// Bir kişinin gidebileceği takımlar: kendi eski lideri HARİÇ, + SEMAHAT ÇOLAK için
-// ek olarak ZAFER ÇOLAK da HARİÇ.
-function allowedTeamsFor(person, teams){
-  let allowed = teams.filter(t => t !== person.eskiTakim);
-  if (person.sicil === SEMAHAT_SICIL) allowed = allowed.filter(t => t !== SEMAHAT_FORBIDDEN_LEADER);
-  return allowed;
-}
-
-// Ana dağıtım algoritması:
-// 1) 4 engelli personeli önce, birbirinden FARKLI takımlara (kendi kısıtlarına uyarak) atar
-// 2) Geri kalan herkesi rastgele sırayla işler, her adımda "sayı + rapor yükü + performans
-//    ortalaması" açısından en dengesizliği en az artıracak takımı (en iyi 2 seçenek arasından
-//    rastgele) seçer - böylece hem denge sağlanır hem her seferinde farklı bir sonuç çıkar.
-function computeAssignment(personnel, teams){
-  const engelli = personnel.filter(p => ENGELLI_SICILLER.includes(p.sicil));
-  const others = personnel.filter(p => !ENGELLI_SICILLER.includes(p.sicil));
-
-  let engelliAssignment = null;
-  for (let attempt = 0; attempt < 500 && !engelliAssignment; attempt++){
-    const used = new Set();
-    const trial = {};
-    let ok = true;
-    for (const p of shuffleArray(engelli)){
-      const allowed = allowedTeamsFor(p, teams).filter(t => !used.has(t));
-      if (!allowed.length){ ok = false; break; }
-      const pick = allowed[Math.floor(Math.random() * allowed.length)];
-      trial[p.sicil] = pick;
-      used.add(pick);
-    }
-    if (ok) engelliAssignment = trial;
-  }
-  if (!engelliAssignment){
-    throw new Error('Özel personel için tüm şartları karşılayan bir dağılım bulunamadı (takım sayısı yetersiz olabilir).');
-  }
-
-  const stats = {};
-  teams.forEach(t => stats[t] = { count: 0, raporSum: 0, perfValues: [] });
-  Object.entries(engelliAssignment).forEach(([sicil, team]) => {
-    const p = personnel.find(x => x.sicil === sicil);
-    stats[team].count++;
-    stats[team].raporSum += p.totalRapor || 0;
-    if (p.avgPerformans !== null) stats[team].perfValues.push(p.avgPerformans);
-  });
-
-  const globalAvgPerf = avg(personnel.map(p => p.avgPerformans).filter(v => v !== null));
-  const totalRapor = personnel.reduce((s,p) => s + (p.totalRapor || 0), 0);
-  const raporScale = Math.max(1, totalRapor / (personnel.length || 1));
-
-  const finalAssignment = { ...engelliAssignment };
-
-  shuffleArray(others).forEach(p => {
-    const allowed = allowedTeamsFor(p, teams);
-    const scored = allowed.map(t => {
-      const st = stats[t];
-      const countScore = st.count;
-      const raporScore = st.raporSum / raporScale;
-      const newPerfValues = p.avgPerformans !== null ? [...st.perfValues, p.avgPerformans] : st.perfValues;
-      const teamPerfAvg = newPerfValues.length ? avg(newPerfValues) : globalAvgPerf;
-      const perfScore = (globalAvgPerf !== null && teamPerfAvg !== null) ? Math.abs(teamPerfAvg - globalAvgPerf) / 5 : 0;
-      return { team: t, score: countScore + raporScore + perfScore };
-    });
-    scored.sort((a,b) => a.score - b.score);
-    const topN = Math.min(2, scored.length);
-    const pick = scored[Math.floor(Math.random() * topN)].team;
-
-    finalAssignment[p.sicil] = pick;
-    stats[pick].count++;
-    stats[pick].raporSum += p.totalRapor || 0;
-    if (p.avgPerformans !== null) stats[pick].perfValues.push(p.avgPerformans);
-  });
-
-  return finalAssignment;
-}
-
-tdGenerateBtn.addEventListener('click', () => {
-  try {
-    ASSIGNMENT = computeAssignment(PERSONNEL, TEAMS);
-    tdErrorBox.style.display = 'none';
-    renderTable();
-  } catch (e){
-    tdErrorBox.style.display = 'block';
-    tdErrorBox.textContent = 'Dağıtım oluşturulamadı: ' + e.message;
-  }
-});
-
-function renderTable(){
-  const head = document.getElementById('td-tableHead');
-  const body = document.getElementById('td-tableBody');
-  const countEl = document.getElementById('td-rowCount');
-  const metricsEl = document.getElementById('td-metrics');
-
-  if (!ASSIGNMENT){
-    head.innerHTML = '';
-    body.innerHTML = `<tr><td class="empty-state" colspan="99">Önce "Yenile"ye, sonra "Dağıtımı Oluştur"a basın.</td></tr>`;
-    countEl.textContent = '';
-    metricsEl.innerHTML = '';
-    return;
-  }
-
-  let rows = PERSONNEL.map(p => ({ ...p, yeniTakim: ASSIGNMENT[p.sicil] }));
-  if (selectedTeamLeader !== 'ALL'){
-    rows = rows.filter(r => r.yeniTakim === selectedTeamLeader);
-  }
-  rows.sort((a,b) => a.personel.localeCompare(b.personel, 'tr'));
-
-  head.innerHTML = `<th>Personel</th><th>Sicil</th><th>Eski Takım Lideri</th><th>Yeni Takım Lideri</th>`;
-  body.innerHTML = rows.map(r => `<tr><td class="date">${r.personel}</td><td>${r.sicil}</td><td>${r.eskiTakim || '—'}</td><td style="font-weight:600; color:var(--accent);">${r.yeniTakim || '—'}</td></tr>`).join('');
-
-  countEl.textContent = `${rows.length} personel`;
-
-  const teamSummaries = TEAMS.map(t => {
-    const members = PERSONNEL.filter(p => ASSIGNMENT[p.sicil] === t);
-    const raporSum = members.reduce((s,p) => s + (p.totalRapor || 0), 0);
-    const perfVals = members.map(p => p.avgPerformans).filter(v => v !== null);
-    const perfAvg = perfVals.length ? avg(perfVals) : null;
-    return { team: t, count: members.length, raporSum, perfAvg };
-  });
-  metricsEl.innerHTML = teamSummaries.map(s => `
-    <div class="metric">
-      <div class="label">${s.team}</div>
-      <div class="value"><span data-count-target="${s.count}">0</span> kişi</div>
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); margin-top:4px;">Rapor: ${s.raporSum.toLocaleString('tr-TR')} · Perf. Ort: ${s.perfAvg !== null ? s.perfAvg.toFixed(1) : '—'}</div>
-    </div>
-  `).join('');
-  playCountAnimations(metricsEl);
-}
-
-// --- İlk açılış: hiçbir şey otomatik çekilmez ---
-renderTeamListFilter();
-document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state" colspan="99">Veriyi görüntülemek için "Yenile"ye basın.</td></tr>`;
-})();
-</script>
 
 
 <script>
@@ -7640,8 +7231,11 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
     }
   }
 
-  // Bir kişinin TÜM sekme (G-O) tiklerini TEK istekte toplu açar/kapatır - Süper
+  // Bir kişinin TÜM sekme tiklerini TEK istekte toplu açar/kapatır - Süper
   // Yetkili/Güncelleme/Sunum/Excel'e dokunmaz, sadece sekme görünürlüğünü etkiler.
+  // PAGE_COLS artık ARALIKLI (G-N arası, L/M/O atıl) olduğu için tek bloklu bir aralığa
+  // (örn. G:N) yazmak YANLIŞ olurdu - Sheets API'nin values:batchUpdate uç noktasıyla HER
+  // sütuna kendi tek hücresine, ama TEK istekte yazıyoruz. (12.08.2026)
   async function yaToggleAllPages(rowNum, newValue, btnEl){
     const statusEl = document.getElementById('ya-statusMsg');
     if (statusEl) statusEl.textContent = 'Kaydediliyor…';
@@ -7651,16 +7245,15 @@ document.getElementById('td-tableBody').innerHTML = `<tr><td class="empty-state"
     if (btnEl) btnEl.disabled = true;
     try {
       const token = await ensureWriteToken();
-      const range = `ALO144!${PAGE_COLS_FIRST_LETTER}${rowNum}:${PAGE_COLS_LAST_LETTER}${rowNum}`;
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-      const values = [PAGE_COLS.map(() => newValue ? 'TRUE' : 'FALSE')];
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values:batchUpdate`;
+      const data = PAGE_COLS.map(c => ({ range: `ALO144!${c.letter}${rowNum}`, values: [[newValue ? 'TRUE' : 'FALSE']] }));
       const res = await fetch(url, {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ range, majorDimension: 'ROWS', values })
+        body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data })
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message || 'Güncelleme başarısız oldu.');
+      const resData = await res.json();
+      if (resData.error) throw new Error(resData.error.message || 'Güncelleme başarısız oldu.');
       AUTH_TABLE = await loadAuthTable(token) || AUTH_TABLE;
       renderYaTable();
       if (statusEl) statusEl.textContent = `✓ ${PAGE_COLS.length} sekme ${newValue ? 'açıldı' : 'kapatıldı'} — ` + new Date().toLocaleTimeString('tr-TR');
