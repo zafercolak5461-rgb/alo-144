@@ -865,7 +865,7 @@ function playIzinRingAnimation(){
 // "PERSONEL KARNESİ" sekmesi. Zafer o tabloyu düzenleyip export'un görünümünü kontrol eder.
 const EXPORT_FORMAT_SHEET_ID = "1MirwFDXn9coybCur-yTCLoAEaEcXlCyNENCU-bD0b8Y";
 const EXPORT_FORMAT_RANGE = "PERSONEL KARNESİ!A1:H200";
-let EXPORT_FORMAT_CONFIG = null; // ilk okumadan sonra bu oturumda önbelleğe alınır
+let EXPORT_FORMAT_CONFIG = null; // artık önbellek YOK - her export'ta taze okunur (test aşamasında yenileme gerekmesin diye)
 
 const EXPORT_TARGET_KEYS = {
   'Kişi Başlığı': 'kisiBasligi',
@@ -915,10 +915,9 @@ function exportGoogleColorToHex(colorObj){
 // biz hücrenin gerçek yazı rengini / dolgu rengini okuyup uyguluyoruz.
 // Okunamazsa (yetki/ağ hatası vb.) hiçbir biçim uygulanmadan düz bir Excel üretilir.
 async function fetchExportFormatConfig(){
-  if (EXPORT_FORMAT_CONFIG) return EXPORT_FORMAT_CONFIG;
   const cfg = {};
   try {
-    const fields = 'sheets.data.rowData.values(formattedValue,userEnteredFormat(backgroundColor,numberFormat,textFormat.foregroundColor))';
+    const fields = 'sheets.data.rowData.values(formattedValue,userEnteredFormat(backgroundColor,numberFormat))';
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?ranges=${encodeURIComponent(EXPORT_FORMAT_RANGE)}&fields=${encodeURIComponent(fields)}`;
     const res = await authFetch(url);
     const data = await res.json();
@@ -936,7 +935,9 @@ async function fetchExportFormatConfig(){
       cfg[key] = {
         uygula: exportNormYesNo(cellText(1)),
         kalin: exportNormYesNo(cellText(2)),
-        yaziRengi: exportGoogleColorToHex(yaziRengiCell && yaziRengiCell.userEnteredFormat && yaziRengiCell.userEnteredFormat.textFormat && yaziRengiCell.userEnteredFormat.textFormat.foregroundColor),
+        // D ve E sütunlarının İKİSİ de aynı şekilde okunur: hücrenin DOLGU (boya kovası) rengi.
+        // Zafer ikisini de aynı boya kovasıyla boyuyor - font rengi ikonuyla değil.
+        yaziRengi: exportGoogleColorToHex(yaziRengiCell && yaziRengiCell.userEnteredFormat && yaziRengiCell.userEnteredFormat.backgroundColor),
         argPlan: exportGoogleColorToHex(argPlanCell && argPlanCell.userEnteredFormat && argPlanCell.userEnteredFormat.backgroundColor),
         hizalama: exportNormAlign(cellText(5)),
         kenarlik: exportNormYesNo(cellText(6)),
@@ -986,7 +987,7 @@ function applyExportRowStyle(row, targetCfg, colCount){
 // Aynı format tablosunda ayrı bir sekme: "KOŞULLU BİÇİMLENDİRME"
 // Sütunlar: A=Metrik  B=Operatör  C=Değer 1  D=Değer 2 (Aralık için)  E=Renk (boyanır)  F=Öncelik
 const CONDITIONAL_FORMAT_RANGE = "KOŞULLU BİÇİMLENDİRME!A1:F300";
-let CONDITIONAL_FORMAT_RULES = null; // metric label (upper,trim) -> sıralı kural dizisi
+let CONDITIONAL_FORMAT_RULES = null; // artık önbellek YOK - her export'ta taze okunur
 
 function exportNormOperator(v){
   const s = String(v || '').trim().toLocaleUpperCase('tr');
@@ -1020,7 +1021,6 @@ function conditionalRuleMatches(rule, value){
 }
 
 async function fetchConditionalFormatRules(){
-  if (CONDITIONAL_FORMAT_RULES) return CONDITIONAL_FORMAT_RULES;
   const rulesByMetric = {};
   try {
     const fields = 'sheets.data.rowData.values(formattedValue,userEnteredFormat.backgroundColor)';
