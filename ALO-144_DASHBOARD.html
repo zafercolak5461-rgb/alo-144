@@ -8396,8 +8396,12 @@ const anDateFilter = createDateFilterController({
 // İl ve Kategori seçicileri sayfada BİRDEN FAZLA yerde (üst filtre + her ilgili panelin
 // hemen üstünde) tekrar ediyor - GTD sayfasındaki aynı desen. Hepsi currentIl/currentKat
 // durumunu paylaşır, biri değiştiğinde hepsi güncellenir - kullanıcının sayfanın en başına
-// dönmesine gerek kalmaz.
-const AN_FILTER_INSTANCES = ['main', 'corr', 'monthly', 'weekly', 'heatmap', 'katrank', 'ilrank'];
+// dönmesine gerek kalmaz. "weekly" BİLEREK bu listede YOK (12.08.2026) - Haftalık Dağılım
+// paneli yeniden tasarlanırken kendi bağımsız Yıl/Ay/Metrik seçim sistemine kavuştu, artık
+// bu paylaşılan İl/Kategori senkronuna dahil değil (eski #an-filterrow-weekly konteyneri de
+// kaldırıldı - listede kalmış olması "elemana ulaşılamıyor" hatasıyla TÜM Analiz script'ini
+// daha en baştan durduruyordu, bu hatayı düzelten asıl adım budur).
+const AN_FILTER_INSTANCES = ['main', 'corr', 'monthly', 'heatmap', 'katrank', 'ilrank'];
 const anIlSelects = [];
 const anKatControls = []; // {btn, panel}
 
