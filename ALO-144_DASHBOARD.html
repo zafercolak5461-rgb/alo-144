@@ -8735,10 +8735,18 @@ function computeInsightSentences(from, to){
   const gtdPrev = sumSeriesInRange(gtdSeries, prevFrom, prevTo);
   const kopukCurr = sumSeriesInRange(kopukSeries, from, to);
   const kopukPrev = sumSeriesInRange(kopukSeries, prevFrom, prevTo);
-  const callsPct = pctChange(callsCurr, callsPrev);
-  const kacanPct = pctChange(kacanCurr, kacanPrev);
-  const gtdPct = pctChange(gtdCurr, gtdPrev);
-  const kopukPct = pctChange(kopukCurr, kopukPrev);
+
+  // Bir kaynağın SEÇİLİ ve ÖNCEKİ dönemin İKİSİNDE de gerçek kaydı yoksa (sadece rakamı 0
+  // değil, o tarih aralığında hiç satır yoksa), pctChange'in "0 ile 0 -> %0" sonucu YANILTICI
+  // olur - "değişmedi" değil "karşılaştırılacak veri yok" demek gerekir. (12.08.2026)
+  const hasCallsData = CALLS_ROWS.some(r => (r.date >= from && r.date <= to) || (r.date >= prevFrom && r.date <= prevTo));
+  const hasGtdData = gtdSeries.some(p => (p.date >= from && p.date <= to) || (p.date >= prevFrom && p.date <= prevTo));
+  const hasKopukData = kopukSeries.some(p => (p.date >= from && p.date <= to) || (p.date >= prevFrom && p.date <= prevTo));
+
+  const callsPct = hasCallsData ? pctChange(callsCurr, callsPrev) : null;
+  const kacanPct = hasCallsData ? pctChange(kacanCurr, kacanPrev) : null;
+  const gtdPct = hasGtdData ? pctChange(gtdCurr, gtdPrev) : null;
+  const kopukPct = hasKopukData ? pctChange(kopukCurr, kopukPrev) : null;
   const gtdAd = gtdLabel();
 
   // "Bu dönemde/aynı dönemde" yerine GERÇEK tarih aralıkları yazılır - hangi dönemin hangi
@@ -8748,12 +8756,19 @@ function computeInsightSentences(from, to){
   const oncekiEtiket = `önceki döneme (${prevFrom.toLocaleDateString('tr-TR')}–${prevTo.toLocaleDateString('tr-TR')}) göre`;
 
   const sentences = [];
-  if (callsPct !== null) sentences.push(`${donemEtiket} çağrı hacmi, ${oncekiEtiket} %${Math.abs(callsPct).toFixed(1)} ${callsPct >= 0 ? 'arttı' : 'azaldı'}.`);
-  if (kacanPct !== null) sentences.push(`${donemEtiket} kaçan çağrı, ${oncekiEtiket} %${Math.abs(kacanPct).toFixed(1)} ${kacanPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Kaçan çağrı', kacanPct, 'Talep (' + gtdAd + ')', gtdPct)}`);
-  if (gtdPct !== null) sentences.push(`${donemEtiket} ${gtdAd}, ${oncekiEtiket} %${Math.abs(gtdPct).toFixed(1)} ${gtdPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend(gtdAd, gtdPct, 'Çağrı hacmi', callsPct)}`);
-  if (kopukPct !== null) sentences.push(`${donemEtiket} Köpük Talep, ${oncekiEtiket} %${Math.abs(kopukPct).toFixed(1)} ${kopukPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Köpük Talep', kopukPct, 'Çağrı hacmi', callsPct)}`);
+  if (!hasCallsData) sentences.push(`Çağrı için ${donemEtiket} ya da ${oncekiEtiket} veri yok, karşılaştırma yapılamıyor.`);
+  else if (callsPct !== null) sentences.push(`${donemEtiket} çağrı hacmi, ${oncekiEtiket} %${Math.abs(callsPct).toFixed(1)} ${callsPct >= 0 ? 'arttı' : 'azaldı'}.`);
+
+  if (!hasCallsData) sentences.push(`Kaçan çağrı için ${donemEtiket} ya da ${oncekiEtiket} veri yok, karşılaştırma yapılamıyor.`);
+  else if (kacanPct !== null) sentences.push(`${donemEtiket} kaçan çağrı, ${oncekiEtiket} %${Math.abs(kacanPct).toFixed(1)} ${kacanPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Kaçan çağrı', kacanPct, 'Talep (' + gtdAd + ')', gtdPct)}`);
+
+  if (!hasGtdData) sentences.push(`${gtdAd} için ${donemEtiket} ya da ${oncekiEtiket} veri yok, karşılaştırma yapılamıyor.`);
+  else if (gtdPct !== null) sentences.push(`${donemEtiket} ${gtdAd}, ${oncekiEtiket} %${Math.abs(gtdPct).toFixed(1)} ${gtdPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend(gtdAd, gtdPct, 'Çağrı hacmi', callsPct)}`);
+
+  if (!hasKopukData) sentences.push(`Köpük Talep için ${donemEtiket} ya da ${oncekiEtiket} veri yok, karşılaştırma yapılamıyor.`);
+  else if (kopukPct !== null) sentences.push(`${donemEtiket} Köpük Talep, ${oncekiEtiket} %${Math.abs(kopukPct).toFixed(1)} ${kopukPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Köpük Talep', kopukPct, 'Çağrı hacmi', callsPct)}`);
+
   if (gtdPct !== null && kopukPct !== null) sentences.push(compareTrend(gtdAd, gtdPct, 'Köpük Talep', kopukPct));
-  if (!sentences.length) sentences.push(`${donemEtiket} ya da ${oncekiEtiket} karşılaştırma yapacak yeterli veri yok.`);
 
   const topKat = topKategoriInRange(from, to);
   if (topKat) sentences.push(`${donemEtiket} en çok talep alınan konu "${topKat.name}" oldu (${Math.round(topKat.total).toLocaleString('tr-TR')} adet).`);
@@ -9191,12 +9206,15 @@ function renderWeeklyTable(){
     return;
   }
 
-  // Kombinasyonlar: Yıl -> Ay -> Metrik sırasıyla, her biri ayrı bir sütun. Aynı ayın farklı
-  // yılları (örn. Mayıs 2025 ve Mayıs 2026) böylece otomatik olarak yan yana düşer.
+  // Kombinasyonlar: METRİK -> AY -> YIL sırasıyla (12.08.2026'da bu sıraya değiştirildi -
+  // önceki Yıl->Ay->Metrik sırası, aynı metriğin farklı aylarını birbirinden uzağa
+  // düşürüyordu). Bu sırayla hem aynı metriğin ayları yan yana durur (örn. Haziran Çağrı,
+  // Temmuz Çağrı, sonra Kaçan'a geçer) HEM aynı ayın farklı yılları da yan yana kalır
+  // (örn. Mayıs 2025 hemen Mayıs 2026'nın yanında) - ikisi birden korunmuş olur.
   const combos = [];
-  years.forEach(y => months.forEach(m => metricDefs.forEach(md => combos.push({ year: y, month: m, metricKey: md.key, metricLabel: md.label }))));
+  metricDefs.forEach(md => months.forEach(m => years.forEach(y => combos.push({ year: y, month: m, metricKey: md.key, metricLabel: md.label }))));
 
-  head.innerHTML = '<th>Hafta</th>' + combos.map(c => `<th>${monthLabel(c.year, c.month)} — ${c.metricLabel}</th>`).join('');
+  head.innerHTML = '<th>Hafta</th>' + combos.map(c => `<th>${c.metricLabel} — ${monthLabel(c.year, c.month)}</th>`).join('');
 
   const weeklyByCombo = combos.map(c => weeklySumsFor(c.year, c.month, c.metricKey));
   const ranges = ['1-7', '8-14', '15-21', '22-28', '29-31'];
