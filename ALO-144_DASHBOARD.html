@@ -1673,10 +1673,12 @@ body{
   </div>
 
   <div class="metrics" id="anMetrics"></div>
+  <div id="anCoverageMetrics"></div>
 
   <div id="anInsightBox" class="panel" style="margin-bottom:16px; padding:18px 20px; border-left:3px solid var(--accent);">
     <div style="font-size:11px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--accent); margin-bottom:8px;">📊 Otomatik İçgörü</div>
     <div id="anInsightText" style="font-size:13.5px; line-height:1.7; color:var(--text);">Analizi görmek için yukarıdan Yenile'ye basın.</div>
+    <div id="anCoverageInsight"></div>
   </div>
 
   <div class="chart-panel" style="margin-bottom:16px;">
@@ -1684,10 +1686,12 @@ body{
     <div id="an-filterrow-corr"></div>
     <div id="anCorrSelectors" style="padding:8px 18px 6px; display:flex; flex-wrap:wrap; gap:14px 20px;"></div>
     <div class="chart-wrap" style="height:360px; padding:8px 18px 18px;"><canvas id="anCorrChart-canvas"></canvas></div>
+    <div id="anCoverageCorr" style="padding:0 18px 14px;"></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">Aylık Karşılaştırma — Geçen Aya ve Geçen Yılın Aynı Ayına Göre <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">TÜM geçmiş veri, tarih filtresinden bağımsız — Yön: talep/köpük değişimi çağrıyla aynı yönde mi</span></div>
+    <div style="padding:8px 18px 0; font-size:11px; color:var(--text-dim);"><b>MoM</b> = bir önceki aya göre değişim &nbsp;·&nbsp; <b>YoY</b> = geçen yılın aynı ayına göre değişim</div>
     <div id="an-filterrow-monthly"></div>
     <div class="table-scroll">
       <table id="anMonthlyTable">
@@ -1698,12 +1702,22 @@ body{
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-head">Ay İçi Haftalık Dağılım <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili ayın hangi haftasında yoğunluk oluşmuş</span></div>
-    <div id="an-filterrow-weekly"></div>
-    <div style="padding:14px 18px 0;">
-      <select id="an-weekMonthSelect" style="max-width:260px;"></select>
+    <div class="panel-head">Haftalık Dağılım <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">hangi yılın hangi ayında, hangi hafta yoğunluk oluşmuş - farklı yıl/ayları yan yana kıyaslayın</span></div>
+    <div style="padding:14px 18px 4px; display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;">
+      <div>
+        <div class="hint" style="margin-bottom:6px;">Yıl (çoklu)</div>
+        <div id="anWeekYearChips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:6px;">Ay (çoklu)</div>
+        <div id="anWeekMonthChips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:6px;">Metrik (çoklu)</div>
+        <div id="anWeekMetricChips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
     </div>
-    <div class="table-scroll" style="padding:0 0 4px;">
+    <div class="table-scroll" style="padding:10px 0 4px;">
       <table id="anWeeklyTable">
         <thead><tr id="anWeeklyHead"></tr></thead>
         <tbody id="anWeeklyBody"></tbody>
@@ -1717,6 +1731,7 @@ body{
     </div>
     <div id="an-filterrow-heatmap"></div>
     <div id="anHeatmapGtdWrap" style="padding:18px; overflow-x:auto;"></div>
+    <div id="anCoverageHeatmapGtd" style="padding:0 18px 14px;"></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
@@ -1724,6 +1739,7 @@ body{
       Köpük Talep — Aylık Yoğunluk Haritası (Yıl × Ay) <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">toplam hacim — TÜM geçmiş veri, tarih filtresinden bağımsız</span>
     </div>
     <div id="anHeatmapKopukWrap" style="padding:18px; overflow-x:auto;"></div>
+    <div id="anCoverageHeatmapKopuk" style="padding:0 18px 14px;"></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
@@ -1733,6 +1749,17 @@ body{
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">Genel Talep Dağılımı — Kategori Sıralaması <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">seçili dönem vs önceki eşit dönem</span></div>
+    <div style="padding:14px 18px 4px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+      <div class="date-input-group">
+        <label>Başlangıç</label>
+        <input type="date" id="anRankDateFrom">
+      </div>
+      <div class="date-input-group">
+        <label>Bitiş</label>
+        <input type="date" id="anRankDateTo">
+      </div>
+      <span class="hint" style="font-size:10.5px;">yukarıdaki genel tarih filtresiyle senkron - biri değişince diğeri de değişir</span>
+    </div>
     <div id="an-filterrow-katrank"></div>
     <div class="table-scroll">
       <table id="anKatRankTable">
@@ -1740,6 +1767,7 @@ body{
         <tbody id="anKatRankBody"></tbody>
       </table>
     </div>
+    <div id="anCoverageKatRank" style="padding:0 18px 14px;"></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
@@ -8328,7 +8356,6 @@ async function loadData(isRefresh){
 
     populateIlSelect();
     populateKatPanel();
-    populateWeekMonthSelect();
 
     anStatusDot.className = 'dot';
     anStatusText.textContent = `Bağlantı başarılı — ${CALLS_ROWS.length} çağrı günü, ${GTD_ROWS.length} talep kaydı, ${KOPUK_ROWS.length} köpük günü${isRefresh ? ' (yenilendi)' : ''}`;
@@ -8515,8 +8542,53 @@ function getCurrentRange(){
   return { from: new Date(fromEl.value + 'T00:00:00'), to: new Date(toEl.value + 'T23:59:59') };
 }
 
+// ================= Veri Kapsamı (paylaşılan bileşen) =================
+// 3 kaynağın (Çağrı, Genel Talep, Köpük Talep) GERÇEK veri tarih aralığı birbirinden çok
+// farklı olabiliyor (örn. biri 2 yıllık, diğeri sadece son birkaç gün) - bu, tarih filtresi
+// geniş seçildiğinde "veri eksik" yerine "değer düşük/0" gibi yanlış bir izlenim yaratabiliyor.
+// Bu bileşen HER YERDE (KPI kartları, İçgörü, Korelasyon, 2 Isı Haritası, Kategori Sıralaması)
+// aynı mantıkla kullanılıyor: her kaynağın gerçek min/max tarihini gösterir, seçili aralık
+// (from/to verilirse) o kaynağın gerçek kapsamını AŞIYORSA kaynağı uyarı rengiyle işaretler.
+// (12.08.2026)
+function computeDataCoverage(dates){
+  if (!dates || !dates.length) return null;
+  let min = dates[0], max = dates[0];
+  for (const d of dates){ if (d < min) min = d; if (d > max) max = d; }
+  return { min, max };
+}
+
+function dataCoverageHtml(sources, from, to){
+  const parts = sources.map(s => {
+    const cov = computeDataCoverage(s.dates);
+    if (!cov){
+      return `<span style="color:var(--text-dim-2);">${s.label}: veri yok</span>`;
+    }
+    const fromLabel = cov.min.toLocaleDateString('tr-TR');
+    const toLabel = cov.max.toLocaleDateString('tr-TR');
+    const insufficient = !!(from && to && (cov.min > from || cov.max < to));
+    const color = insufficient ? 'var(--danger)' : 'var(--text-dim)';
+    const warnText = insufficient ? ` ⚠ seçili aralığın tamamını kapsamıyor` : '';
+    return `<span style="color:${color};">${s.label}: ${fromLabel}–${toLabel}${warnText}</span>`;
+  });
+  return `<div style="font-size:10.5px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:6px 16px;"><span style="color:var(--text-dim-2); font-weight:700;">VERİ KAPSAMI:</span>${parts.join('')}</div>`;
+}
+
+// Dashboard genelinde tekrar tekrar kullanılacak 3 kaynağın hazır kaynak listesi.
+function anCoverageSources(){
+  return [
+    { label: 'Çağrı', dates: CALLS_ROWS.map(r => r.date) },
+    { label: gtdLabel(), dates: GTD_ROWS.map(r => r.date) },
+    { label: 'Köpük Talep', dates: KOPUK_ROWS.map(r => r.date) },
+  ];
+}
+
 function getPrevRange(from, to){
-  const days = Math.round((to - from) / 86400000) + 1;
+  // Saat bileşenini (00:00 vs 23:59:59) atıp SADECE takvim günü farkına göre hesaplanır -
+  // eski formül tek gün seçiliyken bile "2 gün" hesaplıyordu (12.08.2026'da GTD sayfasında
+  // bulunup düzeltilen aynı hata, burada da geçerliydi).
+  const fromMid = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const toMid = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  const days = Math.round((toMid - fromMid) / 86400000) + 1;
   const prevTo = new Date(from); prevTo.setDate(prevTo.getDate() - 1); prevTo.setHours(23,59,59,0);
   const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - (days - 1)); prevFrom.setHours(0,0,0,0);
   return { prevFrom, prevTo };
@@ -8631,6 +8703,8 @@ function renderMetrics(from, to){
   const cards = computeKpiCards(from, to).map(c => metricCard(c.label, c.value, c.deltaPct, c.opts));
   anMetrics.innerHTML = cards.join('');
   playCountAnimations(anMetrics);
+  const covEl = document.getElementById('anCoverageMetrics');
+  if (covEl) covEl.innerHTML = dataCoverageHtml(anCoverageSources(), from, to);
 }
 
 function compareTrend(nameA, pctA, nameB, pctB){
@@ -8663,16 +8737,22 @@ function computeInsightSentences(from, to){
   const kopukPct = pctChange(kopukCurr, kopukPrev);
   const gtdAd = gtdLabel();
 
+  // "Bu dönemde/aynı dönemde" yerine GERÇEK tarih aralıkları yazılır - hangi dönemin hangi
+  // döneme göre kıyaslandığı, dışarıdaki tarih filtresine bakmaya gerek kalmadan her cümlede
+  // açık olsun diye. (12.08.2026)
+  const donemEtiket = `${from.toLocaleDateString('tr-TR')}–${to.toLocaleDateString('tr-TR')} döneminde`;
+  const oncekiEtiket = `önceki döneme (${prevFrom.toLocaleDateString('tr-TR')}–${prevTo.toLocaleDateString('tr-TR')}) göre`;
+
   const sentences = [];
-  if (callsPct !== null) sentences.push(`Bu dönemde çağrı hacmi %${Math.abs(callsPct).toFixed(1)} ${callsPct >= 0 ? 'arttı' : 'azaldı'}.`);
-  if (kacanPct !== null) sentences.push(`Kaçan çağrı aynı dönemde %${Math.abs(kacanPct).toFixed(1)} ${kacanPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Kaçan çağrı', kacanPct, 'Talep (' + gtdAd + ')', gtdPct)}`);
-  if (gtdPct !== null) sentences.push(`${gtdAd} aynı dönemde %${Math.abs(gtdPct).toFixed(1)} ${gtdPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend(gtdAd, gtdPct, 'Çağrı hacmi', callsPct)}`);
-  if (kopukPct !== null) sentences.push(`Köpük Talep aynı dönemde %${Math.abs(kopukPct).toFixed(1)} ${kopukPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Köpük Talep', kopukPct, 'Çağrı hacmi', callsPct)}`);
+  if (callsPct !== null) sentences.push(`${donemEtiket} çağrı hacmi, ${oncekiEtiket} %${Math.abs(callsPct).toFixed(1)} ${callsPct >= 0 ? 'arttı' : 'azaldı'}.`);
+  if (kacanPct !== null) sentences.push(`${donemEtiket} kaçan çağrı, ${oncekiEtiket} %${Math.abs(kacanPct).toFixed(1)} ${kacanPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Kaçan çağrı', kacanPct, 'Talep (' + gtdAd + ')', gtdPct)}`);
+  if (gtdPct !== null) sentences.push(`${donemEtiket} ${gtdAd}, ${oncekiEtiket} %${Math.abs(gtdPct).toFixed(1)} ${gtdPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend(gtdAd, gtdPct, 'Çağrı hacmi', callsPct)}`);
+  if (kopukPct !== null) sentences.push(`${donemEtiket} Köpük Talep, ${oncekiEtiket} %${Math.abs(kopukPct).toFixed(1)} ${kopukPct >= 0 ? 'arttı' : 'azaldı'}. ${compareTrend('Köpük Talep', kopukPct, 'Çağrı hacmi', callsPct)}`);
   if (gtdPct !== null && kopukPct !== null) sentences.push(compareTrend(gtdAd, gtdPct, 'Köpük Talep', kopukPct));
-  if (!sentences.length) sentences.push('Seçili dönem veya önceki eşit uzunluktaki dönem için karşılaştırma yapacak yeterli veri yok.');
+  if (!sentences.length) sentences.push(`${donemEtiket} ya da ${oncekiEtiket} karşılaştırma yapacak yeterli veri yok.`);
 
   const topKat = topKategoriInRange(from, to);
-  if (topKat) sentences.push(`Bu dönemde en çok talep alınan konu "${topKat.name}" oldu (${Math.round(topKat.total).toLocaleString('tr-TR')} adet).`);
+  if (topKat) sentences.push(`${donemEtiket} en çok talep alınan konu "${topKat.name}" oldu (${Math.round(topKat.total).toLocaleString('tr-TR')} adet).`);
 
   const peakGtd = peakMonthOverall(gtdSeries);
   if (peakGtd) sentences.push(`${gtdAd}, tüm geçmiş veriye göre en çok ${peakGtd.monthName} ayında yoğunlaşıyor (yıllık ortalama ${Math.round(peakGtd.avg).toLocaleString('tr-TR')} adet/ay).`);
@@ -8685,6 +8765,8 @@ function computeInsightSentences(from, to){
 function buildInsight(from, to){
   const sentences = computeInsightSentences(from, to);
   anInsightText.innerHTML = sentences.map(s => `<div style="margin-bottom:6px;">• ${s}</div>`).join('');
+  const covEl = document.getElementById('anCoverageInsight');
+  if (covEl) covEl.innerHTML = dataCoverageHtml(anCoverageSources(), from, to);
 }
 
 // ================= Korelasyon Grafiği =================
@@ -8736,6 +8818,8 @@ function renderCorrSelectors(){
 let anCorrChart = null;
 function renderCorrChart(from, to){
   renderCorrSelectors();
+  const covEl = document.getElementById('anCoverageCorr');
+  if (covEl) covEl.innerHTML = dataCoverageHtml(anCoverageSources(), from, to);
   const canvas = document.getElementById('anCorrChart-canvas');
   const gtdInRange = gtdSeries.filter(p => p.date >= from && p.date <= to);
   const kopukInRange = kopukSeries.filter(p => p.date >= from && p.date <= to);
@@ -8870,9 +8954,18 @@ function computeIlRanking(from, to, limit){
 }
 
 function renderRankTables(from, to){
+  // Yerel (panel yanındaki) tarih girişleri, üstteki genel filtreyle SENKRON tutulur -
+  // kullanıcı sayfanın en başına kaydırmadan buradan da tarih değiştirebilsin diye. (12.08.2026)
+  const rankFromEl = document.getElementById('anRankDateFrom');
+  const rankToEl = document.getElementById('anRankDateTo');
+  if (rankFromEl && rankToEl){ rankFromEl.value = fmtDate(from); rankToEl.value = fmtDate(to); }
+
   const katRows = computeKatRanking(from, to);
   document.getElementById('anKatRankHead').innerHTML = '<th>#</th><th>Kategori</th><th>Bu Dönem</th><th>Değişim</th>';
   document.getElementById('anKatRankBody').innerHTML = katRows.length ? katRows.map((r,i) => `<tr><td>${i+1}</td><td class="date">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.curr).toLocaleString('tr-TR')}</td><td>${deltaCellHtml(pctChange(r.curr, r.prev))}</td></tr>`).join('') : '<tr><td class="empty-state" colspan="4">Veri yok.</td></tr>';
+
+  const covKatEl = document.getElementById('anCoverageKatRank');
+  if (covKatEl) covKatEl.innerHTML = dataCoverageHtml([{ label: gtdLabel(), dates: GTD_ROWS.map(r => r.date) }], from, to);
 
   const { activeCats, headCols, entries } = computeIlRanking(from, to, 15);
   const headExtra = activeCats ? '<th>Toplam</th>' : '';
@@ -8886,6 +8979,14 @@ function renderRankTables(from, to){
     return `<tr><td>${i+1}</td><td class="date">${e.il}</td>${cols}${totalCol}<td>${deltaCellHtml(pctChange(e.curr, e.prev))}</td></tr>`;
   }).join('') : '<tr><td class="empty-state" colspan="16">Veri yok.</td></tr>';
 }
+document.getElementById('anRankDateFrom').addEventListener('change', () => {
+  const f = document.getElementById('anRankDateFrom').value, t = document.getElementById('anRankDateTo').value;
+  if (f && t) anDateFilter.setCustomRange(f, t);
+});
+document.getElementById('anRankDateTo').addEventListener('change', () => {
+  const f = document.getElementById('anRankDateFrom').value, t = document.getElementById('anRankDateTo').value;
+  if (f && t) anDateFilter.setCustomRange(f, t);
+});
 
 // ================= Ay Yardımcıları =================
 function monthKey(year, month){ return year + '-' + String(month).padStart(2, '0'); }
@@ -8947,8 +9048,15 @@ function computeMonthlyRows(){
     const kacanV = valAt(kacanMap, year, month), kacanMoM = momPct(kacanMap, year, month), kacanYoY = yoyPct(kacanMap, year, month);
     const gtdV = valAt(gtdMap, year, month), gtdMoM = momPct(gtdMap, year, month), gtdYoY = yoyPct(gtdMap, year, month);
     const kopukV = valAt(kopukMap, year, month), kopukMoM = momPct(kopukMap, year, month), kopukYoY = yoyPct(kopukMap, year, month);
+    // Devam eden (henüz bitmemiş) ay işaretlenir - kısmi bir ayın, tam bir önceki ayla
+    // kıyaslanmasından doğan yanıltıcı MoM yüzdesi ("düştü" gibi görünüp aslında ay
+    // henüz bitmediği için düşük çıkması) böylece açıkça anlaşılır. (12.08.2026)
+    const today = new Date();
+    const isOngoing = (year === today.getFullYear() && month === today.getMonth() + 1);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const daysSoFar = isOngoing ? today.getDate() : daysInMonth;
     return {
-      year, month, label: monthLabel(year, month),
+      year, month, label: monthLabel(year, month), isOngoing, daysSoFar, daysInMonth,
       calls: { v: callsV, mom: callsMoM, yoy: callsYoY },
       kacan: { v: kacanV, mom: kacanMoM, yoy: kacanYoY },
       gtd: { v: gtdV, mom: gtdMoM, yoy: gtdYoY, yonVsCalls: yon(gtdMoM, callsMoM) },
@@ -8967,13 +9075,13 @@ function renderMonthlyTable(){
 
   document.getElementById('anMonthlyHead').innerHTML = `
     <th>Ay</th>
-    <th>Çağrı</th><th>MoM</th><th>YoY</th>
-    <th>Kaçan</th><th>MoM</th><th>YoY</th>
-    <th>${gtdLabel()}</th><th>MoM</th><th>YoY</th><th>Yön (vs Çağrı)</th>
-    <th>Köpük Talep</th><th>MoM</th><th>YoY</th><th>Yön (vs Çağrı)</th>`;
+    <th>Çağrı</th><th title="Bir önceki aya göre değişim">MoM</th><th title="Geçen yılın aynı ayına göre değişim">YoY</th>
+    <th>Kaçan</th><th title="Bir önceki aya göre değişim">MoM</th><th title="Geçen yılın aynı ayına göre değişim">YoY</th>
+    <th>${gtdLabel()}</th><th title="Bir önceki aya göre değişim">MoM</th><th title="Geçen yılın aynı ayına göre değişim">YoY</th><th>Yön (vs Çağrı)</th>
+    <th>Köpük Talep</th><th title="Bir önceki aya göre değişim">MoM</th><th title="Geçen yılın aynı ayına göre değişim">YoY</th><th>Yön (vs Çağrı)</th>`;
 
   document.getElementById('anMonthlyBody').innerHTML = months.length ? months.map(m => `<tr>
-      <td>${m.label}</td>
+      <td>${m.label}${m.isOngoing ? ` <span style="color:var(--accent); font-size:10.5px; font-weight:700;" title="Bu ay henüz tamamlanmadı, MoM/YoY kısmi veriyle hesaplanmış olabilir">⏳ devam ediyor, ${m.daysSoFar}/${m.daysInMonth} gün</span>` : ''}</td>
       <td>${cell(m.calls.v)}</td><td>${deltaCellHtml(m.calls.mom)}</td><td>${deltaCellHtml(m.calls.yoy)}</td>
       <td>${cell(m.kacan.v)}</td><td>${deltaCellHtml(m.kacan.mom)}</td><td>${deltaCellHtml(m.kacan.yoy)}</td>
       <td>${cell(m.gtd.v)}</td><td>${deltaCellHtml(m.gtd.mom)}</td><td>${deltaCellHtml(m.gtd.yoy)}</td><td>${yonHtml(m.gtd.yonVsCalls)}</td>
@@ -8981,38 +9089,116 @@ function renderMonthlyTable(){
     </tr>`).join('') : '<tr><td class="empty-state" colspan="15">Veri yok.</td></tr>';
 }
 
-// ================= Ay İçi Haftalık Dağılım =================
+// ================= Haftalık Dağılım (Yıl × Ay × Metrik, hepsi ÇOKLU seçim) =================
+// Eski hali TEK ay seçimliydi ("Ay İçi Haftalık Dağılım") - 12.08.2026'da yeniden tasarlandı:
+// artık birden fazla Yıl + birden fazla Ay (AY ADI bazında, örn. "Mayıs" seçilince seçili
+// TÜM yılların Mayıs'ı gelir) + birden fazla Metrik aynı anda seçilebiliyor, farklı
+// yıl/ayların aynı haftası yan yana karşılaştırılabiliyor (örn. Mayıs 2025 vs Mayıs 2026).
+// Varsayılan: içinde bulunduğumuz yıl + içinde bulunduğumuz ay + 4 metrik de açık - "az
+// karmaşa, hemen anlamlı" isteği üzerine (kullanıcı geri bildirimi, 12.08.2026).
 function weekOfMonth(day){ return Math.min(5, Math.ceil(day / 7)); }
 
-function populateWeekMonthSelect(){
-  const sel = document.getElementById('an-weekMonthSelect');
-  const allDates = [...CALLS_ROWS.map(r => r.date), ...GTD_ROWS.map(r => r.date), ...KOPUK_ROWS.map(r => r.date)];
-  const keys = new Set(allDates.map(d => monthKey(d.getFullYear(), d.getMonth() + 1)));
-  const months = [...keys].map(k => { const [y,m] = k.split('-').map(Number); return { year: y, month: m, key: k }; })
-    .sort((a,b) => (b.year - a.year) || (b.month - a.month));
-  const prevVal = sel.value;
-  sel.innerHTML = months.map(m => `<option value="${m.key}">${monthLabel(m.year, m.month)}</option>`).join('');
-  if (months.some(m => m.key === prevVal)) sel.value = prevVal;
-  else if (months.length) sel.value = months[0].key;
+let anWeekSelectedYears = new Set();
+let anWeekSelectedMonths = new Set(); // 1-12, yıldan bağımsız ay NUMARASI
+let anWeekSelectedMetrics = new Set(['calls', 'kacan', 'gtd', 'kopuk']);
+let anWeekDefaultApplied = false;
+
+const AN_WEEK_METRIC_DEFS = () => ([
+  { key: 'calls', label: 'Çağrı' },
+  { key: 'kacan', label: 'Kaçan' },
+  { key: 'gtd', label: gtdLabel() },
+  { key: 'kopuk', label: 'Köpük Talep' },
+]);
+
+function anWeekAvailableYears(){
+  const years = new Set();
+  CALLS_ROWS.forEach(r => years.add(r.date.getFullYear()));
+  GTD_ROWS.forEach(r => years.add(r.date.getFullYear()));
+  KOPUK_ROWS.forEach(r => years.add(r.date.getFullYear()));
+  return [...years].sort((a,b) => b - a);
+}
+
+function renderWeekChips(){
+  const years = anWeekAvailableYears();
+  if (!anWeekDefaultApplied){
+    anWeekDefaultApplied = true;
+    const today = new Date();
+    if (years.includes(today.getFullYear())) anWeekSelectedYears.add(today.getFullYear());
+    else if (years.length) anWeekSelectedYears.add(years[0]);
+    anWeekSelectedMonths.add(today.getMonth() + 1);
+  }
+  const yearsEl = document.getElementById('anWeekYearChips');
+  yearsEl.innerHTML = years.length ? years.map(y =>
+    `<button class="month-chip ${anWeekSelectedYears.has(y) ? 'active' : ''}" data-weekyear="${y}">${y}</button>`).join('')
+    : '<div class="empty-state">Veri yok.</div>';
+
+  document.getElementById('anWeekMonthChips').innerHTML = DATE_FILTER_MONTH_NAMES.map((mn,i) =>
+    `<button class="month-chip ${anWeekSelectedMonths.has(i+1) ? 'active' : ''}" data-weekmonth="${i+1}">${mn}</button>`).join('');
+
+  document.getElementById('anWeekMetricChips').innerHTML = AN_WEEK_METRIC_DEFS().map(m =>
+    `<button class="month-chip ${anWeekSelectedMetrics.has(m.key) ? 'active' : ''}" data-weekmetric="${m.key}">${m.label}</button>`).join('');
+}
+
+document.getElementById('anWeekYearChips').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-weekyear]'); if (!btn) return;
+  const y = Number(btn.dataset.weekyear);
+  if (anWeekSelectedYears.has(y)) anWeekSelectedYears.delete(y); else anWeekSelectedYears.add(y);
+  renderWeekChips(); renderWeeklyTable();
+});
+document.getElementById('anWeekMonthChips').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-weekmonth]'); if (!btn) return;
+  const m = Number(btn.dataset.weekmonth);
+  if (anWeekSelectedMonths.has(m)) anWeekSelectedMonths.delete(m); else anWeekSelectedMonths.add(m);
+  renderWeekChips(); renderWeeklyTable();
+});
+document.getElementById('anWeekMetricChips').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-weekmetric]'); if (!btn) return;
+  const k = btn.dataset.weekmetric;
+  if (anWeekSelectedMetrics.has(k)) anWeekSelectedMetrics.delete(k); else anWeekSelectedMetrics.add(k);
+  renderWeekChips(); renderWeeklyTable();
+});
+
+function weeklySumsFor(year, month, metricKey){
+  const w = [0,0,0,0,0];
+  if (metricKey === 'calls' || metricKey === 'kacan'){
+    CALLS_ROWS.forEach(r => {
+      if (r.date.getFullYear() === year && r.date.getMonth() + 1 === month){
+        w[weekOfMonth(r.date.getDate()) - 1] += (metricKey === 'calls' ? r.cevap : r.kacan);
+      }
+    });
+  } else if (metricKey === 'gtd'){
+    gtdSeries.forEach(p => { if (p.date.getFullYear() === year && p.date.getMonth() + 1 === month) w[weekOfMonth(p.date.getDate()) - 1] += p.value; });
+  } else if (metricKey === 'kopuk'){
+    kopukSeries.forEach(p => { if (p.date.getFullYear() === year && p.date.getMonth() + 1 === month) w[weekOfMonth(p.date.getDate()) - 1] += p.value; });
+  }
+  return w;
 }
 
 function renderWeeklyTable(){
-  const sel = document.getElementById('an-weekMonthSelect');
-  document.getElementById('anWeeklyHead').innerHTML = '<th>Hafta</th><th>Çağrı</th><th>Kaçan</th><th>' + gtdLabel() + '</th><th>Köpük Talep</th>';
-  if (!sel.value){ document.getElementById('anWeeklyBody').innerHTML = '<tr><td class="empty-state" colspan="5">Veri yok.</td></tr>'; return; }
-  const [year, month] = sel.value.split('-').map(Number);
-  const wCalls = [0,0,0,0,0], wKacan = [0,0,0,0,0], wGtd = [0,0,0,0,0], wKopuk = [0,0,0,0,0];
-  CALLS_ROWS.forEach(r => { if (r.date.getFullYear() === year && r.date.getMonth() + 1 === month){ const w = weekOfMonth(r.date.getDate()) - 1; wCalls[w] += r.cevap; wKacan[w] += r.kacan; } });
-  gtdSeries.forEach(p => { if (p.date.getFullYear() === year && p.date.getMonth() + 1 === month){ wGtd[weekOfMonth(p.date.getDate()) - 1] += p.value; } });
-  kopukSeries.forEach(p => { if (p.date.getFullYear() === year && p.date.getMonth() + 1 === month){ wKopuk[weekOfMonth(p.date.getDate()) - 1] += p.value; } });
+  const head = document.getElementById('anWeeklyHead');
+  const body = document.getElementById('anWeeklyBody');
+  const years = [...anWeekSelectedYears].sort((a,b) => a - b);
+  const months = [...anWeekSelectedMonths].sort((a,b) => a - b);
+  const metricDefs = AN_WEEK_METRIC_DEFS().filter(m => anWeekSelectedMetrics.has(m.key));
 
+  if (!years.length || !months.length || !metricDefs.length){
+    head.innerHTML = '<th>Hafta</th>';
+    body.innerHTML = '<tr><td class="empty-state">Yukarıdan en az bir Yıl, bir Ay ve bir Metrik seçin.</td></tr>';
+    return;
+  }
+
+  // Kombinasyonlar: Yıl -> Ay -> Metrik sırasıyla, her biri ayrı bir sütun. Aynı ayın farklı
+  // yılları (örn. Mayıs 2025 ve Mayıs 2026) böylece otomatik olarak yan yana düşer.
+  const combos = [];
+  years.forEach(y => months.forEach(m => metricDefs.forEach(md => combos.push({ year: y, month: m, metricKey: md.key, metricLabel: md.label }))));
+
+  head.innerHTML = '<th>Hafta</th>' + combos.map(c => `<th>${monthLabel(c.year, c.month)} — ${c.metricLabel}</th>`).join('');
+
+  const weeklyByCombo = combos.map(c => weeklySumsFor(c.year, c.month, c.metricKey));
   const ranges = ['1-7', '8-14', '15-21', '22-28', '29-31'];
-  document.getElementById('anWeeklyBody').innerHTML = ranges.map((r,i) => `
-    <tr><td class="date">${i+1}. Hafta (${r})</td>
-    <td style="font-family:'IBM Plex Mono',monospace;">${Math.round(wCalls[i]).toLocaleString('tr-TR')}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;">${Math.round(wKacan[i]).toLocaleString('tr-TR')}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;">${Math.round(wGtd[i]).toLocaleString('tr-TR')}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;">${Math.round(wKopuk[i]).toLocaleString('tr-TR')}</td></tr>`).join('');
+  body.innerHTML = ranges.map((r, wi) => `<tr><td class="date">${wi+1}. Hafta (${r})</td>${
+    combos.map((c, ci) => `<td style="font-family:'IBM Plex Mono',monospace;">${weeklyByCombo[ci][wi] ? Math.round(weeklyByCombo[ci][wi]).toLocaleString('tr-TR') : '—'}</td>`).join('')
+  }</tr>`).join('');
 }
 
 // ================= Kaçan Çağrının Yıl Ortalamasının Üzerinde Kaldığı Aylar =================
@@ -9163,14 +9349,17 @@ function renderAll(){
   buildInsight(range.from, range.to);
   renderCorrChart(range.from, range.to);
   renderMonthlyTable();
+  renderWeekChips();
   renderWeeklyTable();
   renderHeatmap(gtdSeries, 'anHeatmapGtdWrap');
   renderHeatmap(kopukSeries, 'anHeatmapKopukWrap');
+  const covGtdEl = document.getElementById('anCoverageHeatmapGtd');
+  if (covGtdEl) covGtdEl.innerHTML = dataCoverageHtml([{ label: gtdLabel(), dates: GTD_ROWS.map(r => r.date) }], null, null);
+  const covKopukEl = document.getElementById('anCoverageHeatmapKopuk');
+  if (covKopukEl) covKopukEl.innerHTML = dataCoverageHtml([{ label: 'Köpük Talep', dates: KOPUK_ROWS.map(r => r.date) }], null, null);
   renderKacanCulprits();
   renderRankTables(range.from, range.to);
 }
-
-document.getElementById('an-weekMonthSelect').addEventListener('change', renderWeeklyTable);
 
 // ================= Sunum Oluştur =================
 // Gelen Arama Dağılımı sayfasındaki presGenerate ile AYNI mimari (pptxgenjs, tamamen
