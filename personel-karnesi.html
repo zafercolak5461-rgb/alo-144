@@ -173,6 +173,11 @@
 
   .modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; display:flex; align-items:center; justify-content:center; }
   .modal-box{ background:var(--panel); border:1px solid var(--line); border-radius:16px; width:420px; max-width:90vw; max-height:80vh; display:flex; flex-direction:column; }
+  .format-panel-table{ border-collapse:collapse; width:100%; font-size:12px; }
+  .format-panel-table th, .format-panel-table td{ border:1px solid var(--line); padding:6px 8px; text-align:left; white-space:nowrap; }
+  .format-panel-table th{ background:var(--panel-2, #f4f5f9); position:sticky; top:0; }
+  .format-panel-table input[type=text], .format-panel-table input[type=number], .format-panel-table select{ font-size:12px; padding:2px 4px; }
+  .format-panel-table input[type=color]{ width:36px; height:26px; padding:0; border:1px solid var(--line); }
   .modal-head{ padding:18px 22px; font-family:'Fraunces',serif; font-weight:600; font-size:16px; border-bottom:1px solid var(--line); }
   .modal-body{ padding:18px 22px; overflow-y:auto; }
   .modal-foot{ padding:16px 22px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:10px; }
@@ -228,7 +233,7 @@
   .analiz-marquee-track span{ margin-right:64px; }
 
   .id-badge{ font-size:13px; background: var(--panel2); border:1px solid var(--line); padding:3px 9px; border-radius:20px; margin-left:6px; }
-.islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only{ display:none !important; }
+.islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only, .formatpanel-only{ display:none !important; }
 </style>
 </head>
 <body>
@@ -305,12 +310,35 @@
         <div style="display:flex; gap:8px; margin-bottom:14px;">
           <button class="refresh-btn" id="exportSelectAllBtn">Tümünü Seç</button>
           <button class="refresh-btn" id="exportClearBtn">Temizle</button>
+          <button class="refresh-btn formatpanel-only" id="openFormatPanelBtn" style="margin-left:auto;">🎨 Biçimlendirme</button>
         </div>
         <div id="exportMetricChecklist"></div>
       </div>
       <div class="modal-foot">
         <button class="refresh-btn" id="exportCancelBtn">İptal</button>
         <button class="refresh-btn" id="exportConfirmBtn" style="background:var(--accent-soft); color:var(--accent); border-color:var(--accent);">Excel'e Aktar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="formatPanelOverlay" style="display:none;">
+    <div class="modal-box" style="max-width:1180px; width:96vw;">
+      <div class="modal-head">Excel Biçimlendirme
+        <span id="formatPanelStatus" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:400; color:var(--dim); margin-left:10px;"></span>
+      </div>
+      <div class="modal-body" style="max-height:70vh; overflow:auto;">
+        <div style="font-weight:700; margin-bottom:8px;">Format Ayarları</div>
+        <div id="formatPanelTableWrap">Yükleniyor…</div>
+        <div style="font-weight:700; margin:22px 0 8px;">Koşullu Biçimlendirme</div>
+        <div id="condPanelTableWrap">Yükleniyor…</div>
+        <button class="refresh-btn" id="condPanelAddBtn" style="margin-top:10px;">+ Yeni Kural Ekle</button>
+        <div style="font-weight:700; margin:22px 0 8px;">Hesaplanan Alanlar</div>
+        <div style="font-size:12px; color:var(--dim); margin-bottom:8px;">Metrik adını süslü parantez içinde yaz (örn. <code>{KKO}</code>), aralarına işlem koy. Örnek: <code>{KKO} * {ANKET} / 100</code></div>
+        <div id="computedPanelTableWrap">Yükleniyor…</div>
+        <button class="refresh-btn" id="computedPanelAddBtn" style="margin-top:10px;">+ Yeni Alan Ekle</button>
+      </div>
+      <div class="modal-foot">
+        <button class="refresh-btn" id="formatPanelCloseBtn">Kapat</button>
       </div>
     </div>
   </div>
@@ -409,6 +437,7 @@ let sunumAuthorized = false;
 let excelAuthorized = false;
 let analizAuthorized = false;
 let yoneticiDetayAuthorized = false; // "Yönetici Detayı" göz ikonu (örn. +1 Vardiya otomatik notu) - K sütunu
+let formatPanelAuthorized = false; // "Excel Biçimlendirme" paneli - Excel yetkisinden BAĞIMSIZ ayrı izin, L sütunu
 let showYoneticiDetay = false; // göz ikonuna tıklanınca bu oturumda açık/kapalı durumu (varsayılan: gizli)
 let AUTH_TABLE = [];
 let accessToken = null;
@@ -443,7 +472,7 @@ const PAGE_COLS_LAST_LETTER = PAGE_COLS[PAGE_COLS.length - 1].letter;
 const PAGE_ACCESS_LEFTTABS = PAGE_COLS.filter(c => c.page !== 'analiz');
 
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1:K1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1:L1000')}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
@@ -463,6 +492,7 @@ async function loadAuthTable(token){
       sunum: isTrueVal(r[4]),
       excel: isTrueVal(r[5]),
       yoneticiDetay: isTrueVal(r[10]), // K sütunu - "+1 Vardiya otomatik" gibi personelin görmemesi gereken teknik notların göz ikonu
+      excelBicimlendirme: isTrueVal(r[11]), // L sütunu - Excel export yetkisinden AYRI, sadece Biçimlendirme panelini açabilme izni
     };
     PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[6 + idx]); });
     rows.push(row);
@@ -513,6 +543,7 @@ async function initIslemAccess(){
     excelAuthorized = isFixedAdmin || !!(myRow && myRow.excel);
     analizAuthorized = isFixedAdmin || !!(myRow && myRow.analiz);
     yoneticiDetayAuthorized = isFixedAdmin || !!(myRow && myRow.yoneticiDetay);
+    formatPanelAuthorized = isFixedAdmin || !!(myRow && myRow.excelBicimlendirme);
 
     // Giriş/çıkış kaydı ARTIK yetkiden bağımsız - başarıyla giriş yapan HERKES loglanır (sadece
     // Güncelleme yetkisi olanlar değil). Kullanıcı listeyi manuel olarak (Sheet'ten satır silerek)
@@ -530,6 +561,7 @@ async function initIslemAccess(){
     document.querySelectorAll('.yetki-only').forEach(el => { if (yetkiAuthorized) el.classList.remove('yetki-only'); });
     document.querySelectorAll('.sunum-only').forEach(el => { if (sunumAuthorized) el.classList.remove('sunum-only'); });
     document.querySelectorAll('.excel-only').forEach(el => { if (excelAuthorized) el.classList.remove('excel-only'); });
+    document.querySelectorAll('.formatpanel-only').forEach(el => { if (formatPanelAuthorized) el.classList.remove('formatpanel-only'); });
     document.querySelectorAll('.analiz-only').forEach(el => { if (analizAuthorized) el.classList.remove('analiz-only'); });
 
     if (islemAuthorized || yetkiAuthorized || sunumAuthorized){
@@ -866,6 +898,155 @@ function playIzinRingAnimation(){
 const EXPORT_FORMAT_SHEET_ID = "1MirwFDXn9coybCur-yTCLoAEaEcXlCyNENCU-bD0b8Y";
 const EXPORT_FORMAT_RANGE = "PERSONEL KARNESİ!A1:L200";
 let EXPORT_FORMAT_CONFIG = null; // artık önbellek YOK - her export'ta taze okunur (test aşamasında yenileme gerekmesin diye)
+let EXPORT_FORMAT_TAB_GID = null; // "PERSONEL KARNESİ" sekmesinin dahili (numeric) sheet id'si - bir kere okunup önbelleklenir
+let CONDITIONAL_TAB_GID = null; // "KOŞULLU BİÇİMLENDİRME" sekmesinin dahili sheet id'si
+
+async function getTabGid(tabTitle){
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?fields=sheets.properties(sheetId,title)`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  const sheet = (data.sheets || []).find(s => s.properties.title === tabTitle);
+  return sheet ? sheet.properties.sheetId : 0;
+}
+async function getFormatTabGid(){
+  if (EXPORT_FORMAT_TAB_GID != null) return EXPORT_FORMAT_TAB_GID;
+  EXPORT_FORMAT_TAB_GID = await getTabGid('PERSONEL KARNESİ');
+  return EXPORT_FORMAT_TAB_GID;
+}
+async function getConditionalTabGid(){
+  if (CONDITIONAL_TAB_GID != null) return CONDITIONAL_TAB_GID;
+  CONDITIONAL_TAB_GID = await getTabGid('KOŞULLU BİÇİMLENDİRME');
+  return CONDITIONAL_TAB_GID;
+}
+
+function exportHexToGoogleColor(hex){
+  const h = String(hex || '').replace('#', '');
+  if (!/^[0-9A-Fa-f]{6}$/.test(h)) return null;
+  return { red: parseInt(h.slice(0, 2), 16) / 255, green: parseInt(h.slice(2, 4), 16) / 255, blue: parseInt(h.slice(4, 6), 16) / 255 };
+}
+
+// Düz metin/sayı hücresi yazar (Uygula, Kalın, Hizalama, Kenarlık, Kaydır, Birleştir Et,
+// Birleştir Aralığı, Yazı Boyutu, Koşullu Biçimlendirme metin sütunları) - hücre İÇERİĞİ.
+async function writeFormatCellValue(tabTitle, rowNum, colLetter, value){
+  const token = await ensureWriteToken();
+  const range = `${tabTitle}!${colLetter}${rowNum}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [[value]] }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Yazma başarısız oldu.');
+}
+
+// Renk hücresi yazar - hücre İÇERİĞİ değil, hücrenin DOLGU rengi yazılır.
+async function writeFormatCellColor(tabTitle, gid, rowNum, colIndex0, hex){
+  const token = await ensureWriteToken();
+  const color = exportHexToGoogleColor(hex);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}:batchUpdate`;
+  const body = { requests: [{
+    repeatCell: {
+      range: { sheetId: gid, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: colIndex0, endColumnIndex: colIndex0 + 1 },
+      cell: { userEnteredFormat: { backgroundColor: color || { red: 1, green: 1, blue: 1 } } },
+      fields: 'userEnteredFormat.backgroundColor',
+    },
+  }] };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Renk yazılamadı.');
+}
+
+// Sayı Formatı hücresi (H) - hücrenin GERÇEK sayı biçimi (numberFormat.pattern) yazılır.
+async function writeFormatCellNumberFormat(rowNum, pattern){
+  const token = await ensureWriteToken();
+  const gid = await getFormatTabGid();
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}:batchUpdate`;
+  const cellFormat = pattern ? { userEnteredFormat: { numberFormat: { type: 'NUMBER', pattern } } } : { userEnteredFormat: { numberFormat: null } };
+  const body = { requests: [{
+    repeatCell: {
+      range: { sheetId: gid, startRowIndex: rowNum - 1, endRowIndex: rowNum, startColumnIndex: 7, endColumnIndex: 8 },
+      cell: cellFormat,
+      fields: 'userEnteredFormat.numberFormat',
+    },
+  }] };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Sayı formatı yazılamadı.');
+}
+
+// Bir satırı tamamen temizler (silme) - satır kaymasını önlemek için gerçek "satır silme"
+// yerine hücre içeriklerini boşaltıyoruz (Sheets'te satır numaraları sabit kalır).
+async function clearFormatRow(tabTitle, rowNum, lastColLetter){
+  const token = await ensureWriteToken();
+  const range = `${tabTitle}!A${rowNum}:${lastColLetter}${rowNum}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}:clear`;
+  const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Silme başarısız oldu.');
+}
+
+// Yeni bir satır ekler (mevcut son satırın altına) - Koşullu Biçimlendirme tablosu için,
+// sabit hedef listesi olmadığından ("Format Ayarları" gibi) kullanıcı istediği kadar kural ekleyebilir.
+async function appendFormatRow(tabTitle, rowValues){
+  const token = await ensureWriteToken();
+  const range = `${tabTitle}!A1`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [rowValues] }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Satır eklenemedi.');
+}
+
+// Panel için: format tablosunun HAM (satır numarası dahil) hâlini okur.
+async function fetchFormatRowsForPanel(){
+  const fields = 'sheets.data.rowData.values(formattedValue,userEnteredFormat(backgroundColor,numberFormat))';
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?ranges=${encodeURIComponent(EXPORT_FORMAT_RANGE)}&fields=${encodeURIComponent(fields)}`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  const rowData = (data.sheets && data.sheets[0] && data.sheets[0].data && data.sheets[0].data[0] && data.sheets[0].data[0].rowData) || [];
+  const rows = [];
+  for (let i = 1; i < rowData.length; i++){
+    const cells = (rowData[i] && rowData[i].values) || [];
+    const cellText = (idx) => (cells[idx] && cells[idx].formattedValue) || '';
+    const label = cellText(0).trim();
+    const key = EXPORT_TARGET_KEYS[label];
+    if (!key) continue;
+    const yaziRengiCell = cells[3];
+    const argPlanCell = cells[4];
+    const sayiFormatCell = cells[7];
+    rows.push({
+      rowNum: i + 1,
+      label,
+      key,
+      uygula: exportNormYesNo(cellText(1)),
+      kalin: exportNormYesNo(cellText(2)),
+      yaziRengi: exportGoogleColorToHex(yaziRengiCell && yaziRengiCell.userEnteredFormat && yaziRengiCell.userEnteredFormat.backgroundColor),
+      argPlan: exportGoogleColorToHex(argPlanCell && argPlanCell.userEnteredFormat && argPlanCell.userEnteredFormat.backgroundColor),
+      hizalama: exportNormAlign(cellText(5)),
+      kenarlik: exportNormYesNo(cellText(6)),
+      sayiFormat: (sayiFormatCell && sayiFormatCell.userEnteredFormat && sayiFormatCell.userEnteredFormat.numberFormat && sayiFormatCell.userEnteredFormat.numberFormat.pattern) || null,
+      kaydir: exportNormYesNo(cellText(8)),
+      birlestir: exportNormYesNo(cellText(9)),
+      birlestirAralik: cellText(10).trim() || null,
+      yaziBoyutu: exportParseNum(cellText(11)),
+    });
+  }
+  return rows;
+}
+
+
 
 const EXPORT_TARGET_KEYS = {
   'Kişi Başlığı': 'kisiBasligi',
@@ -960,6 +1141,13 @@ async function fetchExportFormatConfig(){
 function exportBorderSide(kalin){
   return { style: kalin ? 'medium' : 'thin', color: { argb: 'FF000000' } };
 }
+// Excel'e gerçek SAYI olarak yazmak için 2 ondalığa yuvarlar (fmtKarneVal'in görsel
+// hassasiyetiyle aynı) - metin değil, sayı olduğundan Excel'in "sayı gibi görünen metin"
+// uyarısı (yeşil üçgen) çıkmaz, kullanıcı elle çevirmek zorunda kalmaz.
+function exportRoundVal(v){
+  if (v === null || v === undefined || Number.isNaN(v)) return null;
+  return Math.round(v * 100) / 100;
+}
 function exportBorderObj(kalin){
   const side = exportBorderSide(kalin);
   return { top: side, left: side, bottom: side, right: side };
@@ -1045,6 +1233,53 @@ function finalizeExportRow(ws, rowNum, targetCfg, colCount){
 // Aynı format tablosunda ayrı bir sekme: "KOŞULLU BİÇİMLENDİRME"
 // Sütunlar: A=Metrik  B=Operatör  C=Değer 1  D=Değer 2 (Aralık için)  E=Renk (boyanır)  F=Öncelik
 const CONDITIONAL_FORMAT_RANGE = "KOŞULLU BİÇİMLENDİRME!A1:F300";
+// ===== Hesaplanan Alanlar - kullanıcı {METRİK} yer tutucularıyla kendi formülünü yazar
+// (örn. "{KKO} * {ANKET} / 100"), export sırasında {METRİK} gerçek hücre adresine çevrilip
+// GERÇEK Excel formülü olarak yazılır (biz hesaplamıyoruz, Excel dosya açılınca hesaplıyor). =====
+const COMPUTED_FIELDS_RANGE = "HESAPLANAN ALANLAR!A1:B200";
+const COMPUTED_FIELDS_LAST_COL = 'B';
+
+function colNumToLetter(n){
+  let s = '';
+  while (n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+async function fetchComputedFieldRows(){
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(COMPUTED_FIELDS_RANGE)}`;
+  const rows = [];
+  try {
+    const res = await authFetch(url);
+    const data = await res.json();
+    const values = data.values || [];
+    for (let i = 1; i < values.length; i++){
+      const r = values[i] || [];
+      const etiket = String(r[0] || '').trim();
+      const formula = String(r[1] || '').trim();
+      if (!etiket && !formula) continue;
+      rows.push({ rowNum: i + 1, etiket, formula });
+    }
+  } catch (e){
+    console.warn('Hesaplanan Alanlar tablosu okunamadı:', e);
+  }
+  return rows;
+}
+
+// Formül metnindeki {METRİK} yer tutucularını, o metriğin (bu export'taki) "Kişi" özet
+// satırının son yıl sütunundaki gerçek hücre adresiyle değiştirir. Referans edilen metrik
+// bu export'ta seçilmemişse (veya hiç yoksa) null döner - o satır export'a hiç eklenmez.
+function resolveComputedFormula(formulaText, metricCellRefs){
+  let ok = true;
+  const resolved = formulaText.replace(/\{([^}]+)\}/g, (m, token) => {
+    const label = token.trim();
+    const ref = metricCellRefs[label];
+    if (!ref || !ref.years.length){ ok = false; return m; }
+    const lastIdx = ref.years.length - 1;
+    return colNumToLetter(ref.yearCols[lastIdx]) + ref.kisiRow;
+  });
+  return ok ? resolved : null;
+}
+
 let CONDITIONAL_FORMAT_RULES = null; // artık önbellek YOK - her export'ta taze okunur
 
 function exportNormOperator(v){
@@ -1161,6 +1396,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
   try {
     const cfg = await fetchExportFormatConfig();
     const condRules = await fetchConditionalFormatRules();
+    const metricCellRefs = {}; // Hesaplanan Alanlar için: metrik adı -> {kisiRow, yearCols, years}
     const years = exportYearsList();
     const monthColCount = 1 + TR_MONTHS.length;      // Yıl + 12 ay sütunu
     const yearColCount = 1 + years.length;            // Etiket + yıl sayısı kadar sütun
@@ -1207,7 +1443,9 @@ async function exportSelectedMetricsToExcel(selectedKeys){
           if (has){
             const rec = KARNE_RECORDS.find(x => x.sicil === selectedSicil && x.yil === y && x.ayIndex === mi);
             rawVal = rec ? rec[key] : null;
-            val = fmtKarneVal(rawVal);
+            // GERÇEK SAYI yazılır (metin değil) - Excel'de "sayı gibi görünen metin" uyarısı
+            // (yeşil üçgen) çıkmasın, kullanıcı elle "sayıya çevir" yapmak zorunda kalmasın.
+            val = rawVal != null ? exportRoundVal(rawVal) : '—';
           }
           dataRow.getCell(2 + mi).value = val;
         });
@@ -1244,7 +1482,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
       kisiRow.getCell(1).value = 'Kişi';
       years.forEach((y, yi) => {
         const rawVal = personYearlyValue(selectedSicil, y, metric);
-        kisiRow.getCell(2 + yi).value = fmtKarneVal(rawVal);
+        kisiRow.getCell(2 + yi).value = rawVal != null ? exportRoundVal(rawVal) : '—';
       });
       finalizeExportRow(ws, r, cfg.kisiSatiri, yearColCount);
       years.forEach((y, yi) => {
@@ -1252,6 +1490,9 @@ async function exportSelectedMetricsToExcel(selectedKeys){
         const condColor = resolveConditionalColor(condRules, metric.label, rawVal);
         if (condColor) kisiRow.getCell(2 + yi).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: condColor } };
       });
+      // Hesaplanan Alanlar için: bu metriğin "Kişi" satırının hangi satırda, hangi yılın
+      // hangi sütununda olduğunu kaydet - export sonunda {METRİK} yer tutucuları buna göre çözülür.
+      metricCellRefs[metric.label] = { kisiRow: r, yearCols: years.map((y, yi) => 2 + yi), years };
       r++;
 
       // Lokasyon Ortalaması satırı (özet)
@@ -1259,7 +1500,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
       lokRow.getCell(1).value = 'Lokasyon Ortalaması';
       years.forEach((y, yi) => {
         const rawVal = locationYearlyValue(y, metric);
-        lokRow.getCell(2 + yi).value = fmtKarneVal(rawVal);
+        lokRow.getCell(2 + yi).value = rawVal != null ? exportRoundVal(rawVal) : '—';
       });
       finalizeExportRow(ws, r, cfg.lokasyonSatiri, yearColCount);
       years.forEach((y, yi) => {
@@ -1273,6 +1514,28 @@ async function exportSelectedMetricsToExcel(selectedKeys){
       r++;
       if (cfg.blokBosluk.uygula) r++;
     });
+
+    // Hesaplanan Alanlar: kullanıcının panelde {METRİK} yer tutuculu formülleri varsa,
+    // export'un en sonuna GERÇEK Excel formülü olarak eklenir (biz hesaplamıyoruz, Excel
+    // dosya açılınca hesaplıyor). Referans edilen metrik bu export'ta yoksa o satır atlanır.
+    try {
+      const computedRows = await fetchComputedFieldRows();
+      const resolvedRows = computedRows
+        .map(cf => ({ etiket: cf.etiket, formula: resolveComputedFormula(cf.formula, metricCellRefs) }))
+        .filter(cf => cf.formula);
+      if (resolvedRows.length){
+        ws.getCell(r, 1).value = 'Hesaplanan Alanlar';
+        finalizeExportRow(ws, r, cfg.metrikAdi, totalCols);
+        r++;
+        resolvedRows.forEach(cf => {
+          ws.getCell(r, 1).value = cf.etiket;
+          ws.getCell(r, 2).value = { formula: cf.formula };
+          r++;
+        });
+      }
+    } catch (e){
+      console.warn('Hesaplanan Alanlar eklenemedi, export bu bölüm olmadan devam ediyor:', e);
+    }
 
     const lastUsedRow = r - 1;
 
@@ -1363,7 +1626,304 @@ document.getElementById('exportConfirmBtn').addEventListener('click', () => {
   exportModalOverlay.style.display = 'none';
 });
 
-// ===== Sunum Oluştur (pptxgenjs, tamamen tarayıcıda) =====
+// ===== Excel Biçimlendirme paneli - "PERSONEL KARNESİ" format tablosunu Sheets'e
+// gitmeden, dashboard içinden okuyup/yazan panel. Her değişiklik ANINDA Sheet'e yazılır
+// (Sheet gerçek kaynak olmaya devam eder, panel sadece daha kolay bir arayüz). =====
+const formatPanelOverlay = document.getElementById('formatPanelOverlay');
+const formatPanelTableWrap = document.getElementById('formatPanelTableWrap');
+const formatPanelStatus = document.getElementById('formatPanelStatus');
+const FORMAT_PANEL_COLS = [
+  { key: 'uygula', label: 'Uygula', type: 'bool', colLetter: 'B' },
+  { key: 'kalin', label: 'Kalın', type: 'bool', colLetter: 'C' },
+  { key: 'yaziRengi', label: 'Yazı Rengi', type: 'color', colIndex0: 3 },
+  { key: 'argPlan', label: 'Arka Plan', type: 'color', colIndex0: 4 },
+  { key: 'hizalama', label: 'Hizalama', type: 'select', colLetter: 'F', options: [['left','Sol'],['center','Orta'],['right','Sağ'],['','-']] },
+  { key: 'kenarlik', label: 'Kenarlık', type: 'bool', colLetter: 'G' },
+  { key: 'sayiFormat', label: 'Sayı Formatı', type: 'numfmt', colLetter: 'H' },
+  { key: 'kaydir', label: 'Kaydır', type: 'bool', colLetter: 'I' },
+  { key: 'birlestir', label: 'Birleştir Et', type: 'bool', colLetter: 'J' },
+  { key: 'birlestirAralik', label: 'Birleştir Aralığı', type: 'text', colLetter: 'K' },
+  { key: 'yaziBoyutu', label: 'Yazı Boyutu', type: 'number', colLetter: 'L' },
+];
+function formatPanelAlignToTr(v){ return v === 'left' ? 'Sol' : v === 'center' ? 'Orta' : v === 'right' ? 'Sağ' : '-'; }
+
+function renderFormatPanelRow(row){
+  const cells = FORMAT_PANEL_COLS.map(col => {
+    // "Kılavuz Çizgileri" satırında sadece Uygula anlamlı, gerisi gösterilmez
+    if (row.key === 'kilavuzCizgileri' && col.key !== 'uygula') return `<td style="color:var(--dim);">—</td>`;
+    const dataAttr = `data-row="${row.rowNum}" data-field="${col.key}"`;
+    if (col.type === 'bool'){
+      const checked = row[col.key] ? 'checked' : '';
+      return `<td style="text-align:center;"><input type="checkbox" ${dataAttr} data-col="${col.colLetter}" ${checked}></td>`;
+    }
+    if (col.type === 'color'){
+      const hex = row[col.key] ? '#' + row[col.key].replace(/^FF/,'') : '#ffffff';
+      return `<td style="text-align:center;"><input type="color" ${dataAttr} data-colindex="${col.colIndex0}" value="${hex}"></td>`;
+    }
+    if (col.type === 'select'){
+      const opts = col.options.map(([v, tr]) => `<option value="${v}" ${row[col.key] === v || (v === '' && !row[col.key]) ? 'selected' : ''}>${tr}</option>`).join('');
+      return `<td><select ${dataAttr} data-col="${col.colLetter}" style="width:100%;">${opts}</select></td>`;
+    }
+    if (col.type === 'numfmt'){
+      return `<td><input type="text" ${dataAttr} data-col="${col.colLetter}" value="${row[col.key] || ''}" placeholder="-" style="width:90px;"></td>`;
+    }
+    if (col.type === 'number'){
+      return `<td><input type="number" ${dataAttr} data-col="${col.colLetter}" value="${row[col.key] != null ? row[col.key] : ''}" placeholder="-" style="width:64px;"></td>`;
+    }
+    // text (Birleştir Aralığı)
+    return `<td><input type="text" ${dataAttr} data-col="${col.colLetter}" value="${row[col.key] || ''}" placeholder="Tümü" style="width:80px;"></td>`;
+  }).join('');
+  return `<tr data-rownum="${row.rowNum}"><td style="font-weight:600; white-space:nowrap;">${row.label}</td>${cells}</tr>`;
+}
+
+async function loadFormatPanel(){
+  formatPanelTableWrap.innerHTML = 'Yükleniyor…';
+  formatPanelStatus.textContent = '';
+  try {
+    const rows = await fetchFormatRowsForPanel();
+    const head = `<tr><th>Hedef</th>${FORMAT_PANEL_COLS.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
+    formatPanelTableWrap.innerHTML = `<table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderFormatPanelRow).join('')}</tbody></table>`;
+  } catch (e){
+    formatPanelTableWrap.innerHTML = `<div style="color:#c0392b;">Yüklenemedi: ${e.message}</div>`;
+  }
+}
+
+formatPanelTableWrap.addEventListener('change', async (e) => {
+  const el = e.target;
+  const rowNum = el.getAttribute('data-row');
+  const field = el.getAttribute('data-field');
+  if (!rowNum || !field) return;
+  formatPanelStatus.textContent = 'Kaydediliyor…';
+  try {
+    if (el.type === 'checkbox'){
+      await writeFormatCellValue('PERSONEL KARNESİ', rowNum, el.getAttribute('data-col'), el.checked ? 'Evet' : 'Hayır');
+    } else if (el.type === 'color'){
+      const gid = await getFormatTabGid();
+      await writeFormatCellColor('PERSONEL KARNESİ', gid, rowNum, parseInt(el.getAttribute('data-colindex'), 10), el.value);
+    } else if (el.tagName === 'SELECT'){
+      // Hizalama select değeri 'left'/'center'/'right'/'' - Sheets'e Türkçe kelime yazılır
+      await writeFormatCellValue('PERSONEL KARNESİ', rowNum, el.getAttribute('data-col'), formatPanelAlignToTr(el.value));
+    } else if (field === 'sayiFormat'){
+      await writeFormatCellNumberFormat(rowNum, el.value.trim() || null);
+    } else if (field === 'yaziBoyutu'){
+      await writeFormatCellValue('PERSONEL KARNESİ', rowNum, el.getAttribute('data-col'), el.value.trim() || '-');
+    } else {
+      await writeFormatCellValue('PERSONEL KARNESİ', rowNum, el.getAttribute('data-col'), el.value.trim() || '-');
+    }
+    formatPanelStatus.textContent = '✓ Kaydedildi — ' + new Date().toLocaleTimeString('tr-TR');
+  } catch (err){
+    formatPanelStatus.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+document.getElementById('openFormatPanelBtn').addEventListener('click', () => {
+  formatPanelOverlay.style.display = 'flex';
+  loadFormatPanel();
+  loadConditionalPanel();
+  loadComputedPanel();
+});
+document.getElementById('formatPanelCloseBtn').addEventListener('click', () => { formatPanelOverlay.style.display = 'none'; });
+formatPanelOverlay.addEventListener('click', (e) => { if (e.target === formatPanelOverlay) formatPanelOverlay.style.display = 'none'; });
+
+// ===== Koşullu Biçimlendirme paneli - aynı Excel Biçimlendirme modalinde, Format
+// Ayarları'nın altında. Sabit hedef listesi YOK - kullanıcı istediği kadar kural
+// ekleyip/silebilir, bu yüzden Format Ayarları panelinden farklı olarak satır
+// ekleme/silme özelliği var. =====
+const condPanelTableWrap = document.getElementById('condPanelTableWrap');
+const CONDITIONAL_OPERATOR_OPTIONS = ['Büyük Eşit','Büyük','Küçük Eşit','Küçük','Eşit','Farklı','Aralık','İçerdiği Metin'];
+const COND_LAST_COL_LETTER = 'F';
+
+function renderCondPanelRow(row){
+  const opOptions = CONDITIONAL_OPERATOR_OPTIONS.map(o => `<option value="${o}" ${row.operator === o ? 'selected' : ''}>${o}</option>`).join('');
+  const hex = row.colorHex ? '#' + row.colorHex.replace(/^FF/, '') : '#ffffff';
+  return `<tr data-rownum="${row.rowNum}">
+    <td><input type="text" data-row="${row.rowNum}" data-field="metric" data-col="A" value="${row.metric || ''}" style="width:110px;"></td>
+    <td><select data-row="${row.rowNum}" data-field="operator" data-col="B">${opOptions}</select></td>
+    <td><input type="text" data-row="${row.rowNum}" data-field="val1" data-col="C" value="${row.val1 != null ? row.val1 : ''}" style="width:70px;"></td>
+    <td><input type="text" data-row="${row.rowNum}" data-field="val2" data-col="D" value="${row.val2 != null ? row.val2 : ''}" placeholder="-" style="width:70px;"></td>
+    <td style="text-align:center;"><input type="color" data-row="${row.rowNum}" data-field="color" data-colindex="4" value="${hex}"></td>
+    <td><input type="text" data-row="${row.rowNum}" data-field="priority" data-col="F" value="${row.priority != null ? row.priority : ''}" style="width:50px;"></td>
+    <td><button type="button" class="refresh-btn" data-condDelete="${row.rowNum}" title="Kuralı sil">🗑</button></td>
+  </tr>`;
+}
+
+async function fetchConditionalRowsForPanel(){
+  const fields = 'sheets.data.rowData.values(formattedValue,userEnteredFormat.backgroundColor)';
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?ranges=${encodeURIComponent(CONDITIONAL_FORMAT_RANGE)}&fields=${encodeURIComponent(fields)}`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  const rowData = (data.sheets && data.sheets[0] && data.sheets[0].data && data.sheets[0].data[0] && data.sheets[0].data[0].rowData) || [];
+  const rows = [];
+  for (let i = 1; i < rowData.length; i++){
+    const cells = (rowData[i] && rowData[i].values) || [];
+    const cellText = (idx) => (cells[idx] && cells[idx].formattedValue) || '';
+    const metric = cellText(0).trim();
+    const operatorRaw = cellText(1).trim();
+    if (!metric && !operatorRaw) continue; // tamamen boş satır - gösterme
+    const colorCell = cells[4];
+    rows.push({
+      rowNum: i + 1,
+      metric,
+      operator: operatorRaw,
+      val1: cellText(2).trim(),
+      val2: cellText(3).trim(),
+      colorHex: exportGoogleColorToHex(colorCell && colorCell.userEnteredFormat && colorCell.userEnteredFormat.backgroundColor),
+      priority: cellText(5).trim(),
+    });
+  }
+  return rows;
+}
+
+async function loadConditionalPanel(){
+  condPanelTableWrap.innerHTML = 'Yükleniyor…';
+  try {
+    const rows = await fetchConditionalRowsForPanel();
+    const head = `<tr><th>Metrik</th><th>Operatör</th><th>Değer 1</th><th>Değer 2</th><th>Renk</th><th>Öncelik</th><th></th></tr>`;
+    condPanelTableWrap.innerHTML = rows.length
+      ? `<table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderCondPanelRow).join('')}</tbody></table>`
+      : `<div style="color:var(--dim); font-size:13px;">Henüz kural eklenmedi.</div>`;
+  } catch (e){
+    condPanelTableWrap.innerHTML = `<div style="color:#c0392b;">Yüklenemedi: ${e.message}</div>`;
+  }
+}
+
+condPanelTableWrap.addEventListener('change', async (e) => {
+  const el = e.target;
+  const rowNum = el.getAttribute('data-row');
+  const field = el.getAttribute('data-field');
+  if (!rowNum || !field) return;
+  formatPanelStatus.textContent = 'Kaydediliyor…';
+  try {
+    if (field === 'color'){
+      const gid = await getConditionalTabGid();
+      await writeFormatCellColor('KOŞULLU BİÇİMLENDİRME', gid, rowNum, parseInt(el.getAttribute('data-colindex'), 10), el.value);
+    } else {
+      await writeFormatCellValue('KOŞULLU BİÇİMLENDİRME', rowNum, el.getAttribute('data-col'), el.value.trim());
+    }
+    formatPanelStatus.textContent = '✓ Kaydedildi — ' + new Date().toLocaleTimeString('tr-TR');
+  } catch (err){
+    formatPanelStatus.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+condPanelTableWrap.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-condDelete]');
+  if (!btn) return;
+  if (!confirm('Bu kuralı silmek istediğine emin misin?')) return;
+  const rowNum = btn.getAttribute('data-condDelete');
+  formatPanelStatus.textContent = 'Siliniyor…';
+  try {
+    await clearFormatRow('KOŞULLU BİÇİMLENDİRME', rowNum, COND_LAST_COL_LETTER);
+    formatPanelStatus.textContent = '✓ Silindi — ' + new Date().toLocaleTimeString('tr-TR');
+    loadConditionalPanel();
+  } catch (err){
+    formatPanelStatus.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+document.getElementById('condPanelAddBtn').addEventListener('click', async () => {
+  formatPanelStatus.textContent = 'Ekleniyor…';
+  try {
+    await appendFormatRow('KOŞULLU BİÇİMLENDİRME', ['', 'Büyük Eşit', '', '', '', '']);
+    formatPanelStatus.textContent = '✓ Yeni satır eklendi — ' + new Date().toLocaleTimeString('tr-TR');
+    loadConditionalPanel();
+  } catch (err){
+    formatPanelStatus.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+// ===== Hesaplanan Alanlar paneli - kullanıcı {METRİK} yer tutuculu kendi formülünü
+// yazar, export sırasında gerçek Excel formülüne çevrilip hücreye gömülür. =====
+const computedPanelTableWrap = document.getElementById('computedPanelTableWrap');
+const COMPUTED_LAST_COL_LETTER = 'B';
+
+function renderComputedPanelRow(row){
+  // Başlık seçici: o an yüklü olan KARNE_METRICS listesinden - ezber gerekmez, seçince
+  // formül kutusunun sonuna otomatik "{Başlık}" olarak eklenir. Liste her zaman o an
+  // açık olan dosyadaki gerçek başlıklardan gelir (dinamik, dosya değişince liste de değişir).
+  const metricOptions = (typeof KARNE_METRICS !== 'undefined' ? KARNE_METRICS : [])
+    .map(m => `<option value="${m.label}">${m.label}</option>`).join('');
+  return `<tr data-rownum="${row.rowNum}">
+    <td><input type="text" data-row="${row.rowNum}" data-field="etiket" data-col="A" value="${row.etiket || ''}" placeholder="Etiket (örn. Verimlilik Skoru)" style="width:180px;"></td>
+    <td>
+      <input type="text" class="computed-formula-input" data-row="${row.rowNum}" data-field="formula" data-col="B" value="${row.formula || ''}" placeholder="{KKO} * {ANKET} / 100" style="width:260px; font-family:'IBM Plex Mono',monospace;">
+      <br>
+      <select class="computed-metric-picker" data-target-row="${row.rowNum}" style="margin-top:4px; font-size:11px; width:180px;">
+        <option value="">+ Başlık ekle…</option>
+        ${metricOptions}
+      </select>
+    </td>
+    <td><button type="button" class="refresh-btn" data-computedDelete="${row.rowNum}" title="Alanı sil">🗑</button></td>
+  </tr>`;
+}
+
+async function loadComputedPanel(){
+  computedPanelTableWrap.innerHTML = 'Yükleniyor…';
+  try {
+    const rows = await fetchComputedFieldRows();
+    const head = `<tr><th>Etiket</th><th>Formül</th><th></th></tr>`;
+    computedPanelTableWrap.innerHTML = rows.length
+      ? `<table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderComputedPanelRow).join('')}</tbody></table>`
+      : `<div style="color:var(--dim); font-size:13px;">Henüz hesaplanan alan eklenmedi.</div>`;
+  } catch (e){
+    computedPanelTableWrap.innerHTML = `<div style="color:#c0392b;">Yüklenemedi: ${e.message}</div>`;
+  }
+}
+
+computedPanelTableWrap.addEventListener('change', async (e) => {
+  const el = e.target;
+  // Başlık seçici (metrik picker) ayrı davranır: sheet'e kendi başına yazılmaz, sadece
+  // formül kutusunun sonuna "{Başlık}" ekler, ardından o kutunun asıl kaydını tetikler.
+  if (el.classList.contains('computed-metric-picker')){
+    if (!el.value) return;
+    const targetRowNum = el.getAttribute('data-target-row');
+    const formulaInput = computedPanelTableWrap.querySelector(`.computed-formula-input[data-row="${targetRowNum}"]`);
+    if (formulaInput){
+      const sep = formulaInput.value && !formulaInput.value.endsWith(' ') ? ' ' : '';
+      formulaInput.value = formulaInput.value + sep + `{${el.value}}`;
+      formulaInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    el.value = '';
+    return;
+  }
+  const rowNum = el.getAttribute('data-row');
+  if (!rowNum) return;
+  formatPanelStatus.textContent = 'Kaydediliyor…';
+  try {
+    await writeFormatCellValue('HESAPLANAN ALANLAR', rowNum, el.getAttribute('data-col'), el.value.trim());
+    formatPanelStatus.textContent = '✓ Kaydedildi — ' + new Date().toLocaleTimeString('tr-TR');
+  } catch (err){
+    formatPanelStatus.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+computedPanelTableWrap.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-computedDelete]');
+  if (!btn) return;
+  if (!confirm('Bu hesaplanan alanı silmek istediğine emin misin?')) return;
+  const rowNum = btn.getAttribute('data-computedDelete');
+  formatPanelStatus.textContent = 'Siliniyor…';
+  try {
+    await clearFormatRow('HESAPLANAN ALANLAR', rowNum, COMPUTED_LAST_COL_LETTER);
+    formatPanelStatus.textContent = '✓ Silindi — ' + new Date().toLocaleTimeString('tr-TR');
+    loadComputedPanel();
+  } catch (err){
+    formatPanelStatus.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+document.getElementById('computedPanelAddBtn').addEventListener('click', async () => {
+  formatPanelStatus.textContent = 'Ekleniyor…';
+  try {
+    await appendFormatRow('HESAPLANAN ALANLAR', ['', '']);
+    formatPanelStatus.textContent = '✓ Yeni satır eklendi — ' + new Date().toLocaleTimeString('tr-TR');
+    loadComputedPanel();
+  } catch (err){
+    formatPanelStatus.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+
 const pptModalOverlay = document.getElementById('pptModalOverlay');
 const pptYearChipsEl = document.getElementById('pptYearChips');
 let pptSelectedYears = null; // Set - null = henüz başlatılmadı
@@ -4041,6 +4601,7 @@ function wireAnalizInnerControls(){
 // "Hepsini Seç/Sil" SADECE PAGE_COLS'u kapsar, AUTH_COLS ve EXTRA_COLS'a dokunmaz. ---
 const EXTRA_COLS = [
   { key: 'yoneticiDetay', label: 'Yönetici Detayı', letter: 'K' },
+  { key: 'excelBicimlendirme', label: 'Excel Biçimlendirme', letter: 'L' },
 ];
 function renderYetkiTab(){
 
