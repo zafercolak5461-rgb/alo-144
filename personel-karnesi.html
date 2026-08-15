@@ -175,9 +175,10 @@
   .modal-box{ background:var(--panel); border:1px solid var(--line); border-radius:16px; width:420px; max-width:90vw; max-height:80vh; display:flex; flex-direction:column; }
   .format-panel-table{ border-collapse:collapse; width:100%; font-size:12px; }
   .format-panel-table th, .format-panel-table td{ border:1px solid var(--line); padding:6px 8px; text-align:left; white-space:nowrap; }
-  .format-panel-table th{ background:var(--panel-2, #f4f5f9); position:sticky; top:0; }
+  .format-panel-table th{ background:var(--panel2); color:var(--text); position:sticky; top:0; z-index:2; }
   .format-panel-table input[type=text], .format-panel-table input[type=number], .format-panel-table select{ font-size:12px; padding:2px 4px; }
   .format-panel-table input[type=color]{ width:36px; height:26px; padding:0; border:1px solid var(--line); }
+  .format-panel-scrollbox{ max-height:320px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
   .modal-head{ padding:18px 22px; font-family:'Fraunces',serif; font-weight:600; font-size:16px; border-bottom:1px solid var(--line); }
   .modal-body{ padding:18px 22px; overflow-y:auto; }
   .modal-foot{ padding:16px 22px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:10px; }
@@ -1682,7 +1683,7 @@ async function loadFormatPanel(){
   try {
     const rows = await fetchFormatRowsForPanel();
     const head = `<tr><th>Hedef</th>${FORMAT_PANEL_COLS.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
-    formatPanelTableWrap.innerHTML = `<table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderFormatPanelRow).join('')}</tbody></table>`;
+    formatPanelTableWrap.innerHTML = `<div class="format-panel-scrollbox"><table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderFormatPanelRow).join('')}</tbody></table></div>`;
   } catch (e){
     formatPanelTableWrap.innerHTML = `<div style="color:#c0392b;">Yüklenemedi: ${e.message}</div>`;
   }
@@ -1780,7 +1781,7 @@ async function loadConditionalPanel(){
     const rows = await fetchConditionalRowsForPanel();
     const head = `<tr><th>Metrik</th><th>Operatör</th><th>Değer 1</th><th>Değer 2</th><th>Renk</th><th>Öncelik</th><th></th></tr>`;
     condPanelTableWrap.innerHTML = rows.length
-      ? `<table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderCondPanelRow).join('')}</tbody></table>`
+      ? `<div class="format-panel-scrollbox"><table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderCondPanelRow).join('')}</tbody></table></div>`
       : `<div style="color:var(--dim); font-size:13px;">Henüz kural eklenmedi.</div>`;
   } catch (e){
     condPanelTableWrap.innerHTML = `<div style="color:#c0392b;">Yüklenemedi: ${e.message}</div>`;
@@ -1863,7 +1864,7 @@ async function loadComputedPanel(){
     const rows = await fetchComputedFieldRows();
     const head = `<tr><th>Etiket</th><th>Formül</th><th></th></tr>`;
     computedPanelTableWrap.innerHTML = rows.length
-      ? `<table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderComputedPanelRow).join('')}</tbody></table>`
+      ? `<div class="format-panel-scrollbox"><table class="format-panel-table"><thead>${head}</thead><tbody>${rows.map(renderComputedPanelRow).join('')}</tbody></table></div>`
       : `<div style="color:var(--dim); font-size:13px;">Henüz hesaplanan alan eklenmedi.</div>`;
   } catch (e){
     computedPanelTableWrap.innerHTML = `<div style="color:#c0392b;">Yüklenemedi: ${e.message}</div>`;
