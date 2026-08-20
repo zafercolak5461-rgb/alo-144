@@ -480,10 +480,16 @@ async function loadAuthTable(token){
   const values = data.values || [];
   if (!values.length) return null;
   const rows = [];
+  
   for (let i = 1; i < values.length; i++){
     const r = values[i] || [];
     const gmail = String(r[1] || '').trim().toLocaleLowerCase('tr');
     if (!gmail) continue;
+    
+    // Sütunların (A-L) açık ve net eşlemesi:
+    // r[0]=A (İsim), r[1]=B (Gmail), r[2]=C (Süper Yetkili), r[3]=D (Güncelleme), 
+    // r[4]=E (Sunum), r[5]=F (Excel), r[6]=G (Analiz), r[7]=H (Personel Bilgileri), 
+    // r[8]=I (Genel Değerlendirme), r[9]=J (Parametre), r[10]=K (Yönetici Detay), r[11]=L (Excel Biçimlendirme)
     const row = {
       rowNum: i + 1,
       isim: r[0] || '',
@@ -492,10 +498,13 @@ async function loadAuthTable(token){
       guncelleme: isTrueVal(r[3]),
       sunum: isTrueVal(r[4]),
       excel: isTrueVal(r[5]),
-      yoneticiDetay: isTrueVal(r[10]), // K sütunu - "+1 Vardiya otomatik" gibi personelin görmemesi gereken teknik notların göz ikonu
-      excelBicimlendirme: isTrueVal(r[11]), // L sütunu - Excel export yetkisinden AYRI, sadece Biçimlendirme panelini açabilme izni
+      analiz: isTrueVal(r[6]),           // G Sütunu
+      page_bilgiler: isTrueVal(r[7]),    // H Sütunu (Personel Bilgileri)
+      page_genel: isTrueVal(r[8]),       // I Sütunu (Genel Değerlendirme)
+      page_parametre: isTrueVal(r[9]),   // J Sütunu (Parametre)
+      yoneticiDetay: isTrueVal(r[10]),   // K Sütunu
+      excelBicimlendirme: isTrueVal(r[11]) // L Sütunu
     };
-    PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[6 + idx]); });
     rows.push(row);
   }
   return rows;
