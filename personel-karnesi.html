@@ -234,7 +234,7 @@
   .analiz-marquee-track span{ margin-right:64px; }
 
   .id-badge{ font-size:13px; background: var(--panel2); border:1px solid var(--line); padding:3px 9px; border-radius:20px; margin-left:6px; }
-.islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only, .formatpanel-only{ display:none !important; }
+.islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only, .formatpanel-only, .pageaccess-only{ display:none !important; }
 </style>
 </head>
 <body>
@@ -252,9 +252,9 @@
 </div>
 <div class="app-shell" style="display:none;" id="appShell">
   <aside class="sidebar" id="sidebar">
-    <button class="sidebar-nav-item active" data-lefttab="bilgiler">Personel Bilgileri</button>
-    <button class="sidebar-nav-item" data-lefttab="genel">Genel Değerlendirme</button>
-    <button class="sidebar-nav-item" data-lefttab="parametre">Parametre</button>
+    <button class="sidebar-nav-item active pageaccess-only" data-lefttab="bilgiler">Personel Bilgileri</button>
+    <button class="sidebar-nav-item pageaccess-only" data-lefttab="genel">Genel Değerlendirme</button>
+    <button class="sidebar-nav-item pageaccess-only" data-lefttab="parametre">Parametre</button>
     <button class="sidebar-nav-item analiz-only" data-lefttab="analiz">Analiz</button>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn">Güncelleme</button>
     <button class="sidebar-nav-item yetki-only" data-lefttab="yetki">Yetki Atama</button>
@@ -495,28 +495,37 @@ async function loadAuthTable(token){
       yoneticiDetay: isTrueVal(r[10]), // K sütunu - "+1 Vardiya otomatik" gibi personelin görmemesi gereken teknik notların göz ikonu
       excelBicimlendirme: isTrueVal(r[11]), // L sütunu - Excel export yetkisinden AYRI, sadece Biçimlendirme panelini açabilme izni
     };
-    PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[6 + idx]); });
+    // H sütunu (Personel Bilgileri) = 0-index 7'de başlıyor. Önceki "r[6+idx]" G sütunundan
+    // (Analiz) başlayıp her PAGE_COLS alanını bir sütun SOLA kaydırıyordu - Personel
+    // Bilgileri'nin gerçek değeri okunmuyor, yanlışlıkla Analiz'in değeri okunuyordu.
+    PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[7 + idx]); });
     rows.push(row);
   }
   return rows;
 }
 
-// Süper Yetkili/sabit yönetici DIŞINDAKİ kullanıcılar için, erişimi olmayan (Personel
-// Bilgileri/Genel Değerlendirme/Parametre) sekmelerini sol menüden gizler. Aktif sekme
-// gizlenmişse, SADECE izinli sekmelerden birine (varsa) otomatik geçer - Güncelleme/Yetki
-// Atama gibi ayrı bayrakla yönetilen öğelere asla yanlışlıkla düşülmez.
+// Süper Yetkili/sabit yönetici DIŞINDAKİ kullanıcılar için, erişimi olan (Personel
+// Bilgileri/Genel Değerlendirme/Parametre) sekmelerini sol menüde AÇAR. Bu sekmeler artık
+// varsayılan olarak GİZLİ başlıyor (pageaccess-only sınıfı) - eskiden tersti (açık başlayıp
+// yetkisiz olanlar sonradan gizleniyordu), bu da yetkisi olmayan kullanıcıya bir anlığına
+// sekmelerin GÖRÜNÜP KAYBOLMASI olarak yansıyordu. Artık hiç görünmüyor, sadece izinliyse açılıyor.
 function applyPageAccess(myRow, isFixedAdmin){
   const superYetkili = isFixedAdmin || !!(myRow && myRow.superYetkili);
-  if (superYetkili) return;
+  if (superYetkili){
+    document.querySelectorAll('.pageaccess-only').forEach(el => el.classList.remove('pageaccess-only'));
+    return;
+  }
   let activeHidden = false;
   const allowedSlugs = [];
   PAGE_ACCESS_LEFTTABS.forEach(c => {
     const allowed = !!(myRow && myRow[c.key]);
-    if (allowed){ allowedSlugs.push(c.page); return; }
-    document.querySelectorAll(`.sidebar-nav-item[data-lefttab="${c.page}"]`).forEach(el => {
-      if (el.classList.contains('active')) activeHidden = true;
-      el.style.display = 'none';
-    });
+    const els = document.querySelectorAll(`.sidebar-nav-item[data-lefttab="${c.page}"]`);
+    if (allowed){
+      allowedSlugs.push(c.page);
+      els.forEach(el => el.classList.remove('pageaccess-only'));
+    } else {
+      els.forEach(el => { if (el.classList.contains('active')) activeHidden = true; });
+    }
   });
   if (activeHidden && allowedSlugs.length){
     const target = document.querySelector(`.sidebar-nav-item[data-lefttab="${allowedSlugs[0]}"]`);
@@ -556,7 +565,7 @@ async function initIslemAccess(){
     // BAĞIMSIZ çalışır - hiçbiri TRUE olmasa bile kişi belirli sekmeleri görebilmeli.
     applyPageAccess(myRow, isFixedAdmin);
 
-    if (!islemAuthorized && !yetkiAuthorized && !sunumAuthorized && !excelAuthorized && !analizAuthorized) return;
+    if (!islemAuthorized && !yetkiAuthorized && !sunumAuthorized && !excelAuthorized && !analizAuthorized && !formatPanelAuthorized) return;
 
     document.querySelectorAll('.islem-only').forEach(el => { if (islemAuthorized) el.classList.remove('islem-only'); });
     document.querySelectorAll('.yetki-only').forEach(el => { if (yetkiAuthorized) el.classList.remove('yetki-only'); });
