@@ -5,16 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ALO 144 Personel Karnesi</title>
   
-  <!-- CSS & Kütüphaneler -->
+  <!-- CSS & Dış Kütüphaneler -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <style>
-    .sidebar-hidden { display: none !important; }
-    .btn-disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+    .sidebar-transition { transition: all 0.3s ease-in-out; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    .btn-disabled { opacity: 0.4; pointer-events: none; cursor: not-allowed; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans antialiased">
@@ -22,87 +26,170 @@
   <div id="app" class="flex h-screen overflow-hidden">
     
     <!-- SOL MENÜ (SIDEBAR) -->
-    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 transition-all duration-300">
+    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 sidebar-transition">
       <div class="p-4 text-xl font-bold border-b border-slate-800 flex items-center justify-between">
-        <span>ALO 144 Karne</span>
-        <span id="userBadge" class="text-xs bg-blue-600 px-2 py-1 rounded text-white">Giriş Yapılmadı</span>
+        <div class="flex items-center space-x-2">
+          <span class="text-blue-500 text-2xl">📋</span>
+          <span class="tracking-wide">ALO 144 Karne</span>
+        </div>
+        <span id="userBadge" class="text-[10px] uppercase font-semibold bg-blue-600 px-2 py-0.5 rounded text-white">Bekleniyor</span>
       </div>
       
-      <nav id="navContainer" class="flex-1 p-4 space-y-1 overflow-y-auto">
-        <!-- Dinamik Menü Elemanları Buraya Eklenecek -->
+      <!-- Dinamik Menü Navigasyonu -->
+      <nav id="navContainer" class="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+        <!-- JS tarafında yetkilere göre doldurulur -->
       </nav>
 
-      <div class="p-4 border-t border-slate-800 text-xs text-slate-400">
-        <div id="userInfo" class="truncate font-medium text-slate-200"></div>
-        <button id="logoutBtn" onclick="logout()" class="mt-2 w-full bg-red-600 hover:bg-red-700 text-white py-1 px-2 rounded text-xs transition">
-          Çıkış Yap
+      <!-- Kullanıcı Profil Kartı / Çıkış -->
+      <div class="p-4 border-t border-slate-800 bg-slate-950/50">
+        <div class="flex items-center space-x-3 mb-3">
+          <img id="userAvatar" class="w-8 h-8 rounded-full border border-slate-700 hidden" src="" alt="Profil">
+          <div class="overflow-hidden">
+            <p id="userName" class="text-sm font-semibold text-slate-200 truncate">Giriş Yapılmadı</p>
+            <p id="userEmail" class="text-xs text-slate-400 truncate">-</p>
+          </div>
+        </div>
+        <button id="logoutBtn" onclick="logout()" class="w-full bg-red-600/80 hover:bg-red-600 text-white py-1.5 px-3 rounded text-xs font-medium transition flex items-center justify-center space-x-1">
+          <span>🚪</span>
+          <span>Oturumu Kapat</span>
         </button>
       </div>
     </aside>
 
-    <!-- ANA İÇERİK ALANI -->
+    <!-- ANA İÇERİK EKRANI -->
     <main class="flex-1 flex flex-col overflow-y-auto bg-gray-50">
       
-      <!-- Üst Bar / Header -->
-      <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
-        <h1 id="pageTitle" class="text-2xl font-bold text-gray-800">Personel Karnesi Dashboard</h1>
+      <!-- Üst Bar (Header) -->
+      <header class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
+        <div>
+          <h1 id="pageTitle" class="text-2xl font-bold text-gray-800">Personel Karnesi</h1>
+          <p id="pageSubtitle" class="text-xs text-gray-500 mt-0.5">ALO 144 Çağrı Merkezi Performans Takip Sistemi</p>
+        </div>
         
-        <div id="actionButtons" class="flex items-center space-x-2">
-          <!-- Yetkiye göre gösterilip gizlenecek işlem butonları -->
-          <button id="btnUpdate" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=" "></path></svg>
-            Veri Güncelle
+        <!-- Aksiyon Butonları (Yetkiye Duyarlı) -->
+        <div id="actionButtons" class="flex items-center space-x-3">
+          <button id="btnUpdate" onclick="handleDataUpdate()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm flex items-center space-x-2">
+            <span>🔄</span>
+            <span>Verileri Güncelle</span>
           </button>
-          <button id="btnSunum" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-            PPTX İndir
+          <button id="btnSunum" onclick="exportToPPTX()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm flex items-center space-x-2">
+            <span>📊</span>
+            <span>PPTX İndir</span>
           </button>
-          <button id="btnExcel" class="bg-emerald-800 hover:bg-emerald-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
-            Excel İndir
+          <button id="btnExcel" onclick="exportToExcel()" class="bg-emerald-800 hover:bg-emerald-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm flex items-center space-x-2">
+            <span>📑</span>
+            <span>Excel İndir</span>
           </button>
         </div>
       </header>
 
-      <!-- Sayfa İçeriği -->
+      <!-- Dinamik Sayfa İçeriği -->
       <section id="contentArea" class="p-6 flex-1">
-        <div id="loginPrompt" class="bg-white p-8 rounded-xl shadow-md max-w-md mx-auto text-center mt-12">
-          <h2 class="text-xl font-bold mb-4">Sisteme Giriş Yapın</h2>
-          <p class="text-gray-600 mb-6 text-sm">ALO 144 Personel Karnesi sistemine erişmek için Google hesabınızla oturum açın.</p>
+        
+        <!-- Giriş Ekranı (Login Screen) -->
+        <div id="loginPrompt" class="bg-white p-8 rounded-2xl shadow-xl max-w-md mx-auto text-center mt-16 border border-gray-100">
+          <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">🔐</div>
+          <h2 class="text-xl font-bold text-gray-800 mb-2">Sisteme Giriş Yapın</h2>
+          <p class="text-gray-500 text-sm mb-6">ALO 144 Personel Karnesi verilerine erişmek için yetkili Google hesabınızla oturum açın.</p>
+          
           <div id="g_id_onload"
                data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
-               data-callback="handleCredentialResponse">
+               data-callback="handleCredentialResponse"
+               data-auto_select="false">
           </div>
-          <div class="g_id_signin flex justify-center" data-type="standard"></div>
+          <div class="g_id_signin flex justify-center" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="sign_in_with" data-size="large"></div>
         </div>
 
-        <div id="dashboardContent" class="hidden">
-          <!-- Metrik Kartları ve Grafik Alanları -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-              <span class="text-gray-500 text-sm font-medium">Toplam Personel</span>
-              <div id="statTotalPersonnel" class="text-3xl font-extrabold text-gray-900 mt-2">0</div>
+        <!-- Dashboard / Veri Ekranı -->
+        <div id="mainDashboard" class="hidden space-y-6">
+          
+          <!-- Üst Metrik Kartları -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Toplam Personel</span>
+                <div id="statTotalPersonnel" class="text-2xl font-black text-gray-800 mt-1">0</div>
+              </div>
+              <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center text-xl">👥</div>
             </div>
-            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-              <span class="text-gray-500 text-sm font-medium">Ortalama Karne Skoru</span>
-              <div id="statAvgScore" class="text-3xl font-extrabold text-blue-600 mt-2">%0</div>
+
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ortalama Karne Skoru</span>
+                <div id="statAvgScore" class="text-2xl font-black text-blue-600 mt-1">%0</div>
+              </div>
+              <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center text-xl">🎯</div>
             </div>
-            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-              <span class="text-gray-500 text-sm font-medium">Hedefe Ulaşım Oranı</span>
-              <div id="statTargetRatio" class="text-3xl font-extrabold text-emerald-600 mt-2">%0</div>
+
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Hedef Başarı Oranı</span>
+                <div id="statTargetRatio" class="text-2xl font-black text-emerald-600 mt-1">%0</div>
+              </div>
+              <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-xl">📈</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+              <div>
+                <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Disiplin Uyarı Sayısı</span>
+                <div id="statWarningCount" class="text-2xl font-black text-amber-600 mt-1">0</div>
+              </div>
+              <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center text-xl">⚠️</div>
             </div>
           </div>
 
-          <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 class="text-lg font-bold mb-4 text-gray-800">Aylık Performans Grafiği</h3>
-            <canvas id="mainChart" height="100"></canvas>
+          <!-- Grafik ve Analiz Paneli -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-gray-800">Aylık Performans Trendi</h3>
+                <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">Canlı Veri</span>
+              </div>
+              <div class="relative h-72">
+                <canvas id="performanceChart"></canvas>
+              </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+              <h3 class="text-base font-bold text-gray-800 mb-2">Performans Dağılımı</h3>
+              <div class="relative h-60 my-auto">
+                <canvas id="distributionChart"></canvas>
+              </div>
+            </div>
           </div>
+
+          <!-- Personel Veri Tablosu Görünümü -->
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 class="text-base font-bold text-gray-800">Personel Listesi ve Skor Özeti</h3>
+              <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Personel ara..." class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-64">
+            </div>
+            <div class="overflow-x-auto">
+              <table id="personnelTable" class="w-full text-sm text-left text-gray-600">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th class="px-6 py-3">Ad Soyad</th>
+                    <th class="px-6 py-3">E-Posta</th>
+                    <th class="px-6 py-3">Karne Skoru</th>
+                    <th class="px-6 py-3">Vardiya Uyum</th>
+                    <th class="px-6 py-3">Durum</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-100">
+                  <!-- JS Tarafında Doldurulur -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       </section>
     </main>
   </div>
 
-  <!-- UYGULAMA MANTIĞI & YETKİLENDİRME (RBAC) -->
+  <!-- UYGULAMA SİSTEMİ VE YETKİLENDİRME KODLARI -->
   <script>
-    // Config & Sheet Bilgileri
+    // Konfigürasyon Tanımları
     const CONFIG = {
       SHEET_ID: 'YOUR_SHEET_ID',
       KARNE_SHEET_ID: 'YOUR_KARNE_SHEET_ID',
@@ -110,9 +197,9 @@
       API_KEY: 'YOUR_GOOGLE_API_KEY'
     };
 
-    // Tüm Menü Yapısı Tanımı
+    // Tüm Menü Yapısı Tanımları
     const ALL_NAV_ITEMS = [
-      { id: 'dashboard', name: 'Genel Bakış', icon: '📊', permKey: null }, // Herkese Açık
+      { id: 'dashboard', name: 'Genel Bakış', icon: '📊', permKey: null },
       { id: 'personel', name: 'Personel Bilgileri', icon: '👤', permKey: 'canPersonel' },
       { id: 'genel', name: 'Genel Değerlendirme', icon: '📈', permKey: 'canGenel' },
       { id: 'analiz', name: 'Performans Analizi', icon: '🔍', permKey: 'canAnaliz' },
@@ -123,41 +210,56 @@
 
     let currentUser = null;
     let currentUserPermissions = null;
+    let mainChartInstance = null;
+    let distChartInstance = null;
 
-    // Google Sign-In Callback
+    // Google Sign-In Giriş İşleyici
     function handleCredentialResponse(response) {
-      const responsePayload = parseJwt(response.credential);
+      const payload = parseJwt(response.credential);
       currentUser = {
-        email: responsePayload.email.trim().toLowerCase(),
-        name: responsePayload.name,
-        picture: responsePayload.picture
+        email: payload.email.trim().toLowerCase(),
+        name: payload.name,
+        picture: payload.picture
       };
 
-      document.getElementById('userInfo').innerText = currentUser.email;
-      document.getElementById('loginPrompt').classList.add('hidden');
-      document.getElementById('dashboardContent').classList.remove('hidden');
+      // Arayüz Kullanıcı Bilgileri
+      document.getElementById('userName').innerText = currentUser.name || "Kullanıcı";
+      document.getElementById('userEmail').innerText = currentUser.email;
+      if (currentUser.picture) {
+        const avatar = document.getElementById('userAvatar');
+        avatar.src = currentUser.picture;
+        avatar.classList.remove('hidden');
+      }
 
-      // Yetkileri Yükle ve Kontrol Et
+      document.getElementById('loginPrompt').classList.add('hidden');
+      document.getElementById('mainDashboard').classList.remove('hidden');
+
+      // Yetkileri Çek ve Sistemi Başlat
       fetchPermissionsAndInit(currentUser.email);
     }
 
     function parseJwt(token) {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      return JSON.parse(jsonPayload);
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(c => 
+          '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+        ).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) {
+        console.error("JWT Parse Hatası:", e);
+        return {};
+      }
     }
 
-    // Sheet Değerini Boolean Tipe Dönüştürücü (DÜZELTME)
+    // Sheet'ten Gelen TRUE/FALSE Verilerini Güvenli Dönüştürücü (DÜZELTME)
     function parseBool(val) {
       if (typeof val === 'boolean') return val;
       if (!val) return false;
       return String(val).trim().toUpperCase() === 'TRUE';
     }
 
-    // Google Sheets API üzerinden AUTH_SHEET_ID Okuma
+    // AUTH_SHEET_ID Üzerinden Yetki Çekimi
     async function fetchPermissionsAndInit(userEmail) {
       try {
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.AUTH_SHEET_ID}/values/A1:L100?key=${CONFIG.API_KEY}`;
@@ -165,38 +267,39 @@
         const data = await res.json();
         
         if (!data.values) {
-          console.error("Yetki tablosu bulunamadı veya yetkisiz erişim.");
           applyPermissions(getEmptyPermissions());
+          initDashboardData();
           return;
         }
 
         const rows = data.values;
-        // E-Posta Satırını Bul (B Sütunundaki e-postalar)
+        // B Sütunundaki E-Posta Birebir Karşılaştırılıyor
         const userRow = rows.find(r => r[1] && r[1].trim().toLowerCase() === userEmail);
 
         if (userRow) {
-          // Tablo Sütunları A: İsim, B: Gmail, C: Süper Yetkili ... L: Excel Biçimlendirme
           currentUserPermissions = {
-            isSuper: parseBool(userRow[2]),       // C
-            canUpdate: parseBool(userRow[3]),     // D Sütunu (Güncelleme - Sadece işlem yetkisi)
-            canSunum: parseBool(userRow[4]),      // E
-            canExcel: parseBool(userRow[5]),      // F
-            canAnaliz: parseBool(userRow[6]),     // G
-            canPersonel: parseBool(userRow[7]),   // H
-            canGenel: parseBool(userRow[8]),      // I
-            canParametre: parseBool(userRow[9]),  // J
-            canYonetici: parseBool(userRow[10]),  // K
-            canExcelBicim: parseBool(userRow[11]) // L
+            isSuper: parseBool(userRow[2]),       // C: Süper Yetkili
+            canUpdate: parseBool(userRow[3]),     // D: Güncelleme (Sadece İşlem Yetkisi)
+            canSunum: parseBool(userRow[4]),      // E: Sunum
+            canExcel: parseBool(userRow[5]),      // F: Excel
+            canAnaliz: parseBool(userRow[6]),     // G: Analiz
+            canPersonel: parseBool(userRow[7]),   // H: Personel Bilgileri
+            canGenel: parseBool(userRow[8]),      // I: Genel Değerlendirme
+            canParametre: parseBool(userRow[9]),  // J: Parametre
+            canYonetici: parseBool(userRow[10]),  // K: Yönetici Detayı
+            canExcelBicim: parseBool(userRow[11]) // L: Excel Biçimlendirme
           };
         } else {
           currentUserPermissions = getEmptyPermissions();
         }
 
         applyPermissions(currentUserPermissions);
+        initDashboardData();
 
       } catch (err) {
-        console.error("Yetkiler okunurken hata oluştu:", err);
+        console.error("Yetki verileri çekilirken hata oluştu:", err);
         applyPermissions(getEmptyPermissions());
+        initDashboardData();
       }
     }
 
@@ -208,52 +311,172 @@
       };
     }
 
-    // YETKİLERİ ARAYÜZE UYGULAMA (DÜZELTİLEN KRİTİK MANTIK)
+    // YETKİLERİN ARAYÜZE UYGULANMASI (KRİTİK MANIK DÜZELTMESİ)
     function applyPermissions(perms) {
-      // 1. Sol Menü Elemanlarını Oluştur
       const navContainer = document.getElementById('navContainer');
       navContainer.innerHTML = '';
 
+      // 1. Sol Menü Çizimi (Güncelleme FALSE olsa dahi menü KAPANMAZ)
       ALL_NAV_ITEMS.forEach(item => {
-        // Süper yetkili her menüyü görür; değilse permKey şartına bakılır
         const hasAccess = perms.isSuper || !item.permKey || perms[item.permKey] === true;
 
         if (hasAccess) {
           const a = document.createElement('a');
           a.href = "#";
-          a.className = "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition";
-          a.innerHTML = `<span>${item.icon}</span><span>${item.name}</span>`;
-          a.onclick = () => navigateTo(item.id);
+          a.dataset.id = item.id;
+          a.className = "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition group";
+          a.innerHTML = `<span class="text-base group-hover:scale-110 transition-transform">${item.icon}</span><span class="font-medium">${item.name}</span>`;
+          a.onclick = (e) => {
+            e.preventDefault();
+            navigateTo(item.id);
+          };
           navContainer.appendChild(a);
         }
       });
 
-      // 2. İşlem Butonlarının Görünürlüğünü Ayarla (Güncelleme / Excel / PPTX)
-      // "canUpdate" FALSE olsa bile menü KAPANMAZ, sadece aşağıdaki buton kısıtlanır:
+      // 2. İşlem Butonlarının Yönetimi (Güncelleme Yetkisine Bağlı Buton Kısıtlaması)
       toggleButton('btnUpdate', perms.isSuper || perms.canUpdate);
       toggleButton('btnSunum', perms.isSuper || perms.canSunum);
       toggleButton('btnExcel', perms.isSuper || perms.canExcel);
 
-      // 3. Rol Rozetini Güncelle
+      // 3. Kullanıcı Yetki Rozeti
       const badge = document.getElementById('userBadge');
-      if (perms.isSuper) badge.innerText = "Süper Admin";
-      else if (perms.canUpdate) badge.innerText = "Yönetici";
-      else badge.innerText = "Görüntüleyen";
+      if (perms.isSuper) {
+        badge.innerText = "Süper Admin";
+        badge.className = "text-[10px] uppercase font-semibold bg-purple-600 px-2 py-0.5 rounded text-white";
+      } else if (perms.canUpdate) {
+        badge.innerText = "Yönetici";
+        badge.className = "text-[10px] uppercase font-semibold bg-blue-600 px-2 py-0.5 rounded text-white";
+      } else {
+        badge.innerText = "Görüntüleyen";
+        badge.className = "text-[10px] uppercase font-semibold bg-slate-700 px-2 py-0.5 rounded text-slate-300";
+      }
     }
 
     function toggleButton(btnId, isVisible) {
       const btn = document.getElementById(btnId);
       if (!btn) return;
       if (isVisible) {
-        btn.classList.remove('hidden', 'btn-disabled');
+        btn.classList.remove('hidden');
       } else {
-        btn.classList.add('hidden'); // Yetkisi yoksa butonu gizler
+        btn.classList.add('hidden');
       }
     }
 
     function navigateTo(pageId) {
-      document.getElementById('pageTitle').innerText = ALL_NAV_ITEMS.find(i => i.id === pageId)?.name || 'Dashboard';
-      // Sayfa yükleme logic'i buraya gelir
+      const item = ALL_NAV_ITEMS.find(i => i.id === pageId);
+      if (item) {
+        document.getElementById('pageTitle').innerText = item.name;
+      }
+      
+      // Menü Aktiflik Görünümü Update
+      document.querySelectorAll('#navContainer a').forEach(el => {
+        if (el.dataset.id === pageId) {
+          el.classList.add('bg-blue-600', 'text-white');
+          el.classList.remove('text-slate-300');
+        } else {
+          el.classList.remove('bg-blue-600', 'text-white');
+          el.classList.add('text-slate-300');
+        }
+      });
+    }
+
+    // Dashboard Örnek Verilerinin Başlatılması ve Grafikler
+    function initDashboardData() {
+      // Metrikler
+      document.getElementById('statTotalPersonnel').innerText = "42";
+      document.getElementById('statAvgScore').innerText = "%88.4";
+      document.getElementById('statTargetRatio').innerText = "%92.1";
+      document.getElementById('statWarningCount').innerText = "3";
+
+      // Grafikler
+      renderCharts();
+
+      // Örnek Tablo Doldurma
+      renderTable();
+    }
+
+    function renderCharts() {
+      const ctx1 = document.getElementById('performanceChart')?.getContext('2d');
+      if (ctx1) {
+        if (mainChartInstance) mainChartInstance.destroy();
+        mainChartInstance = new Chart(ctx1, {
+          type: 'line',
+          data: {
+            labels: ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran'],
+            datasets: [{
+              label: 'Ortalama Karne Skoru',
+              data: [82, 85, 84, 89, 87, 91],
+              borderColor: '#2563eb',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+              fill: true,
+              tension: 0.3
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+      }
+
+      const ctx2 = document.getElementById('distributionChart')?.getContext('2d');
+      if (ctx2) {
+        if (distChartInstance) distChartInstance.destroy();
+        distChartInstance = new Chart(ctx2, {
+          type: 'doughnut',
+          data: {
+            labels: ['Yüksek Performans', 'Ortalama', 'Gelişime Açık'],
+            datasets: [{
+              data: [24, 15, 3],
+              backgroundColor: ['#10b981', '#3b82f6', '#f59e0b']
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false }
+        });
+      }
+    }
+
+    function renderTable() {
+      const mockData = [
+        { name: "Zafer Çolak", email: "zafer54sema@gmail.com", score: "%96", shift: "%99", status: "Mükemmel" },
+        { name: "Abduselam Daşdemir", email: "dasdemirabduselam@gmail.com", score: "%91", shift: "%95", status: "İyi" },
+        { name: "Bayram Akyüz", email: "akyuzbayram856@gmail.com", score: "%85", shift: "%92", status: "Ortalama" }
+      ];
+
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      mockData.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-gray-50 transition";
+        tr.innerHTML = `
+          <td class="px-6 py-4 font-semibold text-gray-800">${row.name}</td>
+          <td class="px-6 py-4">${row.email}</td>
+          <td class="px-6 py-4 font-bold text-blue-600">${row.score}</td>
+          <td class="px-6 py-4">${row.shift}</td>
+          <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">${row.status}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filterTable() {
+      const input = document.getElementById("searchInput").value.toUpperCase();
+      const trs = document.getElementById("tableBody").getElementsByTagName("tr");
+      for (let i = 0; i < trs.length; i++) {
+        const txtValue = trs[i].textContent || trs[i].innerText;
+        trs[i].style.display = txtValue.toUpperCase().indexOf(input) > -1 ? "" : "none";
+      }
+    }
+
+    function handleDataUpdate() {
+      alert("Veriler Google Sheets üzerinden taranıyor ve güncelleniyor...");
+    }
+
+    function exportToExcel() {
+      alert("ExcelJS formatlama kuralları uygulanarak .xlsx dosyası oluşturuluyor...");
+    }
+
+    function exportToPPTX() {
+      alert("PptxGenJS kütüphanesi ile sunum hazırlanıyor...");
     }
 
     function logout() {
