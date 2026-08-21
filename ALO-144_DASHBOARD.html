@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" defer></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
@@ -828,6 +830,7 @@ body{
     <div class="status" id="status">
       <button id="refreshBtn" class="refresh-btn" title="Veriyi yeniden çek">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-gelen-arama-dagilimi', 'gelen-arama-dagilimi')">⇩ Excel'e Aktar</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <button class="refresh-btn sunum-only" id="openPresModalBtn">🎞 Sunum Oluştur</button>
       <span class="dot" id="statusDot"></span>
@@ -984,6 +987,7 @@ body{
     <div class="status" id="gtdStatusWrap">
       <button id="gtdRefreshBtn" class="refresh-btn" title="Veriyi yeniden çek">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-genel-talep-dagilimi', 'genel-talep-dagilimi')">⇩ Excel'e Aktar</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="gtdStatusDot"></span>
       <span id="gtdStatusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -1407,6 +1411,7 @@ body{
     <div class="status" id="kt-status">
       <button id="kt-refreshBtn" class="refresh-btn">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-kopuk-talep-dagilimi', 'kopuk-talep-dagilimi')">⇩ Excel'e Aktar</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="kt-statusDot"></span>
       <span id="kt-statusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -1800,6 +1805,7 @@ body{
     <div class="status" id="vd-status">
       <button id="vd-refreshBtn" class="refresh-btn">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-vardiya', 'vardiya')">⇩ Excel'e Aktar</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="vd-statusDot"></span>
       <span id="vd-statusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -1981,6 +1987,7 @@ body{
     <div class="status" id="pp-status">
       <button id="pp-refreshBtn" class="refresh-btn">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-personel-performans', 'personel-performans')">⇩ Excel'e Aktar</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="pp-statusDot"></span>
       <span id="pp-statusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -3244,83 +3251,12 @@ function createSlotChartPanel(config){
 }
 
 // Herhangi bir <table> elementini, o an ekranda görünen haliyle (filtrelenmiş,
-// sıralanmış, ne ise) tek tıkla .xlsx dosyası olarak indirir. SheetJS kütüphanesi kullanır
-// (CDN üzerinden yükleniyor, bkz. build.sh).
-function exportTableElementToExcel(tableEl, filename){
-  try {
-    if (!tableEl){
-      alert('Aktarılacak bir tablo bulunamadı. Bu sekmede tablo içeren bir görünüm yok.');
-      return;
-    }
-    const wb = XLSX.utils.table_to_book(tableEl, { raw: true });
-    XLSX.writeFile(wb, filename);
-  } catch (e) {
-    alert("Excel'e aktarma sırasında bir hata oluştu: " + e.message);
-  }
-}
-
-// Belirli bir tabloyu ID'siyle dışa aktarır (tek bir tablonun kesin olarak
-// hedeflenmesi gereken durumlar için).
-function exportTableToExcel(tableId, filename){
-  exportTableElementToExcel(document.getElementById(tableId), filename);
-}
-
-// Bir sayfanın O AN AKTİF olan sekmesindeki tabloyu/tabloları bulup dışa aktarır - kullanıcı
-// hangi sekmede olursa olsun, tek bir "Excel'e Aktar" düğmesi doğru tablo(ları) bulur.
-// Sekmede BİRDEN FAZLA tablo varsa (örn. Vardiya'nın Kapsam sekmesindeki "Takım Lideri
-// Bazında Özet" + "Genel Liste" gibi), hepsi TEK bir .xlsx dosyasında AYRI SAYFALAR
-// (sheet) olarak birleşir - hiçbiri kaybolmaz. Aktif sekmede tablo yoksa kullanıcıyı net
-// bir uyarıyla bilgilendirir.
-function exportActiveTableToExcel(pageId, filenamePrefix){
-  const pageEl = document.getElementById(pageId);
-  if (!pageEl){
-    alert('Sayfa bulunamadı.');
-    return;
-  }
-  const activeTab = pageEl.querySelector('.tab-content.active') || pageEl;
-  const tables = [...activeTab.querySelectorAll('table')];
-  if (!tables.length){
-    alert('Aktarılacak bir tablo bulunamadı. Bu sekmede tablo içeren bir görünüm yok.');
-    return;
-  }
-
-  const stamp = new Date().toISOString().slice(0, 10);
-
-  if (tables.length === 1){
-    exportTableElementToExcel(tables[0], `${filenamePrefix}-${stamp}.xlsx`);
-    return;
-  }
-
-  try {
-    const wb = XLSX.utils.book_new();
-    const usedNames = new Set();
-    tables.forEach((t, i) => {
-      const ws = XLSX.utils.table_to_sheet(t, { raw: true });
-
-      // Sayfa adını, bu tablonun hemen üstündeki ".panel-head" başlığından almayı dener
-      // (kod düzenimizde her tablo, kendi başlığının hemen ardından gelir).
-      let sheetName = `Tablo ${i + 1}`;
-      const scrollWrap = t.closest('.table-scroll');
-      const panelHead = scrollWrap ? scrollWrap.previousElementSibling : null;
-      if (panelHead && panelHead.classList.contains('panel-head')){
-        const textNode = [...panelHead.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
-        if (textNode) sheetName = textNode.textContent.trim();
-      }
-      // Excel sayfa adları en fazla 31 karakter olabilir, bazı karakterler yasaktır, ve
-      // aynı isimde iki sayfa olamaz.
-      sheetName = sheetName.replace(/[\\/*?:[\]]/g, '').slice(0, 28) || `Tablo ${i + 1}`;
-      let finalName = sheetName, n = 2;
-      while (usedNames.has(finalName)){ finalName = `${sheetName} (${n++})`; }
-      usedNames.add(finalName);
-
-      XLSX.utils.book_append_sheet(wb, ws, finalName);
-    });
-    XLSX.writeFile(wb, `${filenamePrefix}-${stamp}.xlsx`);
-  } catch (e) {
-    alert("Excel'e aktarma sırasında bir hata oluştu: " + e.message);
-  }
-}
+// sıralanmış, ne ise) tek tıkla .xlsx dosyası olarak indirir. ExcelJS ile üretilir
+// (aşağıdaki, dosyanın sonundaki "EXCEL BİÇİMLENDİRME" bloğunda gerçek tanımı var -
+// burada sadece yer tutucu değil, GERÇEKTEN kullanılan tanım orada, sonradan üzerine
+// yazılır - hoisting nedeniyle sorun olmaz).
 </script>
+
 <script>
 (function(){
 // ===== GELEN ARAMA DAĞILIMI SAYFASI =====
@@ -9726,6 +9662,591 @@ document.querySelector('[data-page="analiz"]').addEventListener('click', () => {
 });
 
 })();
+</script>
+
+<div class="modal-overlay" id="excelFormatModalOverlay" style="display:none;">
+  <div class="modal-box" style="max-width:920px; width:92vw;">
+    <div class="modal-head">Excel Biçimlendirme
+      <div id="efStatus" style="font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:400; color:var(--dim); margin-top:4px;"></div>
+    </div>
+    <div class="modal-body" style="max-height:70vh; overflow:auto;">
+      <div class="ef-section">
+        <h3 style="margin:0 0 6px;">1) Excel'den İçe Aktar</h3>
+        <p style="font-size:12.5px; color:var(--dim); margin:0 0 10px; line-height:1.6;">Elle biçimlendirdiğin (renk, kalınlık, koşullu biçimlendirme kuralları içeren) bir Excel dosyası yükle — sütun ADINA göre biçim + gerçek koşullu biçimlendirme kuralları okunur. Formül yok, sadece görsel.</p>
+        <input type="file" id="efImportFile" accept=".xlsx">
+      </div>
+      <hr style="border:none; border-top:1px solid var(--line); margin:18px 0;">
+      <div class="ef-section">
+        <h3 style="margin:0 0 6px;">2) Bu Ayarlarla Kaydet</h3>
+        <p style="font-size:12.5px; color:var(--dim); margin:0 0 10px; line-height:1.6;">Şu an hafızada duran ayarları (içe aktarılmış ya da yüklenmiş şablon) bir isimle kaydet.</p>
+        <input type="text" id="efTemplateName" placeholder="Şablon adı (örn. Gelen Arama Standart)" style="width:280px; margin-right:8px;">
+        <button class="refresh-btn" id="efSaveBtn">Kaydet</button>
+      </div>
+      <hr style="border:none; border-top:1px solid var(--line); margin:18px 0;">
+      <div class="ef-section">
+        <h3 style="margin:0 0 6px;">3) Şablon Yükle</h3>
+        <p style="font-size:12.5px; color:var(--dim); margin:0 0 10px; line-height:1.6;">Daha önce kaydedilen bir şablonu geri çağır — bundan sonraki export'lar bu şablonu kullanır.</p>
+        <select id="efTemplateSelect" style="min-width:280px; margin-right:8px;"><option value="">Yükleniyor…</option></select>
+        <button class="refresh-btn" id="efLoadBtn">Yükle</button>
+        <button class="refresh-btn" id="efDeleteBtn">Sil</button>
+        <button class="refresh-btn" id="efRefreshBtn" title="Listeyi yenile">⟳</button>
+      </div>
+      <hr style="border:none; border-top:1px solid var(--line); margin:18px 0;">
+      <div class="ef-section">
+        <h3 style="margin:0 0 6px;">Şu An Aktif</h3>
+        <div id="efCurrentSummary" style="font-size:12.5px; color:var(--dim);">Hiçbir şablon yüklenmedi — export'lar biçimsiz (düz) çıkar.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="refresh-btn" id="efCloseBtn">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// ===== ALO-144 EXCEL BİÇİMLENDİRME — Veri Hazırlama projesindeki "1. katman"
+// (sütun-adına-göre biçim + GERÇEK Excel koşullu biçimlendirme, FORMÜL YOK) mimarisinin
+// birebir aynısı. Şablonlar AYNI Sheet'te (CONFIG_SHEET_ID, "Sablonlar" sekmesi) saklanır -
+// Veri Hazırlama ile ortak, proje adı sadece bir etiket. Hücre-bazlı (pozisyon bazlı) tam
+// palet katmanı BİLİNÇLİ OLARAK dahil edilmedi (kullanıcı onayı: "sadece 1. katman").
+// ============================================================================
+const CONFIG_SHEET_ID = '1YvcmSZZlyplOGvcQgiOponjszkZJGdnbxVCmYfQxiCA';
+const TAB_SABLONLAR = 'Sablonlar';
+const EF_PROJECT_LABEL = 'ALO-144';
+
+function efNormalizeKey(v){
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'number') return String(v);
+  return String(v).trim();
+}
+function efTrUpper(v){ return efNormalizeKey(v).toLocaleUpperCase('tr-TR'); }
+function efNormalizeLabelKey(v){ return efTrUpper(v).replace(/\s+/g, ''); }
+
+function efDefaultFormatState(){
+  return { baslik: efEmptyStyle(), veri: efEmptyStyle(), baslikPerCol: {}, veriPerCol: {} };
+}
+function efEmptyStyle(){
+  return { uygula: false, kalin: false, yaziRengi: '', argPlan: '', hizalama: '', kenarlik: false, sayiFormat: '', kaydir: false, yaziBoyutu: null };
+}
+
+let efFormatState = efDefaultFormatState();
+let efKosulluBicimlendirme = []; // [{ metrik, operator, deger1, deger2, renk, oncelik }]
+
+// ----- Renk/tema yardımcıları (Veri Hazırlama'dan birebir) -----
+function efHexToArgb(hex){
+  const h = String(hex || '').replace('#', '');
+  if (!/^[0-9A-Fa-f]{6}$/.test(h)) return null;
+  return 'FF' + h.toUpperCase();
+}
+function efArgbToHex(argb){
+  if (!argb || argb.length < 6) return '#ffff00';
+  const rgb = argb.length === 8 ? argb.slice(2) : argb;
+  return '#' + rgb.toLowerCase();
+}
+const EF_THEME_INDEX_ORDER = ['lt1', 'dk1', 'lt2', 'dk2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'];
+async function efExtractThemeColors(fileArrayBuffer){
+  try {
+    const zip = await JSZip.loadAsync(fileArrayBuffer);
+    const themeFile = zip.file('xl/theme/theme1.xml') || Object.values(zip.files).find(f => /xl\/theme\/theme\d*\.xml$/i.test(f.name));
+    if (!themeFile) return null;
+    const xml = await themeFile.async('string');
+    const scheme = {};
+    EF_THEME_INDEX_ORDER.forEach(key => {
+      const block = xml.match(new RegExp(`<a:${key}>(.*?)</a:${key}>`, 's'));
+      if (!block) return;
+      const srgb = block[1].match(/(?:lastClr|val)="([0-9A-Fa-f]{6})"/);
+      if (srgb) scheme[key] = srgb[1].toUpperCase();
+    });
+    return EF_THEME_INDEX_ORDER.map(key => scheme[key] || '000000');
+  } catch (e){ return null; }
+}
+function efApplyTint(hex, tint){
+  if (!tint) return hex;
+  const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+  const adj = (c) => { const v = tint < 0 ? c * (1 + tint) : c * (1 - tint) + 255 * tint; return Math.max(0, Math.min(255, Math.round(v))); };
+  const toHex = (n) => n.toString(16).padStart(2, '0');
+  return toHex(adj(r)) + toHex(adj(g)) + toHex(adj(b));
+}
+const EF_EXCEL_INDEXED_COLORS = [
+  '000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF',
+  '000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF',
+  '800000','008000','000080','808000','800080','008080','C0C0C0','808080',
+  '9999FF','993366','FFFFCC','CCFFFF','660066','FF8080','0066CC','CCCCFF',
+  '000080','FF00FF','FFFF00','00FFFF','800080','800000','008080','0000FF',
+  '00CCFF','CCFFFF','CCFFCC','FFFF99','99CCFF','FF99CC','CC99FF','FFCC99',
+  '3366FF','33CCCC','99CC00','FFCC00','FF9900','FF6600','666699','969696',
+  '003366','339966','003300','333300','993300','993366','333399','333333',
+];
+function efResolveColor(colorObj, themeColors){
+  if (!colorObj) return '';
+  if (colorObj.argb) return efArgbToHex(colorObj.argb);
+  if (colorObj.theme !== undefined && themeColors && themeColors[colorObj.theme]){
+    return ('#' + efApplyTint(themeColors[colorObj.theme], colorObj.tint || 0)).toLowerCase();
+  }
+  if (colorObj.indexed !== undefined && EF_EXCEL_INDEXED_COLORS[colorObj.indexed]){
+    return '#' + EF_EXCEL_INDEXED_COLORS[colorObj.indexed].toLowerCase();
+  }
+  return '';
+}
+
+// ----- Hücre biçimi okuma/uygulama -----
+function efReadCellStyle(cell, themeColors){
+  const st = efEmptyStyle();
+  st.uygula = true;
+  if (cell.font){
+    st.kalin = !!cell.font.bold;
+    if (cell.font.color) st.yaziRengi = efResolveColor(cell.font.color, themeColors);
+    if (cell.font.size) st.yaziBoyutu = cell.font.size;
+  }
+  if (cell.fill && cell.fill.type === 'pattern'){
+    const c = cell.fill.fgColor || cell.fill.bgColor;
+    if (c) st.argPlan = efResolveColor(c, themeColors);
+  }
+  if (cell.alignment){
+    if (cell.alignment.horizontal) st.hizalama = cell.alignment.horizontal;
+    if (cell.alignment.wrapText) st.kaydir = true;
+  }
+  if (cell.border && (cell.border.top || cell.border.bottom || cell.border.left || cell.border.right)) st.kenarlik = true;
+  if (cell.numFmt && cell.numFmt !== 'General') st.sayiFormat = cell.numFmt;
+  return st;
+}
+function efFirstNonEmptyCell(row, maxCol){
+  for (let c = 1; c <= maxCol; c++){
+    const cell = row.getCell(c);
+    if (cell.value !== null && cell.value !== undefined && cell.value !== '') return cell;
+  }
+  return row.getCell(1);
+}
+function efImportFormatFromSheet(ws, themeColors){
+  const maxCol = ws.columnCount || 20;
+  const headerRow = ws.getRow(1);
+  const dataRow = ws.getRow(2);
+  const baslikPerCol = {}, veriPerCol = {};
+  for (let c = 1; c <= maxCol; c++){
+    const headerCell = headerRow.getCell(c);
+    const label = efNormalizeKey(headerCell.value);
+    if (!label) continue;
+    const key = efNormalizeLabelKey(label);
+    baslikPerCol[key] = efReadCellStyle(headerCell, themeColors);
+    veriPerCol[key] = efReadCellStyle(dataRow.getCell(c), themeColors);
+  }
+  const headerCell = efFirstNonEmptyCell(headerRow, maxCol);
+  const dataCell = efFirstNonEmptyCell(dataRow, maxCol);
+  return { baslik: efReadCellStyle(headerCell, themeColors), veri: efReadCellStyle(dataCell, themeColors), baslikPerCol, veriPerCol };
+}
+function efApplyCellStyle(cell, st){
+  if (!st || !st.uygula) return;
+  cell.font = { bold: !!st.kalin, size: st.yaziBoyutu || undefined, color: st.yaziRengi ? { argb: efHexToArgb(st.yaziRengi) } : undefined };
+  if (st.argPlan){
+    const argb = efHexToArgb(st.argPlan);
+    if (argb) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+  }
+  const alignment = {};
+  if (st.hizalama){ alignment.horizontal = st.hizalama; alignment.vertical = 'middle'; }
+  if (st.kaydir) alignment.wrapText = true;
+  if (Object.keys(alignment).length) cell.alignment = alignment;
+  if (st.kenarlik){
+    const side = { style: 'thin', color: { argb: 'FF000000' } };
+    cell.border = { top: side, left: side, bottom: side, right: side };
+  }
+  if (st.sayiFormat) cell.numFmt = st.sayiFormat;
+}
+
+// ----- Koşullu biçimlendirme: yazma (gerçek Excel kuralı) -----
+const EF_COND_OP_MAP = {
+  'Büyük': 'greaterThan', 'Küçük': 'lessThan', 'Büyük Eşit': 'greaterThanOrEqual',
+  'Küçük Eşit': 'lessThanOrEqual', 'Eşit': 'equal', 'Farklı': 'notEqual', 'Aralık': 'between',
+};
+const EF_COND_OP_MAP_REVERSE = {
+  greaterThan: 'Büyük', lessThan: 'Küçük', greaterThanOrEqual: 'Büyük Eşit',
+  lessThanOrEqual: 'Küçük Eşit', equal: 'Eşit', notEqual: 'Farklı', between: 'Aralık',
+};
+function efColNumToA1(n){
+  let s = '';
+  n = n + 1;
+  while (n > 0){ const rem = (n - 1) % 26; s = String.fromCharCode(65 + rem) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function efColLetterToNum(letter){
+  let n = 0;
+  for (const ch of letter) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1; // 0-index
+}
+function efToExcelFormulaLiteral(v){
+  if (v === null || v === undefined) return v;
+  if (v === '') return '""';
+  const s = String(v).trim();
+  const n = Number(s.replace(',', '.'));
+  if (s !== '' && !isNaN(n)) return s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function efFindColByLabel(result, label){
+  const c = result.columns.find(x => x.label === label);
+  return c ? c.col : null;
+}
+function efApplyKosulluBicimlendirme(ws, result, rowCount){
+  if (!rowCount) return;
+  const sortedRules = efKosulluBicimlendirme.filter(r => r.metrik).slice().sort((a, b) => (a.oncelik || 1) - (b.oncelik || 1));
+  let priorityCounter = 1;
+  sortedRules.forEach(rule => {
+    const col = efFindColByLabel(result, rule.metrik);
+    if (col === null) return;
+    const colLetter = efColNumToA1(col);
+    const ref = `${colLetter}2:${colLetter}${rowCount + 1}`;
+    const topLeftCellRef = `${colLetter}2`;
+    const argb = efHexToArgb(rule.renk) || 'FFFFFF00';
+    const style = { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } };
+    const priority = priorityCounter++;
+    if (rule.operator === 'İçerdiği Metin'){
+      ws.addConditionalFormatting({ ref, rules: [{ type: 'containsText', operator: 'containsText', text: rule.deger1, formulae: [`NOT(ISERROR(SEARCH("${rule.deger1}",${topLeftCellRef})))`], style, priority }] });
+      return;
+    }
+    const opType = EF_COND_OP_MAP[rule.operator];
+    if (!opType) return;
+    const formulae = rule.operator === 'Aralık' ? [efToExcelFormulaLiteral(rule.deger1), efToExcelFormulaLiteral(rule.deger2)] : [efToExcelFormulaLiteral(rule.deger1)];
+    ws.addConditionalFormatting({ ref, rules: [{ type: 'cellIs', operator: opType, formulae, style, priority }] });
+  });
+}
+
+// ----- Koşullu biçimlendirme: içe aktarma (bir dosyadaki GERÇEK kuralları okuma) -----
+function efParseSingleArea(area){
+  const m = area.trim().match(/^\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/i);
+  if (!m) return null;
+  return { colStart: m[1].toUpperCase(), colEnd: (m[3] || m[1]).toUpperCase(), rowStart: parseInt(m[2], 10), rowEnd: parseInt(m[4] || m[2], 10) };
+}
+function efParseRefColumns(ref){
+  const areas = String(ref).split(/[\s,]+/).map(efParseSingleArea).filter(Boolean);
+  if (!areas.length) return null;
+  let colStart = areas[0].colStart, colEnd = areas[0].colEnd, totalRows = 0;
+  areas.forEach(a => {
+    if (efColLetterToNum(a.colStart) < efColLetterToNum(colStart)) colStart = a.colStart;
+    if (efColLetterToNum(a.colEnd) > efColLetterToNum(colEnd)) colEnd = a.colEnd;
+    totalRows += Math.max(0, a.rowEnd - a.rowStart + 1);
+  });
+  return { colStart, colEnd, totalRows };
+}
+function efUnquoteFormulaValue(v){
+  const s = efNormalizeKey(v);
+  const m = s.match(/^"(.*)"$/);
+  return m ? m[1].replace(/""/g, '"') : s;
+}
+function efImportCondFormattingFromSheet(ws, themeColors){
+  const header = [];
+  ws.getRow(1).eachCell({ includeEmpty: true }, (cell, c) => { header[c - 1] = efNormalizeKey(cell.value); });
+  const sheetDataRows = Math.max(1, (ws.rowCount || 1) - 1);
+  const MIN_ROWS = Math.max(5, sheetDataRows * 0.3);
+  const imported = [];
+  let oncelikSeq = 1;
+  (ws.conditionalFormattings || []).forEach(cf => {
+    const cols = efParseRefColumns(cf.ref);
+    if (!cols || cols.totalRows < MIN_ROWS) return;
+    const startCol = efColLetterToNum(cols.colStart);
+    const endCol = efColLetterToNum(cols.colEnd);
+    (cf.rules || []).forEach(rule => {
+      const colorObj = (rule.style && rule.style.fill && (rule.style.fill.fgColor || rule.style.fill.bgColor)) || null;
+      const renk = efResolveColor(colorObj, themeColors) || '#ffff00';
+      const searchMatch = !rule.type && (rule.formulae || [])[0] && String(rule.formulae[0]).match(/SEARCH\(\s*"([^"]*)"/i);
+      const pushRule = (metrik) => {
+        if (rule.type === 'containsText' || searchMatch){
+          const text = rule.type === 'containsText' ? (rule.text || '') : searchMatch[1];
+          imported.push({ metrik, operator: 'İçerdiği Metin', deger1: text, deger2: '', renk, oncelik: rule.priority || oncelikSeq++ });
+        } else if (rule.type === 'cellIs' || (!rule.type && rule.operator)){
+          const op = EF_COND_OP_MAP_REVERSE[rule.operator];
+          if (!op) return;
+          const f = rule.formulae || [];
+          imported.push({ metrik, operator: op, deger1: efUnquoteFormulaValue(f[0]), deger2: op === 'Aralık' ? efUnquoteFormulaValue(f[1]) : '', renk, oncelik: rule.priority || oncelikSeq++ });
+        }
+      };
+      for (let c = startCol; c <= endCol; c++){
+        const metrik = header[c] || '';
+        if (metrik) pushRule(metrik);
+      }
+    });
+  });
+  return imported;
+}
+
+// ----- Panel: İçe Aktar -----
+document.getElementById('efImportFile').addEventListener('change', async (e) => {
+  const statusEl = document.getElementById('efStatus');
+  const file = e.target.files[0];
+  if (!file) return;
+  statusEl.textContent = 'Okunuyor…';
+  try {
+    const buf = await file.arrayBuffer();
+    const [themeColors, wb] = await Promise.all([
+      efExtractThemeColors(buf.slice(0)),
+      (async () => { const w = new ExcelJS.Workbook(); await w.xlsx.load(buf); return w; })(),
+    ]);
+    const ws = wb.worksheets[0];
+    if (!ws) throw new Error('Dosyada okunabilir bir sayfa bulunamadı.');
+    efFormatState = efImportFormatFromSheet(ws, themeColors);
+    efKosulluBicimlendirme = efImportCondFormattingFromSheet(ws, themeColors);
+    efUpdateCurrentSummary();
+    statusEl.textContent = `✓ İçe aktarıldı: ${Object.keys(efFormatState.baslikPerCol).length} sütun biçimi, ${efKosulluBicimlendirme.length} koşullu biçimlendirme kuralı bulundu.`;
+    statusEl.className = '';
+    e.target.value = '';
+  } catch (err){
+    statusEl.textContent = '✗ Hata: ' + err.message;
+  }
+});
+
+// ----- Panel: Bu Ayarlarla Kaydet -----
+document.getElementById('efSaveBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('efStatus');
+  const nameInput = document.getElementById('efTemplateName');
+  const name = nameInput.value.trim();
+  if (!name){ statusEl.textContent = '✗ Bir şablon adı yaz.'; return; }
+  statusEl.textContent = 'Kaydediliyor…';
+  try {
+    const token = await ensureWriteToken();
+    const payload = JSON.stringify({ formatState: efFormatState, kosulluBicimlendirme: efKosulluBicimlendirme, tarih: new Date().toISOString() });
+    const CHUNK_SIZE = 40000;
+    const chunks = [];
+    for (let i = 0; i < payload.length; i += CHUNK_SIZE) chunks.push(payload.slice(i, i + CHUNK_SIZE));
+    const rowValues = [name, EF_PROJECT_LABEL, ...chunks];
+    const range = encodeURIComponent(`'${TAB_SABLONLAR}'!A:ZZ`);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: [rowValues] }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Kaydedilemedi.');
+    nameInput.value = '';
+    await efLoadTemplateList();
+    statusEl.textContent = `✓ "${name}" şablonu kaydedildi (${chunks.length} parça).`;
+  } catch (err){
+    statusEl.textContent = '✗ ' + err.message;
+  }
+});
+
+// ----- Panel: Şablon Listesi / Yükle / Sil -----
+async function efLoadTemplateList(){
+  const sel = document.getElementById('efTemplateSelect');
+  const statusEl = document.getElementById('efStatus');
+  sel.innerHTML = '<option value="">Yükleniyor…</option>';
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${encodeURIComponent(`'${TAB_SABLONLAR}'!A2:ZZ500`)}`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Şablon listesi alınamadı.');
+    const rows = data.values || [];
+    sel._rows = rows;
+    if (!rows.length){ sel.innerHTML = '<option value="">(henüz şablon yok)</option>'; return; }
+    sel.innerHTML = '<option value="">Şablon seç…</option>' + rows.map((r, i) => `<option value="${i}">${r[0] || '(isimsiz)'} — ${r[1] || ''}</option>`).join('');
+  } catch (err){
+    sel.innerHTML = '<option value="">Hata</option>';
+    statusEl.textContent = `✗ ${err.message} ("${TAB_SABLONLAR}" sekmesinin CONFIG_SHEET_ID'de var olduğundan emin ol.)`;
+  }
+}
+document.getElementById('efRefreshBtn').addEventListener('click', efLoadTemplateList);
+
+document.getElementById('efLoadBtn').addEventListener('click', () => {
+  const sel = document.getElementById('efTemplateSelect');
+  const statusEl = document.getElementById('efStatus');
+  if (!sel.value || !sel._rows){ statusEl.textContent = '✗ Önce bir şablon seç.'; return; }
+  const row = sel._rows[parseInt(sel.value, 10)];
+  try {
+    const payload = row.slice(2).filter(c => c !== undefined && c !== null && c !== '').join('');
+    const data = JSON.parse(payload);
+    efFormatState = data.formatState || efDefaultFormatState();
+    if (!efFormatState.baslikPerCol) efFormatState.baslikPerCol = {};
+    if (!efFormatState.veriPerCol) efFormatState.veriPerCol = {};
+    efKosulluBicimlendirme = Array.isArray(data.kosulluBicimlendirme) ? data.kosulluBicimlendirme : [];
+    efUpdateCurrentSummary();
+    statusEl.textContent = `✓ "${row[0]}" şablonu yüklendi.`;
+  } catch (err){
+    statusEl.textContent = '✗ Şablon okunamadı: ' + err.message;
+  }
+});
+
+document.getElementById('efDeleteBtn').addEventListener('click', async () => {
+  const sel = document.getElementById('efTemplateSelect');
+  const statusEl = document.getElementById('efStatus');
+  if (!sel.value || !sel._rows){ statusEl.textContent = '✗ Önce silinecek bir şablon seç.'; return; }
+  const idx = parseInt(sel.value, 10);
+  const row = sel._rows[idx];
+  if (!confirm(`"${row[0]}" şablonu kalıcı olarak silinecek. Emin misin?`)) return;
+  statusEl.textContent = 'Siliniyor…';
+  try {
+    const token = await ensureWriteToken();
+    const sheetRow = idx + 2;
+    const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}?fields=sheets.properties`, { headers: { 'Authorization': 'Bearer ' + token } });
+    const meta = await metaRes.json();
+    const sheetProps = (meta.sheets || []).find(s => s.properties.title === TAB_SABLONLAR);
+    if (!sheetProps) throw new Error(`"${TAB_SABLONLAR}" sekmesi bulunamadı.`);
+    const sheetIdNum = sheetProps.properties.sheetId;
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: sheetIdNum, dimension: 'ROWS', startIndex: sheetRow - 1, endIndex: sheetRow } } }] }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Silinemedi.');
+    await efLoadTemplateList();
+    statusEl.textContent = `✓ "${row[0]}" şablonu silindi.`;
+  } catch (err){
+    statusEl.textContent = '✗ ' + err.message;
+  }
+});
+
+function efUpdateCurrentSummary(){
+  const el = document.getElementById('efCurrentSummary');
+  const colCount = Object.keys(efFormatState.baslikPerCol || {}).length;
+  const ruleCount = efKosulluBicimlendirme.length;
+  if (!colCount && !ruleCount){
+    el.textContent = 'Hiçbir şablon yüklenmedi — export\'lar biçimsiz (düz) çıkar.';
+    return;
+  }
+  el.textContent = `${colCount} sütun için biçim tanımlı, ${ruleCount} koşullu biçimlendirme kuralı aktif.`;
+}
+
+function openExcelFormatPanel(){
+  document.getElementById('excelFormatModalOverlay').style.display = 'flex';
+  efUpdateCurrentSummary();
+  efLoadTemplateList();
+}
+document.getElementById('efCloseBtn').addEventListener('click', () => {
+  document.getElementById('excelFormatModalOverlay').style.display = 'none';
+});
+document.getElementById('excelFormatModalOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'excelFormatModalOverlay') e.target.style.display = 'none';
+});
+
+// ============================================================================
+// ===== EXCEL'E AKTAR — artık ExcelJS ile, aktif şablonun biçim + koşullu
+// biçimlendirmesini uygulayarak üretir (SheetJS'in aksine yazma tarafında biçim
+// desteklemiyordu). Sayfadaki her <table>, kendi worksheet'i olur; birden fazla tabloda
+// hepsi TEK dosyada AYRI SAYFALAR olarak birleşir (eski davranış korunuyor).
+// ============================================================================
+function efReadTableCellValue(td){
+  const raw = (td.textContent || '').trim();
+  if (raw === '' || raw === '—' || raw === '-') return raw === '' ? null : raw;
+  const normalized = raw.replace(/\./g, '').replace(',', '.').replace('%', '');
+  if (/^-?\d+(\.\d+)?$/.test(normalized) && /\d/.test(raw)){
+    const n = parseFloat(normalized);
+    if (!isNaN(n)) return n;
+  }
+  return raw;
+}
+
+async function efBuildWorksheetFromTable(wb, tableEl, sheetName){
+  const ws = wb.addWorksheet(sheetName);
+  const rows = [...tableEl.querySelectorAll('tr')];
+  if (!rows.length) return ws;
+
+  // Başlık satırı: tablonun İLK satırı (thead ya da ilk tr) - th veya td fark etmez.
+  const headerCells = [...rows[0].querySelectorAll('th,td')];
+  const columns = headerCells.map((cell, idx) => ({ label: efNormalizeKey(cell.textContent), col: idx }));
+  headerCells.forEach((cell, idx) => { ws.getCell(1, idx + 1).value = efNormalizeKey(cell.textContent); });
+
+  const dataRows = rows.slice(1);
+  dataRows.forEach((tr, rIdx) => {
+    const cells = [...tr.querySelectorAll('td,th')];
+    cells.forEach((td, cIdx) => {
+      ws.getCell(rIdx + 2, cIdx + 1).value = efReadTableCellValue(td);
+    });
+  });
+
+  const totalCols = columns.length;
+  // Biçim uygulama: her sütun için önce baslikPerCol/veriPerCol (isme göre eşleşen) denenir,
+  // eşleşme yoksa genel baslik/veri'ye (ilk dolu hücreden okunmuş yedek) düşülür.
+  for (let c = 1; c <= totalCols; c++){
+    const label = columns[c - 1].label;
+    const key = efNormalizeLabelKey(label);
+    const baslikSt = efFormatState.baslikPerCol[key] || efFormatState.baslik;
+    efApplyCellStyle(ws.getCell(1, c), baslikSt);
+    for (let r = 2; r <= dataRows.length + 1; r++){
+      const veriSt = efFormatState.veriPerCol[key] || efFormatState.veri;
+      efApplyCellStyle(ws.getCell(r, c), veriSt);
+    }
+  }
+
+  const result = { columns };
+  efApplyKosulluBicimlendirme(ws, result, dataRows.length);
+
+  // Sütun genişliği: içeriğe göre otomatik (şablon içermiyor - bilinçli, "1. katman" kapsamı dışında)
+  for (let c = 1; c <= totalCols; c++){
+    let maxLen = 8;
+    ws.eachRow(row => {
+      const v = row.getCell(c).value;
+      if (v != null && v !== '') maxLen = Math.max(maxLen, String(v).length);
+    });
+    ws.getColumn(c).width = Math.min(maxLen + 2, 40);
+  }
+  return ws;
+}
+
+async function exportTableElementToExcel(tableEl, filename){
+  try {
+    if (!tableEl){
+      alert('Aktarılacak bir tablo bulunamadı. Bu sekmede tablo içeren bir görünüm yok.');
+      return;
+    }
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Zafer Çolak'; wb.lastModifiedBy = 'Zafer Çolak';
+    await efBuildWorksheetFromTable(wb, tableEl, 'Tablo 1');
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert("Excel'e aktarma sırasında bir hata oluştu: " + e.message);
+  }
+}
+function exportTableToExcel(tableId, filename){
+  exportTableElementToExcel(document.getElementById(tableId), filename);
+}
+async function exportActiveTableToExcel(pageId, filenamePrefix){
+  const pageEl = document.getElementById(pageId);
+  if (!pageEl){ alert('Sayfa bulunamadı.'); return; }
+  const activeTab = pageEl.querySelector('.tab-content.active') || pageEl;
+  const tables = [...activeTab.querySelectorAll('table')];
+  if (!tables.length){
+    alert('Aktarılacak bir tablo bulunamadı. Bu sekmede tablo içeren bir görünüm yok.');
+    return;
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  if (tables.length === 1){
+    await exportTableElementToExcel(tables[0], `${filenamePrefix}-${stamp}.xlsx`);
+    return;
+  }
+
+  try {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Zafer Çolak'; wb.lastModifiedBy = 'Zafer Çolak';
+    const usedNames = new Set();
+    for (let i = 0; i < tables.length; i++){
+      const t = tables[i];
+      let sheetName = `Tablo ${i + 1}`;
+      const scrollWrap = t.closest('.table-scroll');
+      const panelHead = scrollWrap ? scrollWrap.previousElementSibling : null;
+      if (panelHead && panelHead.classList.contains('panel-head')){
+        const textNode = [...panelHead.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+        if (textNode) sheetName = textNode.textContent.trim();
+      }
+      sheetName = sheetName.replace(/[\\/*?:[\]]/g, '').slice(0, 28) || `Tablo ${i + 1}`;
+      let finalName = sheetName, n = 2;
+      while (usedNames.has(finalName)){ finalName = `${sheetName} (${n++})`; }
+      usedNames.add(finalName);
+      await efBuildWorksheetFromTable(wb, t, finalName);
+    }
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `${filenamePrefix}-${stamp}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert("Excel'e aktarma sırasında bir hata oluştu: " + e.message);
+  }
+}
 </script>
 
 </body>
