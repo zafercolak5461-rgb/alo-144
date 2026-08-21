@@ -9884,9 +9884,16 @@ function efRenderFormatTable(){
   const rows = EF_FORMAT_TARGETS.map(t => {
     const st = efFormatState[t.key];
     const cells = EF_FORMAT_COLS.map(c => {
-      const val = st[c.key];
+      let val = st[c.key];
       if (c.type === 'bool') return `<td style="text-align:center;"><input type="checkbox" data-target="${t.key}" data-field="${c.key}" ${val ? 'checked' : ''}></td>`;
-      if (c.type === 'color') return `<td><input type="color" data-target="${t.key}" data-field="${c.key}" value="${val || '#ffffff'}"></td>`;
+      if (c.type === 'color'){
+        // ÖNEMLİ: renk kutusu boşsa gösterilen varsayılan (beyaz) sadece GÖRSEL kalmasın -
+        // gerçek state'e de hemen yazılır. Aksi halde kutu beyaz GÖRÜNÜR ama kayıtlı değer
+        // hâlâ boş kalır, export'ta hiç renk uygulanmaz (Excel'in varsayılan siyahı kullanılır) -
+        // kullanıcı "beyaz ayarladım" sanırken aslında hiçbir şey kaydedilmemiş olur.
+        if (!val){ val = '#ffffff'; st[c.key] = val; }
+        return `<td><input type="color" data-target="${t.key}" data-field="${c.key}" value="${val}"></td>`;
+      }
       if (c.type === 'select'){
         const opts = c.options.map(([v, tr]) => `<option value="${v}" ${val === v ? 'selected' : ''}>${tr}</option>`).join('');
         return `<td><select data-target="${t.key}" data-field="${c.key}">${opts}</select></td>`;
