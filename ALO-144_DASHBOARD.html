@@ -10125,6 +10125,11 @@ document.getElementById('excelFormatModalOverlay').addEventListener('click', (e)
 function efReadTableCellValue(td){
   const raw = (td.textContent || '').trim();
   if (raw === '' || raw === '—' || raw === '-') return raw === '' ? null : raw;
+  // Tarih biçimleri (22.07.2026, 5.8.2026, 22/07/2026 gibi) SAYI DEĞİL - nokta/eğik çizgi
+  // burada bin ayracı değil TARİH ayracı. Aşağıdaki sayı dönüşümü bunları yanlışlıkla
+  // "22072026" gibi anlamsız bir sayıya çeviriyordu (noktaları bin ayracı sanıp siliyordu) -
+  // bu yüzden tarih benzeri metinleri sayı denemesine hiç sokmadan olduğu gibi bırakıyoruz.
+  if (/^\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}$/.test(raw)) return raw;
   const normalized = raw.replace(/\./g, '').replace(',', '.').replace('%', '');
   if (/^-?\d+(\.\d+)?$/.test(normalized) && /\d/.test(raw)){
     const n = parseFloat(normalized);
