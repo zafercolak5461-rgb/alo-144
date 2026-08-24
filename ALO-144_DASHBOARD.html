@@ -1012,9 +1012,7 @@ body{
   <div class="filterbar">
     <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <div class="preset-group" id="gtd-presetGroup">
-        <button class="preset-btn" data-preset="7">Son 7 Gün</button>
-        <button class="preset-btn active" data-preset="30">Son 30 Gün</button>
-        <button class="preset-btn" data-preset="thismonth">Bu Ay</button>
+        <button class="preset-btn active" data-preset="thismonth">Bu Ay</button>
         <button class="preset-btn" data-preset="all">Tüm Zamanlar</button>
       </div>
       <div class="divider"></div>
@@ -1026,15 +1024,10 @@ body{
         <label>Ay</label>
         <select id="gtd-monthSelect"><option value="all">Tüm Aylar</option></select>
       </div>
-      <div class="divider"></div>
-      <div class="date-input-group">
-        <label>Başlangıç</label>
-        <input type="date" id="gtd-dateFrom">
-      </div>
-      <div class="date-input-group">
-        <label>Bitiş (tek gün için aynı tarihi seçin)</label>
-        <input type="date" id="gtd-dateTo">
-      </div>
+      <!-- Veri artık AYLIK (her satır bir ayı temsil ediyor) - gün seçen özel tarih aralığı
+           14.08.2026'da kaldırıldı, Yıl+Ay seçiciler tek/yeterli filtre haline geldi. -->
+      <input type="hidden" id="gtd-dateFrom">
+      <input type="hidden" id="gtd-dateTo">
     </div>
   </div>
 
@@ -1853,6 +1846,7 @@ body{
     <div class="tab" data-vdtab="vardiyadagilim">Vardiya Dağılımı</div>
     <div class="tab" data-vdtab="kapsam">Takım Bazlı Günlük Kapsam</div>
     <div class="tab" data-vdtab="gunlukdetay">Günlük Detay</div>
+    <div class="tab" data-vdtab="izinharita">İzin Haritası</div>
   </div>
 
   <!-- Takım Lideri (tekli seçim) + Personel (çoklu seçim, lidere bağlı) + Metrik/Durum Filtresi (çoklu seçim) -->
@@ -1971,6 +1965,37 @@ body{
         </table>
       </div>
     </div>
+  </div>
+
+  <!-- SEKME 5: İzin Haritası (Yıllık İzin + Rapor yoğunluk analizi) -->
+  <div class="tab-content" id="vd-tab-izinharita">
+    <div class="note" style="margin-bottom:16px;">
+      Yıllık İzin ve Rapor kullanımının hangi ay/hafta/günde yoğunlaştığını, buna sebep olan personeli ve çağrı yoğunluğuyla örtüşüp örtüşmediğini gösterir. Aşağıdaki filtrelerle (Yıl/Ay/Personel) derinleşerek inceleyebilirsiniz.
+    </div>
+    <div class="panel-grid" style="margin-bottom:16px; grid-template-columns:1fr 1fr 1fr 1fr;">
+      <div class="chart-panel" style="padding:10px 14px;">
+        <div class="chart-panel-head" style="border:none; padding:0 0 8px;">Kapsam</div>
+        <div class="preset-group" id="ih-modeGroup">
+          <button class="preset-btn active" data-ihmode="birlikte">Birlikte</button>
+          <button class="preset-btn" data-ihmode="yillik">Yıllık İzin</button>
+          <button class="preset-btn" data-ihmode="rapor">Rapor</button>
+        </div>
+      </div>
+      <div class="chart-panel" style="padding:10px 14px;">
+        <div class="chart-panel-head" style="border:none; padding:0 0 8px;">Yıl</div>
+        <select id="ih-yearSelect" style="width:100%;"><option value="all">Tüm Yıllar</option></select>
+      </div>
+      <div class="chart-panel" style="padding:10px 14px;">
+        <div class="chart-panel-head" style="border:none; padding:0 0 8px;">Ay <span class="hint">(yıl seçiliyken aktif)</span></div>
+        <select id="ih-monthSelect" style="width:100%;" disabled><option value="all">Tüm Aylar</option></select>
+      </div>
+      <div class="chart-panel" style="padding:10px 14px;">
+        <div class="chart-panel-head" style="border:none; padding:0 0 8px;">Personel</div>
+        <select id="ih-personSelect" style="width:100%;"><option value="">Tümü (genel görünüm)</option></select>
+      </div>
+    </div>
+
+    <div id="ih-resultWrap"></div>
   </div>
 
   <div class="note">
@@ -2574,6 +2599,26 @@ function parseTRDate(str){
   const [d, m, y] = parts.map(Number);
   if (!d || !m || !y) return null;
   return new Date(y, m - 1, d);
+}
+
+// "OCAK-2025" / "Şubat-2026" gibi Türkçe AY-YIL metnini o ayın 1. gününe karşılık gelen
+// bir Date'e çevirir. GTD sayfası günlükten aylığa geçtiği için (14.08.2026) A sütunu artık
+// bunu kullanıyor - internal olarak hâlâ bir Date tutuyoruz ki mevcut tarih-aralığı/karşılaştırma
+// mantığının çoğu (sort, > < karşılaştırma, getFullYear/getMonth) değişmeden çalışabilsin.
+const TR_MONTH_NAMES_UP = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+function parseTRMonthYear(str){
+  const s = String(str || '').trim().toLocaleUpperCase('tr-TR');
+  const m = s.match(/^([A-ZÇĞİÖŞÜ]+)[\s\-\/]+(\d{4})$/);
+  if (!m) return null;
+  const monthIdx = TR_MONTH_NAMES_UP.indexOf(m[1]);
+  if (monthIdx === -1) return null;
+  const year = Number(m[2]);
+  if (!year) return null;
+  return new Date(year, monthIdx, 1);
+}
+// Bir Date'i (ayın herhangi bir günü olabilir, sadece yıl/ay kullanılır) "OCAK-2025" formatına çevirir.
+function fmtTRMonthYear(d){
+  return TR_MONTH_NAMES_UP[d.getMonth()] + '-' + d.getFullYear();
 }
 
 function fmtDate(d){
@@ -3487,7 +3532,7 @@ function renderTable(rows){
     const row = r.raw;
     const cells = HEADERS.map((h, i) => {
       const v = cellRaw(row, i);
-      if (i === 0) return `<td class="date">${v || '—'}</td>`;
+      if (i === 0) return `<td class="date">${v === '' ? '—' : v}</td>`;
       let cls = v === '' ? 'empty-cell' : '';
       if (v !== ''){
         const def = COLUMN_DEFS.find(d => d.index === i);
@@ -3497,7 +3542,7 @@ function renderTable(rows){
           else if (n !== null && n < 98) cls = 'sla-warn';
         }
       }
-      return `<td class="${cls}">${v || '—'}</td>`;
+      return `<td class="${cls}">${v === '' ? '—' : v}</td>`;
     }).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
@@ -4520,8 +4565,8 @@ function renderRegionTable(filteredRows){
   ktTableBody.innerHTML = filtered.map(r => {
     const cells = headers.map((h, i) => {
       const v = cellRaw(r.raw, i);
-      if (i === 0) return `<td class="date">${v || '—'}</td>`;
-      return `<td class="${v === '' ? 'empty-cell' : ''}">${v || '—'}</td>`;
+      if (i === 0) return `<td class="date">${v === '' ? '—' : v}</td>`;
+      return `<td class="${v === '' ? 'empty-cell' : ''}">${v === '' ? '—' : v}</td>`;
     }).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
@@ -5174,6 +5219,7 @@ async function performKtIslemSave(region){
 // (createDateFilterController, createChartBuilderPanel) bağlıyoruz.
 
 const SHEET_ID = "1OxOBP7oodSFx7LuRvOmBlmHZx7xWDi32BL_5OZChmQQ";
+const CALLS_SHEET_ID_FOR_IH = "1O9g3ik4k_vAeYL34DbovvrZB5KME3unQCgHqTLn0AHY"; // Gelen Arama Dağılımı - İzin Haritası'nın çağrı-korelasyonu için
 
 const TR_MONTHS_UPPER = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
 const TR_MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -5337,6 +5383,8 @@ async function loadVardiyaAll(){
   rebuildTeamsAndPersons();
   vdDateFilter.populateYearMonth();
   vdDateFilter.reapplyLast();
+  ihPopulateSelectors();
+  ihRender();
 }
 
 vdRefreshBtn.addEventListener('click', () => loadVardiyaAll());
@@ -5593,7 +5641,7 @@ function renderDevamsizlikView(){
       const v = c === WORK_DAY_METRIC_LABEL ? p.workCount : (p.counts[c] || 0);
       totalsByCol[c] += v;
       rowTotal += v;
-      return `<td>${v || '—'}</td>`;
+      return `<td>${v}</td>`;
     }).join('');
     grandTotal += rowTotal;
     return `<tr><td class="date">${p.personel}</td>${cells}<td style="font-weight:600; color:var(--accent);">${rowTotal}</td></tr>`;
@@ -5698,7 +5746,7 @@ function renderVardiyaDagilimView(){
       const v = p.counts[l] || 0;
       totalsByLabel[l] += v;
       rowTotal += v;
-      return `<td>${v || '—'}</td>`;
+      return `<td>${v}</td>`;
     }).join('');
     grandTotal += rowTotal;
     return `<tr><td class="date">${p.personel}</td>${cells}<td style="font-weight:600; color:var(--accent);">${rowTotal}</td></tr>`;
@@ -5977,6 +6025,349 @@ function renderGunlukDetay(){
 
   countEl.textContent = `${persons.length} personel × ${dateKeys.length} gün`;
 }
+
+// ============================================================================
+// ===== İZİN HARİTASI — Yıllık İzin + Rapor kullanımının ay/hafta/gün bazında
+// yoğunluğu, buna sebep olan personel, ve çağrı yoğunluğuyla örtüşme analizi.
+// "Elevated" (yoğun) tespiti, Analiz sayfasındaki findElevatedKacanMonths ile AYNI
+// mantığı kullanır: kendi karşılaştırma grubunun ortalamasına göre %20 ve üzeri sapma.
+// ============================================================================
+const IH_THRESHOLD_PCT = 20;
+const IH_DOW_NAMES = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+let ihMode = 'birlikte';
+let ihYear = 'all';
+let ihMonth = 'all';
+let ihPersonSicil = '';
+let ihCallsByDate = null; // Map<'YYYY-MM-DD', adet> - Gelen Arama'dan, bir kere çekilip önbelleklenir
+
+function ihWeekOfMonth(day){ return Math.min(5, Math.ceil(day / 7)); }
+function ihDateKey(d){ return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }
+
+function ihMatchesMode(durum){
+  if (ihMode === 'birlikte') return durum === 'Yıllık İzin' || durum === 'Rapor';
+  if (ihMode === 'yillik') return durum === 'Yıllık İzin';
+  return durum === 'Rapor';
+}
+function ihFilteredRecords(){
+  return VARDIYA_RECORDS.filter(r => ihMatchesMode(r.durum));
+}
+
+// Bir değer dizisini (örn. 12 aylık toplam) kendi ortalamasına göre değerlendirir,
+// %20+ üzerinde kalanları işaretler - findElevatedKacanMonths ile AYNI eşik/mantık.
+function ihFindElevated(values, thresholdPct){
+  thresholdPct = thresholdPct || IH_THRESHOLD_PCT;
+  const nonZero = values.filter(v => v > 0);
+  if (!nonZero.length) return values.map(() => false);
+  const avg = nonZero.reduce((a,b)=>a+b,0) / values.length; // sıfır olan dönemler de ortalamaya dahil (dönem uzunluğu sabit)
+  if (!avg) return values.map(() => false);
+  return values.map(v => ((v - avg) / avg * 100) >= thresholdPct);
+}
+
+// Gelen Arama Dağılımı'ndan günlük çağrı (Cevaplanan) toplamlarını bir kere çeker,
+// tarihe göre bir Map'e koyar - İzin Haritası açıldığında lazy-load, sonra önbellekten kullanılır.
+async function ihEnsureCallsLoaded(){
+  if (ihCallsByDate) return ihCallsByDate;
+  ihCallsByDate = new Map();
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CALLS_SHEET_ID_FOR_IH}/values/${encodeURIComponent('Sayfa1!A1:Z20000')}`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    const values = data.values || [];
+    if (values.length < 2) return ihCallsByDate;
+    const headers = values[0];
+    const col = computeColumnDefs(headers, []);
+    values.slice(1).forEach(row => {
+      const d = parseTRDate(row[0]);
+      if (!d) return;
+      const cevap = col.cevap >= 0 ? (parseNum(row[col.cevap]) || 0) : 0;
+      ihCallsByDate.set(ihDateKey(d), cevap);
+    });
+  } catch (e){
+    console.warn('İzin Haritası: çağrı verisi çekilemedi, korelasyon bölümü boş kalacak.', e);
+  }
+  return ihCallsByDate;
+}
+
+function ihCallsForRange(fromDate, toDate){
+  if (!ihCallsByDate) return 0;
+  let sum = 0;
+  ihCallsByDate.forEach((v, key) => {
+    const [y,m,d] = key.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    if (dt >= fromDate && dt <= toDate) sum += v;
+  });
+  return sum;
+}
+
+// ----- Görünüm 1: Ay bazlı yoğunluk (Yıl "Tüm Yıllar" ya da belirli bir yıl) -----
+function ihMonthlyView(records, year){
+  const byMonth = new Array(12).fill(0);
+  const byMonthPersons = Array.from({length:12}, () => new Map());
+  records.forEach(r => {
+    if (year !== 'all' && r.tarih.getFullYear() !== Number(year)) return;
+    const mi = r.tarih.getMonth();
+    byMonth[mi]++;
+    const pm = byMonthPersons[mi];
+    const key = r.sicil;
+    pm.set(key, (pm.get(key) || 0) + 1);
+    pm._personel = pm._personel || new Map();
+    pm._personel.set(key, r.personel);
+  });
+  const elevated = ihFindElevated(byMonth);
+
+  // Çağrı ile örtüşme: aynı ay için çağrı toplamı da elevated mi (kendi 12-aylık ortalamasına göre)
+  const byMonthCalls = new Array(12).fill(0);
+  if (ihCallsByDate){
+    ihCallsByDate.forEach((v, key) => {
+      const [y,m] = key.split('-').map(Number);
+      if (year !== 'all' && y !== Number(year)) return;
+      byMonthCalls[m-1] += v;
+    });
+  }
+  const callsElevated = ihFindElevated(byMonthCalls);
+
+  return TR_MONTHS.map((name, i) => {
+    const topPersons = [...byMonthPersons[i].entries()].filter(([k]) => k !== '_personel')
+      .sort((a,b) => b[1]-a[1]).slice(0,5)
+      .map(([sicil,count]) => ({ sicil, count, personel: (byMonthPersons[i]._personel && byMonthPersons[i]._personel.get(sicil)) || sicil }));
+    return {
+      month: i, label: name, count: byMonth[i], elevated: elevated[i],
+      calls: byMonthCalls[i], callsElevated: callsElevated[i],
+      bothElevated: elevated[i] && callsElevated[i],
+      topPersons
+    };
+  });
+}
+
+// ----- Görünüm 2: Yıl seçiliyken, yoğun ayların İÇİNDEKİ haftalar + sebep olan personel -----
+function ihWeeklyViewForMonth(records, year, month){
+  const weeks = [0,0,0,0,0];
+  const personMap = new Map(); // sicil -> {personel, count}
+  records.forEach(r => {
+    if (r.tarih.getFullYear() !== Number(year) || r.tarih.getMonth() !== Number(month)) return;
+    weeks[ihWeekOfMonth(r.tarih.getDate())-1]++;
+    const key = r.sicil;
+    if (!personMap.has(key)) personMap.set(key, { sicil: key, personel: r.personel, count: 0 });
+    personMap.get(key).count++;
+  });
+  const elevated = ihFindElevated(weeks);
+  const topPersons = [...personMap.values()].sort((a,b)=>b.count-a.count).slice(0,8);
+  return { weeks, elevated, topPersons };
+}
+
+// ----- Görünüm 3: Ay seçiliyken, hafta VE gün bazında -----
+function ihDailyViewForMonth(records, year, month){
+  const byDow = new Array(7).fill(0);
+  const byWeek = [0,0,0,0,0];
+  records.forEach(r => {
+    if (r.tarih.getFullYear() !== Number(year) || r.tarih.getMonth() !== Number(month)) return;
+    byDow[r.tarih.getDay()]++;
+    byWeek[ihWeekOfMonth(r.tarih.getDate())-1]++;
+  });
+  return { byDow, byDowElevated: ihFindElevated(byDow), byWeek, byWeekElevated: ihFindElevated(byWeek) };
+}
+
+// ----- Görünüm 4: Personel seçiliyken - kendi ay/hafta/gün deseni + ÇARPIKLIK tespiti -----
+// (Toplam hacim değil, dağılımın ORANI önemli - az sayıda izin bile tek bir güne/haftaya
+// yığılıyorsa yakalanır. "%20 üzeri kendi ortalaması" yerine burada PAY/TOPLAM oranı, eşit
+// dağılım varsayımına göre karşılaştırılır: gün için 1/7, hafta için 1/5 eşit pay beklenir,
+// gerçek pay bunun %50 fazlasını geçerse "çarpık" sayılır.)
+function ihPersonPattern(records, sicil, year){
+  const personRecords = records.filter(r => r.sicil === sicil && (year === 'all' || r.tarih.getFullYear() === Number(year)));
+  const byMonth = new Array(12).fill(0);
+  const byDow = new Array(7).fill(0);
+  const byWeek = [0,0,0,0,0];
+  personRecords.forEach(r => {
+    byMonth[r.tarih.getMonth()]++;
+    byDow[r.tarih.getDay()]++;
+    byWeek[ihWeekOfMonth(r.tarih.getDate())-1]++;
+  });
+  const total = personRecords.length;
+  const dowSkew = [];
+  const weekSkew = [];
+  if (total > 0){
+    const EXPECTED_DOW = 1/7, EXPECTED_WEEK = 1/5;
+    byDow.forEach((c,i) => { const ratio = c/total; if (ratio >= EXPECTED_DOW*1.5 && c >= 2) dowSkew.push({ label: IH_DOW_NAMES[i], count: c, ratio }); });
+    byWeek.forEach((c,i) => { const ratio = c/total; if (ratio >= EXPECTED_WEEK*1.5 && c >= 2) weekSkew.push({ label: (i+1)+'. Hafta', count: c, ratio }); });
+  }
+  const monthElevated = ihFindElevated(byMonth);
+
+  // Çağrı yoğunluğuyla çakışma: bu kişinin izin kullandığı tarihlerin, o günün çağrı
+  // hacminin (o ayın kendi ortalamasına göre) elevated olduğu günlerle örtüşüp örtüşmediği.
+  let overlapDays = 0;
+  const overlapDetails = [];
+  if (ihCallsByDate && personRecords.length){
+    // Ay bazında günlük çağrı ortalamasını çıkarıp, o ayın kendi ortalamasının %20 üzerinde
+    // kalan GÜNLERİ tespit ediyoruz (aynı "kendi grubuna göre %20" prensibi, burada grup=o ay).
+    const byMonthDays = {}; // 'YYYY-M' -> [{date,calls}]
+    ihCallsByDate.forEach((v, key) => {
+      const [y,m,d] = key.split('-').map(Number);
+      const mk = y + '-' + m;
+      if (!byMonthDays[mk]) byMonthDays[mk] = [];
+      byMonthDays[mk].push({ date: new Date(y,m-1,d), calls: v });
+    });
+    const elevatedDaySet = new Set();
+    Object.values(byMonthDays).forEach(days => {
+      const vals = days.map(d => d.calls);
+      const elev = ihFindElevated(vals);
+      days.forEach((d, i) => { if (elev[i]) elevatedDaySet.add(ihDateKey(d.date)); });
+    });
+    personRecords.forEach(r => {
+      const key = ihDateKey(r.tarih);
+      if (elevatedDaySet.has(key)){ overlapDays++; overlapDetails.push(r.tarih); }
+    });
+  }
+
+  return { total, byMonth, monthElevated, byDow, byWeek, dowSkew, weekSkew, overlapDays, overlapDetails };
+}
+
+// --- Yıl/Ay/Personel seçicileri doldurur ---
+function ihPopulateSelectors(){
+  const yearSel = document.getElementById('ih-yearSelect');
+  const years = [...new Set(VARDIYA_RECORDS.map(r => r.tarih.getFullYear()))].sort();
+  yearSel.innerHTML = '<option value="all">Tüm Yıllar</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+
+  const personSel = document.getElementById('ih-personSelect');
+  personSel.innerHTML = '<option value="">Tümü (genel görünüm)</option>' +
+    PERSONS.map(p => `<option value="${p.sicil}">${p.personel}</option>`).join('');
+}
+
+function ihBar(pct, elevated){
+  const w = Math.max(2, Math.min(100, pct));
+  return `<div style="background:var(--line); border-radius:4px; height:16px; width:100%; overflow:hidden;">
+    <div style="background:${elevated ? 'var(--danger, #e85d5d)' : 'var(--accent)'}; height:100%; width:${w}%;"></div>
+  </div>`;
+}
+
+async function ihRender(){
+  const wrap = document.getElementById('ih-resultWrap');
+  if (!VARDIYA_RECORDS.length){
+    wrap.innerHTML = `<div class="empty-state">Veriyi görüntülemek için "Yenile"ye basın.</div>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="empty-state">Çağrı verisi yükleniyor…</div>`;
+  await ihEnsureCallsLoaded();
+  const records = ihFilteredRecords();
+
+  // ----- Personel seçiliyse: kişisel görünüm önceliklidir -----
+  if (ihPersonSicil){
+    const p = PERSONS.find(x => x.sicil === ihPersonSicil);
+    const pat = ihPersonPattern(records, ihPersonSicil, ihYear);
+    const maxMonth = Math.max(1, ...pat.byMonth);
+    const monthRows = TR_MONTHS.map((name,i) => `<tr>
+      <td>${name}</td><td style="text-align:right;">${pat.byMonth[i]}</td>
+      <td style="width:200px;">${ihBar(pat.byMonth[i]/maxMonth*100, pat.monthElevated[i])}</td>
+    </tr>`).join('');
+    const dowMax = Math.max(1, ...pat.byDow);
+    const dowRows = IH_DOW_NAMES.map((name,i) => `<tr>
+      <td>${name}</td><td style="text-align:right;">${pat.byDow[i]}</td>
+      <td style="width:200px;">${ihBar(pat.byDow[i]/dowMax*100, pat.dowSkew.some(s=>s.label===name))}</td>
+    </tr>`).join('');
+    const weekMax = Math.max(1, ...pat.byWeek);
+    const weekRows = pat.byWeek.map((c,i) => `<tr>
+      <td>${i+1}. Hafta</td><td style="text-align:right;">${c}</td>
+      <td style="width:200px;">${ihBar(c/weekMax*100, pat.weekSkew.some(s=>s.label===(i+1)+'. Hafta'))}</td>
+    </tr>`).join('');
+
+    wrap.innerHTML = `
+      <div class="metrics" style="margin-bottom:16px;">
+        <div class="metric"><div class="label">${p ? p.personel : ihPersonSicil} — Toplam</div><div class="value ok">${pat.total}</div></div>
+        <div class="metric"><div class="label">Çağrı Yoğun Günlerle Çakışan İzin</div><div class="value ${pat.overlapDays ? 'warn' : ''}">${pat.overlapDays}</div></div>
+      </div>
+      ${pat.dowSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Gün bazlı çarpıklık tespit edildi: ${pat.dowSkew.map(s => `<b>${s.label}</b> (${s.count} kez, %${Math.round(s.ratio*100)})`).join(', ')} — bu kişi izinlerini belirgin şekilde bu gün(ler)e yığıyor.</div>` : ''}
+      ${pat.weekSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Hafta bazlı çarpıklık tespit edildi: ${pat.weekSkew.map(s => `<b>${s.label}</b> (${s.count} kez, %${Math.round(s.ratio*100)})`).join(', ')}.</div>` : ''}
+      <div class="panel-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="panel"><div class="panel-head">Ay Bazlı</div><div class="table-scroll"><table><tbody>${monthRows}</tbody></table></div></div>
+        <div class="panel"><div class="panel-head">Gün Bazlı (Haftanın Günü)</div><div class="table-scroll"><table><tbody>${dowRows}</tbody></table></div></div>
+        <div class="panel"><div class="panel-head">Hafta Bazlı (Ayın Kaçıncı Haftası)</div><div class="table-scroll"><table><tbody>${weekRows}</tbody></table></div></div>
+      </div>`;
+    return;
+  }
+
+  // ----- Ay seçiliyse: o ayın hafta + gün kırılımı -----
+  if (ihYear !== 'all' && ihMonth !== 'all'){
+    const d = ihDailyViewForMonth(records, ihYear, ihMonth);
+    const weekMax = Math.max(1, ...d.byWeek);
+    const weekRows = d.byWeek.map((c,i) => `<tr><td>${i+1}. Hafta</td><td style="text-align:right;">${c}</td><td style="width:220px;">${ihBar(c/weekMax*100, d.byWeekElevated[i])}</td></tr>`).join('');
+    const dowMax = Math.max(1, ...d.byDow);
+    const dowRows = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${d.byDow[i]}</td><td style="width:220px;">${ihBar(d.byDow[i]/dowMax*100, d.byDowElevated[i])}</td></tr>`).join('');
+    wrap.innerHTML = `
+      <div class="note" style="margin-bottom:16px;">${TR_MONTHS[ihMonth]} ${ihYear} — kırmızı çubuk, o ayın kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ yoğun olan hafta/günü gösterir.</div>
+      <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="panel"><div class="panel-head">Haftalara Göre</div><div class="table-scroll"><table><tbody>${weekRows}</tbody></table></div></div>
+        <div class="panel"><div class="panel-head">Günlere Göre</div><div class="table-scroll"><table><tbody>${dowRows}</tbody></table></div></div>
+      </div>`;
+    return;
+  }
+
+  // ----- Yıl seçili (ay seçilmemiş): ay bazlı yoğunluk + yoğun aylara tıklayınca hafta/personel -----
+  const monthly = ihMonthlyView(records, ihYear);
+  const maxCount = Math.max(1, ...monthly.map(m => m.count));
+  const rows = monthly.map(m => `
+    <tr>
+      <td>${m.label}</td>
+      <td style="text-align:right;">${m.count}</td>
+      <td style="width:220px;">${ihBar(m.count/maxCount*100, m.elevated)}</td>
+      <td>${m.bothElevated ? '⚠ Çağrı da yoğun' : (m.elevated ? '' : '')}</td>
+      <td>${m.elevated ? `<button class="refresh-btn ih-drill-month" data-month="${m.month}" style="font-size:11px; padding:3px 8px;">Detay</button>` : ''}</td>
+    </tr>`).join('');
+  wrap.innerHTML = `
+    <div class="note" style="margin-bottom:16px;">${ihYear === 'all' ? 'Tüm yıllar' : ihYear} — kırmızı çubuk + "Çağrı da yoğun" etiketi, o ayın kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığını gösterir. Yoğun aylarda "Detay" ile hafta kırılımına ve sebep olan personele inebilirsiniz.</div>
+    <div class="panel">
+      <div class="panel-head">Aylara Göre İzin Yoğunluğu</div>
+      <div class="table-scroll"><table><thead><tr><th>Ay</th><th>Adet</th><th>Dağılım</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    </div>
+    <div id="ih-monthDrillWrap" style="margin-top:16px;"></div>`;
+
+  wrap.querySelectorAll('.ih-drill-month').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (ihYear === 'all'){
+        // "Tüm Yıllar" iken bir ay detaylandırılamaz (hangi yılın o ayı belirsiz) - yıl seçmesini iste.
+        document.getElementById('ih-monthDrillWrap').innerHTML = `<div class="note">Hafta/personel detayı için önce belirli bir Yıl seçin.</div>`;
+        return;
+      }
+      const month = parseInt(btn.dataset.month, 10);
+      const wv = ihWeeklyViewForMonth(records, ihYear, month);
+      const wMax = Math.max(1, ...wv.weeks);
+      const wRows = wv.weeks.map((c,i) => `<tr><td>${i+1}. Hafta</td><td style="text-align:right;">${c}</td><td style="width:200px;">${ihBar(c/wMax*100, wv.elevated[i])}</td></tr>`).join('');
+      const pRows = wv.topPersons.map(p => `<tr><td>${p.personel}</td><td style="text-align:right;">${p.count}</td></tr>`).join('') || '<tr><td colspan="2" class="empty-state">Kayıt yok</td></tr>';
+      document.getElementById('ih-monthDrillWrap').innerHTML = `
+        <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
+          <div class="panel"><div class="panel-head">${TR_MONTHS[month]} ${ihYear} — Haftalara Göre</div><div class="table-scroll"><table><tbody>${wRows}</tbody></table></div></div>
+          <div class="panel"><div class="panel-head">Bu Yoğunluğa Sebep Olan Personel (İlk 8)</div><div class="table-scroll"><table><tbody>${pRows}</tbody></table></div></div>
+        </div>`;
+    });
+  });
+}
+
+document.querySelectorAll('#ih-modeGroup .preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#ih-modeGroup .preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ihMode = btn.dataset.ihmode;
+    ihRender();
+  });
+});
+document.getElementById('ih-yearSelect').addEventListener('change', (e) => {
+  ihYear = e.target.value;
+  const monthSel = document.getElementById('ih-monthSelect');
+  monthSel.disabled = (ihYear === 'all');
+  if (ihYear === 'all'){ monthSel.value = 'all'; ihMonth = 'all'; }
+  ihRender();
+});
+document.getElementById('ih-monthSelect').addEventListener('change', (e) => {
+  ihMonth = e.target.value;
+  ihRender();
+});
+document.getElementById('ih-personSelect').addEventListener('change', (e) => {
+  ihPersonSicil = e.target.value;
+  ihRender();
+});
+
+(() => {
+  const monthSel = document.getElementById('ih-monthSelect');
+  monthSel.innerHTML = '<option value="all">Tüm Aylar</option>' + TR_MONTHS.map((n,i) => `<option value="${i}">${n}</option>`).join('');
+})();
 
 // --- Sayfa içi sekme geçişi ---
 document.querySelectorAll('#page-vardiya .tab').forEach(tab => {
@@ -7468,7 +7859,7 @@ async function loadData(isRefresh){
 
     const rawRows = values.slice(1).filter(r => r.length > 1);
     ALL_ROWS = rawRows.map(r => {
-      const d = parseTRDate(cellRaw(r, 0));
+      const d = parseTRMonthYear(cellRaw(r, 0));
       const il = String(cellRaw(r, 1) || '').trim();
       if (!d || !il) return null;
       const vals = CATEGORIES.map(c => parseNum(cellRaw(r, c.index)) || 0);
@@ -7504,7 +7895,7 @@ const dateFilter = createDateFilterController({
   monthSelectId: 'gtd-monthSelect',
   dateFromId: 'gtd-dateFrom',
   dateToId: 'gtd-dateTo',
-  defaultPreset: '30',
+  defaultPreset: 'thismonth', // veri artık AYLIK - "son 30 gün" anlamsız kaldı, kaldırıldı (14.08.2026)
   getReferenceRows: () => ALL_ROWS,
   onApply: () => renderAll()
 });
@@ -8171,7 +8562,7 @@ const KOPUK_REGIONS = ['OSMANİYE', 'AYDIN', 'AFYON', 'GAZİANTEP'];
 
 const HEATMAP_COLORS = ['#1F2A3D', '#3a3320', '#6b4a1f', '#a56b1f', '#e8a53d'];
 
-let CALLS_ROWS = [];     // {date, cevap, gelen, kacan}
+let CALLS_ROWS = [];     // {date, cevap, gelen, kacan, talep}
 let GTD_ROWS = [];       // {date, il, values:[...], toplam}
 let GTD_CATEGORIES = []; // {index, name}
 let KOPUK_ROWS = [];     // {date, toplam}
@@ -8204,7 +8595,8 @@ async function anLoadCalls(){
     date: r.date,
     cevap: col.cevap >= 0 ? (parseNum(cellRaw(r.raw, col.cevap)) || 0) : 0,
     gelen: col.gelen >= 0 ? (parseNum(cellRaw(r.raw, col.gelen)) || 0) : 0,
-    kacan: col.kacan >= 0 ? (parseNum(cellRaw(r.raw, col.kacan)) || 0) : 0
+    kacan: col.kacan >= 0 ? (parseNum(cellRaw(r.raw, col.kacan)) || 0) : 0,
+    talep: col.talep >= 0 ? (parseNum(cellRaw(r.raw, col.talep)) || 0) : 0
   }));
 }
 
@@ -8222,7 +8614,7 @@ async function anLoadGTD(){
   for (let i = 2; i < toplamIdx; i++){ if (headers[i]) categories.push({ index: i, name: headers[i] }); }
   const rawRows = values.slice(1).filter(r => r.length > 1);
   const rows = rawRows.map(r => {
-    const d = parseTRDate(cellRaw(r, 0));
+    const d = parseTRMonthYear(cellRaw(r, 0));
     const il = String(cellRaw(r, 1) || '').trim();
     if (!d || !il) return null;
     const vals = categories.map(c => parseNum(cellRaw(r, c.index)) || 0);
@@ -8626,21 +9018,24 @@ function computeKpiCards(from, to){
   const gelenCurr = sumField(CALLS_ROWS, 'gelen', from, to);
   const kacanCurr = sumField(CALLS_ROWS, 'kacan', from, to);
   const kacanOrani = gelenCurr > 0 ? (kacanCurr / gelenCurr * 100) : null;
-  const gtdCurr = sumSeriesInRange(gtdSeries, from, to);
-  const gtdPrev = sumSeriesInRange(gtdSeries, prevFrom, prevTo);
+  // 14.08.2026: Toplam Talep artık GTD'den DEĞİL, Gelen Arama Dağılımı'nın (günlük,
+  // değişmeyen) TALEP sütunundan - genel toplam, İl/Kategori filtresine bağlı değil, GTD
+  // aylığa geçince oluşan tarih-aralığı uyumsuzluğu (ay ortası seçimler) burada hiç sorun olmuyor.
+  const gtdCurr = sumField(CALLS_ROWS, 'talep', from, to);
+  const gtdPrev = sumField(CALLS_ROWS, 'talep', prevFrom, prevTo);
   const kopukCurr = sumSeriesInRange(kopukSeries, from, to);
   const kopukPrev = sumSeriesInRange(kopukSeries, prevFrom, prevTo);
 
   const cards = [
     { label: 'Toplam Çağrı (Cevaplanan)', value: callsCurr, deltaPct: pctChange(callsCurr, callsPrev), opts: {} },
-    { label: 'Toplam ' + gtdLabel(), value: gtdCurr, deltaPct: pctChange(gtdCurr, gtdPrev), opts: {} },
+    { label: 'Toplam Talep', value: gtdCurr, deltaPct: pctChange(gtdCurr, gtdPrev), opts: {} },
     { label: 'Toplam Köpük Talep', value: kopukCurr, deltaPct: pctChange(kopukCurr, kopukPrev), opts: {} },
     { label: 'Kaçan Çağrı Oranı', value: kacanOrani, deltaPct: null, opts: { isPct: true } }
   ];
-  const topKat = topKategoriInRange(from, to);
-  const topIl = topIlInRange(from, to);
-  if (topKat) cards.push({ label: 'En Çok Talep Alınan Konu', value: topKat.name, deltaPct: null, opts: { isText: true, sub: Math.round(topKat.total).toLocaleString('tr-TR') + ' adet' } });
-  if (topIl) cards.push({ label: 'En Çok Talep Alınan İl', value: topIl.name, deltaPct: null, opts: { isText: true, sub: Math.round(topIl.total).toLocaleString('tr-TR') + ' adet' } });
+  // "En Çok Talep Alınan Konu/İl" kartları KALDIRILDI (14.08.2026) - kategori/il kırılımı
+  // GTD'ye özgüydü, Toplam Talep artık Gelen Arama'dan geldiği için bu kartlar burada
+  // gösterilemez hale geldi (kullanıcı onayıyla kaldırıldı, GTD'nin kendi sayfasında zaten
+  // "Kategori Dağılımı" sekmesi bu bilgiyi karşılıyor).
   return cards;
 }
 
@@ -8672,8 +9067,10 @@ function computeInsightSentences(from, to){
   const callsPrev = sumField(CALLS_ROWS, 'cevap', prevFrom, prevTo);
   const kacanCurr = sumField(CALLS_ROWS, 'kacan', from, to);
   const kacanPrev = sumField(CALLS_ROWS, 'kacan', prevFrom, prevTo);
-  const gtdCurr = sumSeriesInRange(gtdSeries, from, to);
-  const gtdPrev = sumSeriesInRange(gtdSeries, prevFrom, prevTo);
+  // 14.08.2026: KPI kartıyla TUTARLI olsun diye Talep burada da Gelen Arama'dan (genel
+  // toplam, kategoriye bağlı değil) - GTD'ye özgü kategori kırılımı artık bu metinde yok.
+  const gtdCurr = sumField(CALLS_ROWS, 'talep', from, to);
+  const gtdPrev = sumField(CALLS_ROWS, 'talep', prevFrom, prevTo);
   const kopukCurr = sumSeriesInRange(kopukSeries, from, to);
   const kopukPrev = sumSeriesInRange(kopukSeries, prevFrom, prevTo);
 
@@ -8681,14 +9078,14 @@ function computeInsightSentences(from, to){
   // değil, o tarih aralığında hiç satır yoksa), pctChange'in "0 ile 0 -> %0" sonucu YANILTICI
   // olur - "değişmedi" değil "karşılaştırılacak veri yok" demek gerekir. (12.08.2026)
   const hasCallsData = CALLS_ROWS.some(r => (r.date >= from && r.date <= to) || (r.date >= prevFrom && r.date <= prevTo));
-  const hasGtdData = gtdSeries.some(p => (p.date >= from && p.date <= to) || (p.date >= prevFrom && p.date <= prevTo));
+  const hasGtdData = hasCallsData; // artık aynı (Gelen Arama) kaynaktan geliyor
   const hasKopukData = kopukSeries.some(p => (p.date >= from && p.date <= to) || (p.date >= prevFrom && p.date <= prevTo));
 
   const callsPct = hasCallsData ? pctChange(callsCurr, callsPrev) : null;
   const kacanPct = hasCallsData ? pctChange(kacanCurr, kacanPrev) : null;
   const gtdPct = hasGtdData ? pctChange(gtdCurr, gtdPrev) : null;
   const kopukPct = hasKopukData ? pctChange(kopukCurr, kopukPrev) : null;
-  const gtdAd = gtdLabel();
+  const gtdAd = 'Talep'; // 14.08.2026: artık sabit - kategoriye göre değişen dinamik etiket değil
 
   // "Bu dönemde/aynı dönemde" yerine GERÇEK tarih aralıkları yazılır - hangi dönemin hangi
   // döneme göre kıyaslandığı, dışarıdaki tarih filtresine bakmaya gerek kalmadan her cümlede
@@ -8711,8 +9108,8 @@ function computeInsightSentences(from, to){
 
   if (gtdPct !== null && kopukPct !== null) sentences.push(compareTrend(gtdAd, gtdPct, 'Köpük Talep', kopukPct));
 
-  const topKat = topKategoriInRange(from, to);
-  if (topKat) sentences.push(`${donemEtiket} en çok talep alınan konu "${topKat.name}" oldu (${Math.round(topKat.total).toLocaleString('tr-TR')} adet).`);
+  // "En çok talep alınan konu" cümlesi KALDIRILDI (14.08.2026) - kategori kırılımı artık
+  // bu metinde yok (GTD'ye özgüydü, Talep genel toplama taşındı).
 
   const peakGtd = peakMonthOverall(gtdSeries);
   if (peakGtd) sentences.push(`${gtdAd}, tüm geçmiş veriye göre en çok ${peakGtd.monthName} ayında yoğunlaşıyor (yıllık ortalama ${Math.round(peakGtd.avg).toLocaleString('tr-TR')} adet/ay).`);
@@ -8748,7 +9145,7 @@ let anCorrSlots = [
 function anCorrSlotLabel(key){
   if (key === 'calls') return 'Çağrı (Cevaplanan)';
   if (key === 'kacan') return 'Kaçan Çağrı';
-  if (key === 'gtd') return gtdLabel();
+  if (key === 'gtd') return 'Talep'; // 14.08.2026: artık Gelen Arama'dan (genel toplam) geliyor, kategoriye göre değişmiyor
   return 'Köpük Talep';
 }
 
@@ -8781,11 +9178,14 @@ function renderCorrChart(from, to){
   const covEl = document.getElementById('anCoverageCorr');
   if (covEl) covEl.innerHTML = dataCoverageHtml(anCoverageSources(), from, to);
   const canvas = document.getElementById('anCorrChart-canvas');
-  const gtdInRange = gtdSeries.filter(p => p.date >= from && p.date <= to);
+  // GTD artık AYLIK (14.08.2026) - günlük eksenli bu grafikte Çağrı/Kaçan/Köpük ile birlikte
+  // anlamlı gösterilemez (ayda tek nokta olurdu). Talep verisi burada Gelen Arama Dağılımı'nın
+  // (günlük, değişmeyen) TALEP sütunundan geliyor - genel toplam, İl/Kategori filtresine bağlı değil.
   const kopukInRange = kopukSeries.filter(p => p.date >= from && p.date <= to);
   const callsRowsInRange = CALLS_ROWS.filter(r => r.date >= from && r.date <= to);
   const callsInRange = callsRowsInRange.map(r => ({ date: r.date, value: r.cevap }));
   const kacanInRange = callsRowsInRange.map(r => ({ date: r.date, value: r.kacan }));
+  const gtdInRange = callsRowsInRange.map(r => ({ date: r.date, value: r.talep }));
 
   const dateKeys = [...new Set([...gtdInRange, ...kopukInRange, ...callsInRange, ...kacanInRange].map(p => fmtDate(p.date)))].sort();
   const seriesMaps = {
@@ -9066,7 +9466,7 @@ let anWeekDefaultApplied = false;
 const AN_WEEK_METRIC_DEFS = () => ([
   { key: 'calls', label: 'Çağrı' },
   { key: 'kacan', label: 'Kaçan' },
-  { key: 'gtd', label: gtdLabel() },
+  { key: 'gtd', label: 'Talep' }, // 14.08.2026: artık Gelen Arama'dan (genel toplam) geliyor, kategoriye göre değişmiyor - dinamik gtdLabel() yanıltıcı olurdu
   { key: 'kopuk', label: 'Köpük Talep' },
 ]);
 
@@ -9127,7 +9527,14 @@ function weeklySumsFor(year, month, metricKey){
       }
     });
   } else if (metricKey === 'gtd'){
-    gtdSeries.forEach(p => { if (p.date.getFullYear() === year && p.date.getMonth() + 1 === month) w[weekOfMonth(p.date.getDate()) - 1] += p.value; });
+    // GTD artık AYLIK (14.08.2026) - haftalık kırılım için artık kullanılamaz. Talep verisi
+    // burada Gelen Arama Dağılımı'nın (günlük, değişmeyen) TALEP sütunundan geliyor - üstteki
+    // genel İl/Kategori filtresine ARTIK bağlı DEĞİL, her zaman genel toplamı gösterir.
+    CALLS_ROWS.forEach(r => {
+      if (r.date.getFullYear() === year && r.date.getMonth() + 1 === month){
+        w[weekOfMonth(r.date.getDate()) - 1] += r.talep;
+      }
+    });
   } else if (metricKey === 'kopuk'){
     kopukSeries.forEach(p => { if (p.date.getFullYear() === year && p.date.getMonth() + 1 === month) w[weekOfMonth(p.date.getDate()) - 1] += p.value; });
   }
@@ -9969,6 +10376,35 @@ document.getElementById('efSaveBtn').addEventListener('click', async () => {
     const chunks = [];
     for (let i = 0; i < payload.length; i += CHUNK_SIZE) chunks.push(payload.slice(i, i + CHUNK_SIZE));
     const rowValues = [name, EF_PROJECT_LABEL, ...chunks];
+
+    // 14.08.2026: Aynı isim + aynı proje (ALO-144) etiketiyle daha önce kaydedilmiş bir
+    // şablon var mı kontrol edilir - varsa o satırın ÜZERİNE YAZILIR (önce tamamen
+    // temizlenip sonra yeni içerik yazılır - eski payload yeni payload'tan daha uzunsa
+    // artakalan eski parça hücrelerde kalmasın diye), yoksa eskisi gibi yeni satır eklenir.
+    const existingUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${encodeURIComponent(`'${TAB_SABLONLAR}'!A2:B1000`)}`;
+    const existingRes = await authFetch(existingUrl);
+    const existingData = await existingRes.json();
+    const existingRows = existingData.values || [];
+    const matchIdx = existingRows.findIndex(r => (r[0] || '').trim() === name && (r[1] || '').trim() === EF_PROJECT_LABEL);
+
+    if (matchIdx >= 0){
+      const sheetRow = matchIdx + 2; // A2'den başladık, +2 gerçek satır numarasına çevirir
+      const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${encodeURIComponent(`'${TAB_SABLONLAR}'!A${sheetRow}:ZZ${sheetRow}`)}:clear`;
+      await fetch(clearUrl, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+      const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${encodeURIComponent(`'${TAB_SABLONLAR}'!A${sheetRow}`)}?valueInputOption=USER_ENTERED`;
+      const res = await fetch(updateUrl, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [rowValues] }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || 'Güncellenemedi.');
+      nameInput.value = '';
+      await efLoadTemplateList();
+      statusEl.textContent = `✓ "${name}" şablonu güncellendi (${chunks.length} parça).`;
+      return;
+    }
+
     const range = encodeURIComponent(`'${TAB_SABLONLAR}'!A:ZZ`);
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
     const res = await fetch(url, {
