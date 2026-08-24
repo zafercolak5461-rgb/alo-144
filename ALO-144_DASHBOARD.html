@@ -6042,6 +6042,13 @@ function renderGunlukDetay(){
 // mantığı kullanır: kendi karşılaştırma grubunun ortalamasına göre %20 ve üzeri sapma.
 // ============================================================================
 const IH_THRESHOLD_PCT = 20;
+// Gün/Hafta yığılma sıralaması SADECE ORANA göre çalışırsa, çok az toplam izni olan biri
+// (örn. 7 izinden 5'i Pazartesi = %71) tesadüfen listenin başına düşüp yanıltıcı/gülünç
+// olabilir - kullanıcı bunu gerçek bir vakada fark etti ("bunu üst birime gösterirsem şaka mı
+// diye sorar"). Bu yüzden bu genel sıralamaya girebilmek için en az bu kadar toplam izin
+// kaydı aranıyor (tek personel görünümündeki uyarılar bundan etkilenmiyor, sadece kırmızı
+// bayrak - orada bağlam zaten tüm sayılarla birlikte gösteriliyor).
+const IH_SKEW_MIN_TOTAL = 10;
 const IH_DOW_NAMES = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
 const IH_MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 let ihMode = 'birlikte';
@@ -6262,7 +6269,7 @@ function ihOverlapRanking(records, year){
   return [...byPerson.values()]
     .filter(p => p.overlap > 0)
     .map(p => Object.assign(p, { ratio: p.overlap / p.total }))
-    .sort((a,b) => b.overlap - a.overlap || b.ratio - a.ratio);
+    .sort((a,b) => b.ratio - a.ratio || b.overlap - a.overlap);
 }
 
 // GENEL (tüm personel) gün-bazlı VE hafta-bazlı çarpıklık sıralaması - ihPersonPattern'daki
@@ -6283,7 +6290,7 @@ function ihSkewRanking(records, year){
   const EXPECTED_DOW = 1/7, EXPECTED_WEEK = 1/5;
   const dowRanking = [], weekRanking = [];
   byPerson.forEach(p => {
-    if (p.total < 2) return; // tek kayıttan "eğilim" çıkarılamaz
+    if (p.total < IH_SKEW_MIN_TOTAL) return; // istatistiksel olarak güvenilir bir eğilimden bahsetmek için yetersiz veri
     let bestDow = null;
     p.byDow.forEach((c,i) => {
       const ratio = c / p.total;
@@ -6551,38 +6558,44 @@ async function ihRender(){
         })()}</tbody>
       </table></div>
     </div>
-    <div class="panel-grid" style="grid-template-columns:1fr 1fr; margin-top:16px;">
-      <div class="panel">
-        <div class="panel-head">Çağrı Yoğun Günlerde İzin Kullanma Eğilimi (Personel Sıralaması)</div>
-        <div class="note" style="margin:12px 16px 0;">Her personelin toplam izninin ne kadarının, çağrının o AYIN kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığı günlere denk geldiğini gösterir. Sadece en az 1 çakışması olanlar listelenir, en çok çakışan üstte.</div>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Personel</th><th>Çağrı-Yoğun Günde Kullanılan İzin</th><th>Toplam İzin</th><th>Oran</th></tr></thead>
-          <tbody>${(() => {
-            const ranking = ihOverlapRanking(records, ihYear);
-            if (!ranking.length) return '<tr><td colspan="4" class="empty-state">Çakışma tespit edilmedi.</td></tr>';
-            return ranking.slice(0, 20).map(p => `<tr><td>${p.personel}</td><td style="text-align:right;">${p.overlap}</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
-          })()}</tbody>
-        </table></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">Belirli Gün/Haftaya Yığılma Eğilimi (Personel Sıralaması)</div>
-        <div class="note" style="margin:12px 16px 0;">Kendi izin dağılımının, kendi ortalamasının %50+ üzerinde belirli bir güne/haftaya yığıldığı personeli listeler (hacme değil ORANA bakar - az izni olsa bile hep aynı güne/haftaya denk geliyorsa yakalanır).</div>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Personel</th><th>En Çok Yığıldığı Gün</th><th>Oran</th></tr></thead>
-          <tbody>${(() => {
-            const { dowRanking } = ihSkewRanking(records, ihYear);
-            if (!dowRanking.length) return '<tr><td colspan="3" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
-            return dowRanking.slice(0, 20).map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
-          })()}</tbody>
-        </table></div>
-        <div class="table-scroll" style="margin-top:10px;"><table>
-          <thead><tr><th>Personel</th><th>En Çok Yığıldığı Hafta</th><th>Oran</th></tr></thead>
-          <tbody>${(() => {
-            const { weekRanking } = ihSkewRanking(records, ihYear);
-            if (!weekRanking.length) return '<tr><td colspan="3" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
-            return weekRanking.slice(0, 20).map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
-          })()}</tbody>
-        </table></div>
+    <div class="panel" style="margin-top:16px;">
+      <div class="panel-head">Çağrı Yoğun Günlerde İzin Kullanma Eğilimi (Personel Sıralaması)</div>
+      <div class="note" style="margin:12px 16px 0;">Her personelin toplam izninin ne kadarının, çağrının o AYIN kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığı günlere denk geldiğini gösterir. Sadece en az 1 çakışması olanlar listelenir, ORANI en yüksek olan üstte (hacim değil, oran önceliklidir).</div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Personel</th><th>Çağrı-Yoğun Günde Kullanılan İzin</th><th>Toplam İzin</th><th>Oran</th></tr></thead>
+        <tbody>${(() => {
+          const ranking = ihOverlapRanking(records, ihYear);
+          if (!ranking.length) return '<tr><td colspan="4" class="empty-state">Çakışma tespit edilmedi.</td></tr>';
+          return ranking.slice(0, 20).map(p => `<tr><td>${p.personel}</td><td style="text-align:right;">${p.overlap}</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
+        })()}</tbody>
+      </table></div>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <div class="panel-head">Belirli Gün/Haftaya Yığılma Eğilimi (Personel Sıralaması)</div>
+      <div class="note" style="margin:12px 16px 0;">Kendi izin dağılımının, kendi ortalamasının %50+ üzerinde belirli bir güne/haftaya yığıldığı personeli listeler. Güvenilir bir eğilimden bahsedebilmek için en az ${IH_SKEW_MIN_TOTAL} toplam izin kaydı olan personel dahil edilir (yoksa çok az kayıtla tesadüfen yüksek çıkan bir oran listenin başına düşüp yanıltıcı olabilir).</div>
+      <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
+        <div>
+          <div style="padding:0 16px; font-size:12px; color:var(--text-dim); font-weight:600; margin-bottom:6px;">EN ÇOK YIĞILDIĞI GÜN</div>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Personel</th><th>Gün</th><th>Toplam İzin</th><th>Oran</th></tr></thead>
+            <tbody>${(() => {
+              const { dowRanking } = ihSkewRanking(records, ihYear);
+              if (!dowRanking.length) return '<tr><td colspan="4" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
+              return dowRanking.slice(0, 20).map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
+            })()}</tbody>
+          </table></div>
+        </div>
+        <div>
+          <div style="padding:0 16px; font-size:12px; color:var(--text-dim); font-weight:600; margin-bottom:6px;">EN ÇOK YIĞILDIĞI HAFTA</div>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Personel</th><th>Hafta</th><th>Toplam İzin</th><th>Oran</th></tr></thead>
+            <tbody>${(() => {
+              const { weekRanking } = ihSkewRanking(records, ihYear);
+              if (!weekRanking.length) return '<tr><td colspan="4" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
+              return weekRanking.slice(0, 20).map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
+            })()}</tbody>
+          </table></div>
+        </div>
       </div>
     </div>`;
   createSlotChartPanel({
