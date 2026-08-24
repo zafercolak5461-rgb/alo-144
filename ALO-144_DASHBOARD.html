@@ -6291,7 +6291,12 @@ function ihScopeTitle(){
   }
   let donem = ihYear === 'all' ? 'Tüm Yıllar' : String(ihYear);
   if (ihYear !== 'all' && ihMonths.size) donem += ' — ' + [...ihMonths].sort((a,b)=>a-b).map(m => TR_MONTHS[m]).join(', ');
-  return `<div class="panel-head" style="margin-bottom:14px;">${kim} <span class="hint">— ${donem} — ${kapsam}</span></div>`;
+  return `<div class="panel" style="margin-bottom:16px; border-color:var(--accent);">
+    <div class="panel-head" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
+      <span style="color:var(--accent);">📍 ${kim}</span>
+      <span class="hint" style="font-weight:400;">${donem} · ${kapsam}</span>
+    </div>
+  </div>`;
 }
 
 async function ihRender(){
