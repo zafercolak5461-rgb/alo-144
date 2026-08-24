@@ -1986,8 +1986,8 @@ body{
         <select id="ih-yearSelect" style="width:100%;"><option value="all">Tüm Yıllar</option></select>
       </div>
       <div class="chart-panel" style="padding:10px 14px;">
-        <div class="chart-panel-head" style="border:none; padding:0 0 8px;">Ay <span class="hint">(yıl seçiliyken aktif)</span></div>
-        <select id="ih-monthSelect" style="width:100%;" disabled><option value="all">Tüm Aylar</option></select>
+        <div class="chart-panel-head" style="border:none; padding:0 0 8px;">Ay(lar) <span class="hint">(çoklu seçim)</span></div>
+        <div class="preset-group" id="ih-monthGroup" style="flex-wrap:wrap; opacity:0.5; pointer-events:none;"></div>
       </div>
       <div class="chart-panel" style="padding:10px 14px;">
         <div class="chart-panel-head" style="border:none; padding:0 0 8px;">Personel</div>
@@ -6034,14 +6034,45 @@ function renderGunlukDetay(){
 // ============================================================================
 const IH_THRESHOLD_PCT = 20;
 const IH_DOW_NAMES = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+const IH_MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 let ihMode = 'birlikte';
 let ihYear = 'all';
-let ihMonth = 'all';
+let ihMonths = new Set(); // boş = "Tüm Aylar" (yıl seçiliyken); birden fazla ay birlikte seçilebilir
 let ihPersonSicil = '';
 let ihCallsByDate = null; // Map<'YYYY-MM-DD', adet> - Gelen Arama'dan, bir kere çekilip önbelleklenir
+let ihCharts = {}; // canvas id -> Chart.js örneği (yeniden çizerken eskisini yok etmek için)
 
 function ihWeekOfMonth(day){ return Math.min(5, Math.ceil(day / 7)); }
 function ihDateKey(d){ return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }
+
+// "1. Hafta" gibi bir etiketin hangi TAKVİM GÜNLERİNİ kapsadığını yazıya çevirir.
+function ihWeekRangeLabel(year, month, weekIdx){
+  const startDay = weekIdx * 7 + 1;
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  if (startDay > lastDayOfMonth) return '';
+  const endDay = Math.min(startDay + 6, lastDayOfMonth);
+  return `${startDay}–${endDay} ${TR_MONTHS[month]}`;
+}
+
+function ihDestroyChart(id){
+  if (ihCharts[id]){ ihCharts[id].destroy(); delete ihCharts[id]; }
+}
+// Proje standardı renklerle basit tek-seri bar grafiği - kırmızı çubuklar "yoğun" (elevated) olanları vurgular.
+function ihDrawBarChart(canvasId, labels, values, elevatedFlags){
+  ihDestroyChart(canvasId);
+  const el = document.getElementById(canvasId);
+  if (!el || typeof Chart === 'undefined') return;
+  ihCharts[canvasId] = new Chart(el, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: values.map((v,i) => elevatedFlags && elevatedFlags[i] ? '#e85d5d' : '#5b9cf6'), borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { color: '#8FA3C9' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+                x: { ticks: { color: '#8FA3C9' }, grid: { display: false } } }
+    }
+  });
+}
 
 function ihMatchesMode(durum){
   if (ihMode === 'birlikte') return durum === 'Yıllık İzin' || durum === 'Rapor';
@@ -6139,32 +6170,30 @@ function ihMonthlyView(records, year){
   });
 }
 
-// ----- Görünüm 2: Yıl seçiliyken, yoğun ayların İÇİNDEKİ haftalar + sebep olan personel -----
-function ihWeeklyViewForMonth(records, year, month){
+// ----- Görünüm 2+3 BİRLEŞİK: Bir veya birden fazla ay için Hafta + Gün + Sebep Olan
+// Personel'i TEK YERDE döner (kullanıcı isteğiyle "Detay" artık üçünü birlikte gösteriyor).
+// months: dizi (1 elemanlıysa tek ay, birden fazlaysa TOPLU/birleşik sonuç).
+function ihMonthDrillView(records, year, months){
+  const monthSet = new Set(months.map(Number));
   const weeks = [0,0,0,0,0];
+  const byDow = new Array(7).fill(0);
   const personMap = new Map(); // sicil -> {personel, count}
   records.forEach(r => {
-    if (r.tarih.getFullYear() !== Number(year) || r.tarih.getMonth() !== Number(month)) return;
+    if (r.tarih.getFullYear() !== Number(year) || !monthSet.has(r.tarih.getMonth())) return;
     weeks[ihWeekOfMonth(r.tarih.getDate())-1]++;
+    byDow[r.tarih.getDay()]++;
     const key = r.sicil;
     if (!personMap.has(key)) personMap.set(key, { sicil: key, personel: r.personel, count: 0 });
     personMap.get(key).count++;
   });
-  const elevated = ihFindElevated(weeks);
-  const topPersons = [...personMap.values()].sort((a,b)=>b.count-a.count).slice(0,8);
-  return { weeks, elevated, topPersons };
-}
-
-// ----- Görünüm 3: Ay seçiliyken, hafta VE gün bazında -----
-function ihDailyViewForMonth(records, year, month){
-  const byDow = new Array(7).fill(0);
-  const byWeek = [0,0,0,0,0];
-  records.forEach(r => {
-    if (r.tarih.getFullYear() !== Number(year) || r.tarih.getMonth() !== Number(month)) return;
-    byDow[r.tarih.getDay()]++;
-    byWeek[ihWeekOfMonth(r.tarih.getDate())-1]++;
-  });
-  return { byDow, byDowElevated: ihFindElevated(byDow), byWeek, byWeekElevated: ihFindElevated(byWeek) };
+  const weekLabels = months.length === 1
+    ? [0,1,2,3,4].map(i => ihWeekRangeLabel(year, months[0], i))
+    : [0,1,2,3,4].map(i => `${i+1}. Hafta`); // birden fazla ay birleşince tek bir tarih aralığı anlamsız - sadece sıra no
+  return {
+    weeks, weekElevated: ihFindElevated(weeks), weekLabels,
+    byDow, byDowElevated: ihFindElevated(byDow),
+    topPersons: [...personMap.values()].sort((a,b)=>b.count-a.count).slice(0,8),
+  };
 }
 
 // ----- Görünüm 4: Personel seçiliyken - kendi ay/hafta/gün deseni + ÇARPIKLIK tespiti -----
@@ -6230,6 +6259,17 @@ function ihPopulateSelectors(){
   const personSel = document.getElementById('ih-personSelect');
   personSel.innerHTML = '<option value="">Tümü (genel görünüm)</option>' +
     PERSONS.map(p => `<option value="${p.sicil}">${p.personel}</option>`).join('');
+
+  const monthGroup = document.getElementById('ih-monthGroup');
+  monthGroup.innerHTML = IH_MONTH_SHORT.map((n,i) => `<button class="preset-btn" data-ihmonth="${i}">${n}</button>`).join('');
+  monthGroup.querySelectorAll('[data-ihmonth]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = parseInt(btn.dataset.ihmonth, 10);
+      if (ihMonths.has(m)){ ihMonths.delete(m); btn.classList.remove('active'); }
+      else { ihMonths.add(m); btn.classList.add('active'); }
+      ihRender();
+    });
+  });
 }
 
 function ihBar(pct, elevated){
@@ -6237,6 +6277,21 @@ function ihBar(pct, elevated){
   return `<div style="background:var(--line); border-radius:4px; height:16px; width:100%; overflow:hidden;">
     <div style="background:${elevated ? 'var(--danger, #e85d5d)' : 'var(--accent)'}; height:100%; width:${w}%;"></div>
   </div>`;
+}
+
+// Panelin en üstünde "kimin/hangi dönemin gösterildiği" her zaman açıkça yazan başlık.
+function ihScopeTitle(){
+  const kapsam = ihMode === 'birlikte' ? 'Yıllık İzin + Rapor' : ihMode === 'yillik' ? 'Yıllık İzin' : 'Rapor';
+  let kim;
+  if (ihPersonSicil){
+    const p = PERSONS.find(x => x.sicil === ihPersonSicil);
+    kim = p ? p.personel : ihPersonSicil;
+  } else {
+    kim = 'Tüm Lokasyon (tüm personel)';
+  }
+  let donem = ihYear === 'all' ? 'Tüm Yıllar' : String(ihYear);
+  if (ihYear !== 'all' && ihMonths.size) donem += ' — ' + [...ihMonths].sort((a,b)=>a-b).map(m => TR_MONTHS[m]).join(', ');
+  return `<div class="panel-head" style="margin-bottom:14px;">${kim} <span class="hint">— ${donem} — ${kapsam}</span></div>`;
 }
 
 async function ihRender(){
@@ -6248,59 +6303,80 @@ async function ihRender(){
   wrap.innerHTML = `<div class="empty-state">Çağrı verisi yükleniyor…</div>`;
   await ihEnsureCallsLoaded();
   const records = ihFilteredRecords();
+  const title = ihScopeTitle();
 
   // ----- Personel seçiliyse: kişisel görünüm önceliklidir -----
   if (ihPersonSicil){
-    const p = PERSONS.find(x => x.sicil === ihPersonSicil);
     const pat = ihPersonPattern(records, ihPersonSicil, ihYear);
     const maxMonth = Math.max(1, ...pat.byMonth);
     const monthRows = TR_MONTHS.map((name,i) => `<tr>
       <td>${name}</td><td style="text-align:right;">${pat.byMonth[i]}</td>
       <td style="width:200px;">${ihBar(pat.byMonth[i]/maxMonth*100, pat.monthElevated[i])}</td>
     </tr>`).join('');
-    const dowMax = Math.max(1, ...pat.byDow);
     const dowRows = IH_DOW_NAMES.map((name,i) => `<tr>
       <td>${name}</td><td style="text-align:right;">${pat.byDow[i]}</td>
-      <td style="width:200px;">${ihBar(pat.byDow[i]/dowMax*100, pat.dowSkew.some(s=>s.label===name))}</td>
     </tr>`).join('');
-    const weekMax = Math.max(1, ...pat.byWeek);
     const weekRows = pat.byWeek.map((c,i) => `<tr>
       <td>${i+1}. Hafta</td><td style="text-align:right;">${c}</td>
-      <td style="width:200px;">${ihBar(c/weekMax*100, pat.weekSkew.some(s=>s.label===(i+1)+'. Hafta'))}</td>
     </tr>`).join('');
 
     wrap.innerHTML = `
+      ${title}
       <div class="metrics" style="margin-bottom:16px;">
-        <div class="metric"><div class="label">${p ? p.personel : ihPersonSicil} — Toplam</div><div class="value ok">${pat.total}</div></div>
+        <div class="metric"><div class="label">Toplam</div><div class="value ok">${pat.total}</div></div>
         <div class="metric"><div class="label">Çağrı Yoğun Günlerle Çakışan İzin</div><div class="value ${pat.overlapDays ? 'warn' : ''}">${pat.overlapDays}</div></div>
       </div>
       ${pat.dowSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Gün bazlı çarpıklık tespit edildi: ${pat.dowSkew.map(s => `<b>${s.label}</b> (${s.count} kez, %${Math.round(s.ratio*100)})`).join(', ')} — bu kişi izinlerini belirgin şekilde bu gün(ler)e yığıyor.</div>` : ''}
       ${pat.weekSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Hafta bazlı çarpıklık tespit edildi: ${pat.weekSkew.map(s => `<b>${s.label}</b> (${s.count} kez, %${Math.round(s.ratio*100)})`).join(', ')}.</div>` : ''}
-      <div class="panel-grid" style="grid-template-columns:1fr 1fr 1fr;">
-        <div class="panel"><div class="panel-head">Ay Bazlı</div><div class="table-scroll"><table><tbody>${monthRows}</tbody></table></div></div>
-        <div class="panel"><div class="panel-head">Gün Bazlı (Haftanın Günü)</div><div class="table-scroll"><table><tbody>${dowRows}</tbody></table></div></div>
-        <div class="panel"><div class="panel-head">Hafta Bazlı (Ayın Kaçıncı Haftası)</div><div class="table-scroll"><table><tbody>${weekRows}</tbody></table></div></div>
+      <div class="panel"><div class="panel-head">Ay Bazlı</div>
+        <div style="height:180px; padding:10px;"><canvas id="ih-chart-month"></canvas></div>
+        <div class="table-scroll"><table><tbody>${monthRows}</tbody></table></div>
+      </div>
+      <div class="panel-grid" style="grid-template-columns:1fr 1fr; margin-top:16px;">
+        <div class="panel"><div class="panel-head">Gün Bazlı (Haftanın Günü)</div>
+          <div style="height:160px; padding:10px;"><canvas id="ih-chart-dow"></canvas></div>
+          <div class="table-scroll"><table><tbody>${dowRows}</tbody></table></div>
+        </div>
+        <div class="panel"><div class="panel-head">Hafta Bazlı (Ayın Kaçıncı Haftası)</div>
+          <div style="height:160px; padding:10px;"><canvas id="ih-chart-week"></canvas></div>
+          <div class="table-scroll"><table><tbody>${weekRows}</tbody></table></div>
+        </div>
       </div>`;
+    ihDrawBarChart('ih-chart-month', TR_MONTHS, pat.byMonth, pat.monthElevated);
+    ihDrawBarChart('ih-chart-dow', IH_DOW_NAMES, pat.byDow, IH_DOW_NAMES.map(n => pat.dowSkew.some(s=>s.label===n)));
+    ihDrawBarChart('ih-chart-week', ['1.Hafta','2.Hafta','3.Hafta','4.Hafta','5.Hafta'], pat.byWeek, pat.byWeek.map((c,i) => pat.weekSkew.some(s=>s.label===(i+1)+'. Hafta')));
     return;
   }
 
-  // ----- Ay seçiliyse: o ayın hafta + gün kırılımı -----
-  if (ihYear !== 'all' && ihMonth !== 'all'){
-    const d = ihDailyViewForMonth(records, ihYear, ihMonth);
-    const weekMax = Math.max(1, ...d.byWeek);
-    const weekRows = d.byWeek.map((c,i) => `<tr><td>${i+1}. Hafta</td><td style="text-align:right;">${c}</td><td style="width:220px;">${ihBar(c/weekMax*100, d.byWeekElevated[i])}</td></tr>`).join('');
+  // ----- Yıl VE en az bir ay seçiliyse: Hafta + Gün + Sebep Olan Personel TEK YERDE -----
+  if (ihYear !== 'all' && ihMonths.size > 0){
+    const months = [...ihMonths].sort((a,b)=>a-b);
+    const d = ihMonthDrillView(records, ihYear, months);
+    const weekMax = Math.max(1, ...d.weeks);
+    const weekRows = d.weeks.map((c,i) => `<tr><td>${i+1}. Hafta <span class="hint">(${d.weekLabels[i]})</span></td><td style="text-align:right;">${c}</td><td style="width:200px;">${ihBar(c/weekMax*100, d.weekElevated[i])}</td></tr>`).join('');
     const dowMax = Math.max(1, ...d.byDow);
-    const dowRows = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${d.byDow[i]}</td><td style="width:220px;">${ihBar(d.byDow[i]/dowMax*100, d.byDowElevated[i])}</td></tr>`).join('');
+    const dowRows = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${d.byDow[i]}</td><td style="width:200px;">${ihBar(d.byDow[i]/dowMax*100, d.byDowElevated[i])}</td></tr>`).join('');
+    const pRows = d.topPersons.map(p => `<tr><td>${p.personel}</td><td style="text-align:right;">${p.count}</td></tr>`).join('') || '<tr><td colspan="2" class="empty-state">Kayıt yok</td></tr>';
     wrap.innerHTML = `
-      <div class="note" style="margin-bottom:16px;">${TR_MONTHS[ihMonth]} ${ihYear} — kırmızı çubuk, o ayın kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ yoğun olan hafta/günü gösterir.</div>
-      <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
-        <div class="panel"><div class="panel-head">Haftalara Göre</div><div class="table-scroll"><table><tbody>${weekRows}</tbody></table></div></div>
-        <div class="panel"><div class="panel-head">Günlere Göre</div><div class="table-scroll"><table><tbody>${dowRows}</tbody></table></div></div>
+      ${title}
+      <div class="note" style="margin-bottom:16px;">Kırmızı çubuk, kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ yoğun olduğunu gösterir.</div>
+      <div class="panel-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="panel"><div class="panel-head">Haftalara Göre</div>
+          <div style="height:150px; padding:10px;"><canvas id="ih-chart-week2"></canvas></div>
+          <div class="table-scroll"><table><tbody>${weekRows}</tbody></table></div>
+        </div>
+        <div class="panel"><div class="panel-head">Günlere Göre</div>
+          <div style="height:150px; padding:10px;"><canvas id="ih-chart-dow2"></canvas></div>
+          <div class="table-scroll"><table><tbody>${dowRows}</tbody></table></div>
+        </div>
+        <div class="panel"><div class="panel-head">Sebep Olan Personel (İlk 8)</div><div class="table-scroll"><table><tbody>${pRows}</tbody></table></div></div>
       </div>`;
+    ihDrawBarChart('ih-chart-week2', d.weekLabels.map((l,i)=>l||('.'+(i+1))), d.weeks, d.weekElevated);
+    ihDrawBarChart('ih-chart-dow2', IH_DOW_NAMES, d.byDow, d.byDowElevated);
     return;
   }
 
-  // ----- Yıl seçili (ay seçilmemiş): ay bazlı yoğunluk + yoğun aylara tıklayınca hafta/personel -----
+  // ----- Yıl seçili (ay seçilmemiş) ya da Tüm Yıllar: ay bazlı yoğunluk -----
   const monthly = ihMonthlyView(records, ihYear);
   const maxCount = Math.max(1, ...monthly.map(m => m.count));
   const rows = monthly.map(m => `
@@ -6308,34 +6384,27 @@ async function ihRender(){
       <td>${m.label}</td>
       <td style="text-align:right;">${m.count}</td>
       <td style="width:220px;">${ihBar(m.count/maxCount*100, m.elevated)}</td>
-      <td>${m.bothElevated ? '⚠ Çağrı da yoğun' : (m.elevated ? '' : '')}</td>
-      <td>${m.elevated ? `<button class="refresh-btn ih-drill-month" data-month="${m.month}" style="font-size:11px; padding:3px 8px;">Detay</button>` : ''}</td>
+      <td>${m.bothElevated ? '⚠ Çağrı da yoğun' : ''}</td>
+      <td>${m.elevated && ihYear !== 'all' ? `<button class="refresh-btn ih-drill-month" data-month="${m.month}" style="font-size:11px; padding:3px 8px;">Detay</button>` : ''}</td>
     </tr>`).join('');
   wrap.innerHTML = `
-    <div class="note" style="margin-bottom:16px;">${ihYear === 'all' ? 'Tüm yıllar' : ihYear} — kırmızı çubuk + "Çağrı da yoğun" etiketi, o ayın kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığını gösterir. Yoğun aylarda "Detay" ile hafta kırılımına ve sebep olan personele inebilirsiniz.</div>
+    ${title}
+    <div class="note" style="margin-bottom:16px;">Kırmızı çubuk + "Çağrı da yoğun" etiketi, o ayın kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığını gösterir. Belirli bir yıl seçip yoğun aylarda "Detay"a basarsan (ya da yukarıdan Ay(lar) seçersen) hafta/gün/personel kırılımına inebilirsin.</div>
     <div class="panel">
       <div class="panel-head">Aylara Göre İzin Yoğunluğu</div>
+      <div style="height:200px; padding:10px;"><canvas id="ih-chart-monthly"></canvas></div>
       <div class="table-scroll"><table><thead><tr><th>Ay</th><th>Adet</th><th>Dağılım</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    </div>
-    <div id="ih-monthDrillWrap" style="margin-top:16px;"></div>`;
+    </div>`;
+  ihDrawBarChart('ih-chart-monthly', monthly.map(m=>m.label), monthly.map(m=>m.count), monthly.map(m=>m.elevated));
 
   wrap.querySelectorAll('.ih-drill-month').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (ihYear === 'all'){
-        // "Tüm Yıllar" iken bir ay detaylandırılamaz (hangi yılın o ayı belirsiz) - yıl seçmesini iste.
-        document.getElementById('ih-monthDrillWrap').innerHTML = `<div class="note">Hafta/personel detayı için önce belirli bir Yıl seçin.</div>`;
-        return;
-      }
       const month = parseInt(btn.dataset.month, 10);
-      const wv = ihWeeklyViewForMonth(records, ihYear, month);
-      const wMax = Math.max(1, ...wv.weeks);
-      const wRows = wv.weeks.map((c,i) => `<tr><td>${i+1}. Hafta</td><td style="text-align:right;">${c}</td><td style="width:200px;">${ihBar(c/wMax*100, wv.elevated[i])}</td></tr>`).join('');
-      const pRows = wv.topPersons.map(p => `<tr><td>${p.personel}</td><td style="text-align:right;">${p.count}</td></tr>`).join('') || '<tr><td colspan="2" class="empty-state">Kayıt yok</td></tr>';
-      document.getElementById('ih-monthDrillWrap').innerHTML = `
-        <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
-          <div class="panel"><div class="panel-head">${TR_MONTHS[month]} ${ihYear} — Haftalara Göre</div><div class="table-scroll"><table><tbody>${wRows}</tbody></table></div></div>
-          <div class="panel"><div class="panel-head">Bu Yoğunluğa Sebep Olan Personel (İlk 8)</div><div class="table-scroll"><table><tbody>${pRows}</tbody></table></div></div>
-        </div>`;
+      ihMonths = new Set([month]);
+      document.querySelectorAll('#ih-monthGroup [data-ihmonth]').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.ihmonth,10) === month);
+      });
+      ihRender();
     });
   });
 }
@@ -6350,24 +6419,20 @@ document.querySelectorAll('#ih-modeGroup .preset-btn').forEach(btn => {
 });
 document.getElementById('ih-yearSelect').addEventListener('change', (e) => {
   ihYear = e.target.value;
-  const monthSel = document.getElementById('ih-monthSelect');
-  monthSel.disabled = (ihYear === 'all');
-  if (ihYear === 'all'){ monthSel.value = 'all'; ihMonth = 'all'; }
-  ihRender();
-});
-document.getElementById('ih-monthSelect').addEventListener('change', (e) => {
-  ihMonth = e.target.value;
+  const monthGroup = document.getElementById('ih-monthGroup');
+  const enabled = (ihYear !== 'all');
+  monthGroup.style.opacity = enabled ? '1' : '0.5';
+  monthGroup.style.pointerEvents = enabled ? 'auto' : 'none';
+  if (!enabled){
+    ihMonths.clear();
+    monthGroup.querySelectorAll('[data-ihmonth]').forEach(b => b.classList.remove('active'));
+  }
   ihRender();
 });
 document.getElementById('ih-personSelect').addEventListener('change', (e) => {
   ihPersonSicil = e.target.value;
   ihRender();
 });
-
-(() => {
-  const monthSel = document.getElementById('ih-monthSelect');
-  monthSel.innerHTML = '<option value="all">Tüm Aylar</option>' + TR_MONTHS.map((n,i) => `<option value="${i}">${n}</option>`).join('');
-})();
 
 // --- Sayfa içi sekme geçişi ---
 document.querySelectorAll('#page-vardiya .tab').forEach(tab => {
