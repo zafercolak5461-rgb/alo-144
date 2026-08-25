@@ -6286,11 +6286,15 @@ function ihMonthDrillView(records, year, months){
   const monthSet = new Set(months.map(Number));
   const weeks = [0,0,0,0,0];
   const byDow = new Array(7).fill(0);
+  const weeksTur = Array.from({length:5}, () => ({ yillik: 0, rapor: 0 }));
+  const byDowTur = Array.from({length:7}, () => ({ yillik: 0, rapor: 0 }));
   const personMap = new Map(); // sicil -> {personel, count}
   records.forEach(r => {
     if (r.tarih.getFullYear() !== Number(year) || !monthSet.has(r.tarih.getMonth())) return;
-    weeks[ihWeekOfMonth(r.tarih.getDate())-1]++;
-    byDow[r.tarih.getDay()]++;
+    const wi = ihWeekOfMonth(r.tarih.getDate())-1, dowI = r.tarih.getDay();
+    weeks[wi]++; byDow[dowI]++;
+    const turKey = r.durum === 'Yıllık İzin' ? 'yillik' : 'rapor';
+    weeksTur[wi][turKey]++; byDowTur[dowI][turKey]++;
     const key = r.sicil;
     if (!personMap.has(key)) personMap.set(key, { sicil: key, personel: r.personel, count: 0 });
     personMap.get(key).count++;
@@ -6299,8 +6303,8 @@ function ihMonthDrillView(records, year, months){
     ? [0,1,2,3,4].map(i => ihWeekRangeLabel(year, months[0], i))
     : [0,1,2,3,4].map(i => `${i+1}. Hafta`); // birden fazla ay birleşince tek bir tarih aralığı anlamsız - sadece sıra no
   return {
-    weeks, weekElevated: ihFindElevated(weeks), weekLabels,
-    byDow, byDowElevated: ihFindElevated(byDow),
+    weeks, weeksTur, weekElevated: ihFindElevated(weeks), weekLabels,
+    byDow, byDowTur, byDowElevated: ihFindElevated(byDow),
     topPersons: [...personMap.values()].sort((a,b)=>b.count-a.count).slice(0,8),
   };
 }
@@ -6531,12 +6535,16 @@ function ihCallsDayOfWeekTotals(year, months){
 function ihAggregateWeekAndDow(records, year){
   const weeks = [0,0,0,0,0];
   const byDow = new Array(7).fill(0);
+  const weeksTur = Array.from({length:5}, () => ({ yillik: 0, rapor: 0 }));
+  const byDowTur = Array.from({length:7}, () => ({ yillik: 0, rapor: 0 }));
   records.forEach(r => {
     if (year !== 'all' && r.tarih.getFullYear() !== Number(year)) return;
-    weeks[ihWeekOfMonth(r.tarih.getDate())-1]++;
-    byDow[r.tarih.getDay()]++;
+    const wi = ihWeekOfMonth(r.tarih.getDate())-1, dowI = r.tarih.getDay();
+    weeks[wi]++; byDow[dowI]++;
+    const turKey = r.durum === 'Yıllık İzin' ? 'yillik' : 'rapor';
+    weeksTur[wi][turKey]++; byDowTur[dowI][turKey]++;
   });
-  return { weeks, weekElevated: ihFindElevated(weeks), byDow, byDowElevated: ihFindElevated(byDow) };
+  return { weeks, weeksTur, weekElevated: ihFindElevated(weeks), byDow, byDowTur, byDowElevated: ihFindElevated(byDow) };
 }
 
 // Detay modalını açar: her satırda tarih, izin türü, o günün gelen/kaçan çağrısı ve
@@ -6707,15 +6715,29 @@ async function ihRender(){
       ] }),
       getDefaultMetricKeys: () => ['yillik','rapor','cagri'],
     }).render();
+    const dowCallsForPerson = ihCallsDayOfWeekTotals(ihYear, null);
+    const weekCallsForPerson = ihCallsWeekOfMonthTotals(ihYear, null);
     createSlotChartPanel({
       idPrefix: 'ihD', selectorsId: 'ih-selDow', canvasId: 'ih-canvas-dow',
-      getContext: () => ({ labels: IH_DOW_NAMES, metrics: [{ key: 'izin', label: 'İzin', values: pat.byDow, agg: 'sum' }] }),
-      getDefaultMetricKeys: () => ['izin'],
+      forceMultiDefault: true,
+      defaultTypes: ['bar','bar','line'],
+      getContext: () => ({ labels: IH_DOW_NAMES, metrics: [
+        { key: 'yillik', label: 'Yıllık İzin', values: pat.byDowTur.map(t=>t.yillik), agg: 'sum', stackGroup: 'izin' },
+        { key: 'rapor', label: 'Rapor', values: pat.byDowTur.map(t=>t.rapor), agg: 'sum', stackGroup: 'izin' },
+        { key: 'cagri', label: 'Çağrı', values: dowCallsForPerson, agg: 'sum', axisGroup: 'right' },
+      ] }),
+      getDefaultMetricKeys: () => ['yillik','rapor','cagri'],
     }).render();
     createSlotChartPanel({
       idPrefix: 'ihW', selectorsId: 'ih-selWeek', canvasId: 'ih-canvas-week',
-      getContext: () => ({ labels: ['1. Hafta','2. Hafta','3. Hafta','4. Hafta','5. Hafta'], metrics: [{ key: 'izin', label: 'İzin', values: pat.byWeek, agg: 'sum' }] }),
-      getDefaultMetricKeys: () => ['izin'],
+      forceMultiDefault: true,
+      defaultTypes: ['bar','bar','line'],
+      getContext: () => ({ labels: ['1. Hafta','2. Hafta','3. Hafta','4. Hafta','5. Hafta'], metrics: [
+        { key: 'yillik', label: 'Yıllık İzin', values: pat.byWeekTur.map(t=>t.yillik), agg: 'sum', stackGroup: 'izin' },
+        { key: 'rapor', label: 'Rapor', values: pat.byWeekTur.map(t=>t.rapor), agg: 'sum', stackGroup: 'izin' },
+        { key: 'cagri', label: 'Çağrı', values: weekCallsForPerson, agg: 'sum', axisGroup: 'right' },
+      ] }),
+      getDefaultMetricKeys: () => ['yillik','rapor','cagri'],
     }).render();
     return;
   }
@@ -6726,8 +6748,8 @@ async function ihRender(){
     const d = ihMonthDrillView(records, ihYear, months);
     const weekCalls = ihCallsWeekOfMonthTotals(ihYear, months);
     const dowCalls = ihCallsDayOfWeekTotals(ihYear, months);
-    const weekRows = d.weeks.map((c,i) => `<tr><td>${i+1}. Hafta <span class="hint">(${d.weekLabels[i]})</span></td><td style="text-align:right;">${c}</td></tr>`).join('');
-    const dowRows = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${d.byDow[i]}</td></tr>`).join('');
+    const weekRows = d.weeks.map((c,i) => `<tr><td>${i+1}. Hafta <span class="hint">(${d.weekLabels[i]})</span></td><td style="text-align:right;">${d.weeksTur[i].yillik}</td><td style="text-align:right;">${d.weeksTur[i].rapor}</td><td style="text-align:right;">${c}</td></tr>`).join('');
+    const dowRows = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${d.byDowTur[i].yillik}</td><td style="text-align:right;">${d.byDowTur[i].rapor}</td><td style="text-align:right;">${d.byDow[i]}</td></tr>`).join('');
     const pRows = d.topPersons.map(p => `<tr><td>${p.personel}</td><td style="text-align:right;">${p.count}</td></tr>`).join('') || '<tr><td colspan="2" class="empty-state">Kayıt yok</td></tr>';
     wrap.innerHTML = `
       ${title}
@@ -6735,29 +6757,35 @@ async function ihRender(){
       <div class="panel-grid" style="grid-template-columns:1fr 1fr 1fr;">
         <div class="panel"><div class="panel-head">Haftalara Göre<span id="ih-selWeek2" class="count"></span></div>
           <div style="padding:0 16px;"><div style="height:190px;"><canvas id="ih-canvas-week2"></canvas></div></div>
-          <div class="table-scroll"><table><tbody>${weekRows}</tbody></table></div>
+          <div class="table-scroll"><table><thead><tr><th></th><th>Yıllık İzin</th><th>Rapor</th><th>Toplam</th></tr></thead><tbody>${weekRows}</tbody></table></div>
         </div>
         <div class="panel"><div class="panel-head">Günlere Göre<span id="ih-selDow2" class="count"></span></div>
           <div style="padding:0 16px;"><div style="height:190px;"><canvas id="ih-canvas-dow2"></canvas></div></div>
-          <div class="table-scroll"><table><tbody>${dowRows}</tbody></table></div>
+          <div class="table-scroll"><table><thead><tr><th></th><th>Yıllık İzin</th><th>Rapor</th><th>Toplam</th></tr></thead><tbody>${dowRows}</tbody></table></div>
         </div>
         <div class="panel"><div class="panel-head">Sebep Olan Personel (İlk 8)</div><div class="table-scroll"><table><tbody>${pRows}</tbody></table></div></div>
       </div>`;
     createSlotChartPanel({
       idPrefix: 'ihW2', selectorsId: 'ih-selWeek2', canvasId: 'ih-canvas-week2',
+      forceMultiDefault: true,
+      defaultTypes: ['bar','bar','line'],
       getContext: () => ({ labels: d.weekLabels.map((l,i)=>l||(i+1)+'.Hafta'), metrics: [
-        { key: 'izin', label: 'İzin', values: d.weeks, agg: 'sum' },
-        { key: 'cagri', label: 'Çağrı', values: weekCalls, agg: 'sum' },
+        { key: 'yillik', label: 'Yıllık İzin', values: d.weeksTur.map(t=>t.yillik), agg: 'sum', stackGroup: 'izin' },
+        { key: 'rapor', label: 'Rapor', values: d.weeksTur.map(t=>t.rapor), agg: 'sum', stackGroup: 'izin' },
+        { key: 'cagri', label: 'Çağrı', values: weekCalls, agg: 'sum', axisGroup: 'right' },
       ] }),
-      getDefaultMetricKeys: () => ['izin'],
+      getDefaultMetricKeys: () => ['yillik','rapor','cagri'],
     }).render();
     createSlotChartPanel({
       idPrefix: 'ihDo2', selectorsId: 'ih-selDow2', canvasId: 'ih-canvas-dow2',
+      forceMultiDefault: true,
+      defaultTypes: ['bar','bar','line'],
       getContext: () => ({ labels: IH_DOW_NAMES, metrics: [
-        { key: 'izin', label: 'İzin', values: d.byDow, agg: 'sum' },
-        { key: 'cagri', label: 'Çağrı', values: dowCalls, agg: 'sum' },
+        { key: 'yillik', label: 'Yıllık İzin', values: d.byDowTur.map(t=>t.yillik), agg: 'sum', stackGroup: 'izin' },
+        { key: 'rapor', label: 'Rapor', values: d.byDowTur.map(t=>t.rapor), agg: 'sum', stackGroup: 'izin' },
+        { key: 'cagri', label: 'Çağrı', values: dowCalls, agg: 'sum', axisGroup: 'right' },
       ] }),
-      getDefaultMetricKeys: () => ['izin'],
+      getDefaultMetricKeys: () => ['yillik','rapor','cagri'],
     }).render();
     return;
   }
@@ -6774,8 +6802,8 @@ async function ihRender(){
   const agg = ihAggregateWeekAndDow(records, ihYear);
   const aggWeekCalls = ihCallsWeekOfMonthTotals(ihYear, null);
   const aggDowCalls = ihCallsDayOfWeekTotals(ihYear, null);
-  const weekRows2 = agg.weeks.map((c,i) => `<tr><td>${i+1}. Hafta</td><td style="text-align:right;">${c}</td></tr>`).join('');
-  const dowRows2 = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${agg.byDow[i]}</td></tr>`).join('');
+  const weekRows2 = agg.weeks.map((c,i) => `<tr><td>${i+1}. Hafta</td><td style="text-align:right;">${agg.weeksTur[i].yillik}</td><td style="text-align:right;">${agg.weeksTur[i].rapor}</td><td style="text-align:right;">${c}</td></tr>`).join('');
+  const dowRows2 = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${agg.byDowTur[i].yillik}</td><td style="text-align:right;">${agg.byDowTur[i].rapor}</td><td style="text-align:right;">${agg.byDow[i]}</td></tr>`).join('');
   wrap.innerHTML = `
     ${title}
     <div class="note" style="margin-bottom:16px;">"Çağrı da yoğun" etiketi, o ayın kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığını gösterir. Belirli bir yıl seçip yoğun aylarda "Detay"a basarsan (ya da yukarıdan Ay(lar) seçersen) hafta/gün/personel kırılımına inebilirsin. Grafiklerde "Çağrı" metriğini ekleyip karşılaştırabilirsin.</div>
@@ -6788,11 +6816,11 @@ async function ihRender(){
     <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
       <div class="panel"><div class="panel-head">Genel Hafta Ağırlığı (Ayın Kaçıncı Haftası)<span id="ih-selWeekG" class="count"></span></div>
         <div style="padding:0 16px;"><div style="height:190px;"><canvas id="ih-canvas-weekG"></canvas></div></div>
-        <div style="padding:0 16px 16px;"><div style="max-width:340px;"><div class="table-scroll"><table style="width:auto; min-width:100%;"><tbody>${weekRows2}</tbody></table></div></div></div>
+        <div style="padding:0 16px 16px;"><div style="max-width:420px;"><div class="table-scroll"><table style="width:auto; min-width:100%;"><thead><tr><th></th><th>Yıllık İzin</th><th>Rapor</th><th>Toplam</th></tr></thead><tbody>${weekRows2}</tbody></table></div></div></div>
       </div>
       <div class="panel"><div class="panel-head">Genel Gün Ağırlığı (Haftanın Günü)<span id="ih-selDowG" class="count"></span></div>
         <div style="padding:0 16px;"><div style="height:190px;"><canvas id="ih-canvas-dowG"></canvas></div></div>
-        <div style="padding:0 16px 16px;"><div style="max-width:340px;"><div class="table-scroll"><table style="width:auto; min-width:100%;"><tbody>${dowRows2}</tbody></table></div></div></div>
+        <div style="padding:0 16px 16px;"><div style="max-width:420px;"><div class="table-scroll"><table style="width:auto; min-width:100%;"><thead><tr><th></th><th>Yıllık İzin</th><th>Rapor</th><th>Toplam</th></tr></thead><tbody>${dowRows2}</tbody></table></div></div></div>
       </div>
     </div>
     <div class="panel" style="margin-top:16px;">
@@ -6854,19 +6882,25 @@ async function ihRender(){
   }).render();
   createSlotChartPanel({
     idPrefix: 'ihWG', selectorsId: 'ih-selWeekG', canvasId: 'ih-canvas-weekG',
+    forceMultiDefault: true,
+    defaultTypes: ['bar','bar','line'],
     getContext: () => ({ labels: ['1. Hafta','2. Hafta','3. Hafta','4. Hafta','5. Hafta'], metrics: [
-      { key: 'izin', label: 'İzin', values: agg.weeks, agg: 'sum' },
-      { key: 'cagri', label: 'Çağrı', values: aggWeekCalls, agg: 'sum' },
+      { key: 'yillik', label: 'Yıllık İzin', values: agg.weeksTur.map(t=>t.yillik), agg: 'sum', stackGroup: 'izin' },
+      { key: 'rapor', label: 'Rapor', values: agg.weeksTur.map(t=>t.rapor), agg: 'sum', stackGroup: 'izin' },
+      { key: 'cagri', label: 'Çağrı', values: aggWeekCalls, agg: 'sum', axisGroup: 'right' },
     ] }),
-    getDefaultMetricKeys: () => ['izin'],
+    getDefaultMetricKeys: () => ['yillik','rapor','cagri'],
   }).render();
   createSlotChartPanel({
     idPrefix: 'ihDoG', selectorsId: 'ih-selDowG', canvasId: 'ih-canvas-dowG',
+    forceMultiDefault: true,
+    defaultTypes: ['bar','bar','line'],
     getContext: () => ({ labels: IH_DOW_NAMES, metrics: [
-      { key: 'izin', label: 'İzin', values: agg.byDow, agg: 'sum' },
-      { key: 'cagri', label: 'Çağrı', values: aggDowCalls, agg: 'sum' },
+      { key: 'yillik', label: 'Yıllık İzin', values: agg.byDowTur.map(t=>t.yillik), agg: 'sum', stackGroup: 'izin' },
+      { key: 'rapor', label: 'Rapor', values: agg.byDowTur.map(t=>t.rapor), agg: 'sum', stackGroup: 'izin' },
+      { key: 'cagri', label: 'Çağrı', values: aggDowCalls, agg: 'sum', axisGroup: 'right' },
     ] }),
-    getDefaultMetricKeys: () => ['izin'],
+    getDefaultMetricKeys: () => ['yillik','rapor','cagri'],
   }).render();
 
   wrap.querySelectorAll('.ih-drill-month').forEach(btn => {
@@ -6936,18 +6970,23 @@ async function ihPresGenerateLocation(year){
   }
 
   // 2) Aylık İzin + Çağrı grafiği
+  // NOT (25.08.2026): pptxgenjs 3.12.0'ın combo-chart + secondaryValAxis özelliği KÜTÜPHANE
+  // HATASI içeriyor - ikincil eksen için axId REFERANS EDİYOR ama gerçek <c:catAx>/<c:valAx>
+  // TANIMINI hiç yazmıyor, bu da PowerPoint'in dosyayı bozuk sayıp "Onar" istemesine yol açıyor
+  // (gerçek pptx üretilip zip/XML seviyesinde doğrulanarak tespit edildi). Çözüm: İzin ve Çağrı'yı
+  // TEK grafik yerine İKİ AYRI grafik olarak alt alta koyuyoruz - her biri tek eksenli, kütüphanenin
+  // zaten sağlam çalışan tekli-grafik koduna dayanıyor, skala karışıklığı da otomatik önleniyor.
   {
     const s = pres.addSlide();
     s.addText('Aylık İzin Yoğunluğu ve Çağrı', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: IH_PRES_NAVY, bold: true });
     const labels = monthly.map(m => m.label.slice(0,3));
-    const chartBlocks = [
-      { type: 'bar', data: [
-        { name: 'Yıllık İzin', labels, values: monthly.map(m => m.yillik) },
-        { name: 'Rapor', labels, values: monthly.map(m => m.rapor) },
-      ], options: { chartColors: [IH_PRES_ACCENT, IH_PRES_PURPLE], barGrouping: 'stacked' } },
-      { type: 'line', data: [{ name: 'Çağrı', labels, values: monthly.map(m => m.calls) }], options: { chartColors: [IH_PRES_BLUE], secondaryValAxis: true } },
-    ];
-    s.addChart(chartBlocks, { x: 0.5, y: 0.85, w: 12.3, h: 6.0, showLegend: true, legendPos: 'b', legendFontSize: 9, catAxisLabelFontSize: 8.5, valAxisLabelFontSize: 9 });
+    s.addChart(pres.ChartType.bar, [
+      { name: 'Yıllık İzin', labels, values: monthly.map(m => m.yillik) },
+      { name: 'Rapor', labels, values: monthly.map(m => m.rapor) },
+    ], { x: 0.5, y: 0.8, w: 12.3, h: 2.95, showLegend: true, legendPos: 'b', legendFontSize: 9, catAxisLabelFontSize: 8.5, valAxisLabelFontSize: 9, barGrouping: 'stacked', chartColors: [IH_PRES_ACCENT, IH_PRES_PURPLE] });
+    s.addChart(pres.ChartType.line, [
+      { name: 'Çağrı', labels, values: monthly.map(m => m.calls) },
+    ], { x: 0.5, y: 3.9, w: 12.3, h: 2.6, showLegend: true, legendPos: 'b', legendFontSize: 9, catAxisLabelFontSize: 8.5, valAxisLabelFontSize: 9, chartColors: [IH_PRES_BLUE] });
   }
 
   // 3) Çağrı Yoğun Günlerde İzin Kullanma Eğilimi (ilk 15)
@@ -7016,19 +7055,19 @@ async function ihPresGeneratePerson(sicil, year){
     s.addText(`Hazırlanma tarihi: ${new Date().toLocaleDateString('tr-TR')}`, { x: 0.6, y: 6.7, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 10, color: IH_PRES_DIM });
   }
 
-  // 2) Ay Bazlı grafik (stacked + çağrı çizgisi)
+  // 2) Ay Bazlı grafik - Madde 8 (bkz. lokasyon sunumundaki NOT: combo+secondaryValAxis
+  // pptxgenjs 3.12.0'da bozuk dosya üretiyor, bu yüzden iki ayrı tek-eksenli grafik kullanılıyor)
   {
     const s = pres.addSlide();
     s.addText('Ay Bazlı İzin Deseni ve Çağrı', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: IH_PRES_NAVY, bold: true });
     const labels = TR_MONTHS.map(m => m.slice(0,3));
-    const chartBlocks = [
-      { type: 'bar', data: [
-        { name: 'Yıllık İzin', labels, values: pat.byMonthTur.map(t=>t.yillik) },
-        { name: 'Rapor', labels, values: pat.byMonthTur.map(t=>t.rapor) },
-      ], options: { chartColors: [IH_PRES_ACCENT, IH_PRES_PURPLE], barGrouping: 'stacked' } },
-      { type: 'line', data: [{ name: 'Çağrı', labels, values: monthCalls }], options: { chartColors: [IH_PRES_BLUE], secondaryValAxis: true } },
-    ];
-    s.addChart(chartBlocks, { x: 0.5, y: 0.85, w: 12.3, h: 6.0, showLegend: true, legendPos: 'b', legendFontSize: 9, catAxisLabelFontSize: 8.5, valAxisLabelFontSize: 9 });
+    s.addChart(pres.ChartType.bar, [
+      { name: 'Yıllık İzin', labels, values: pat.byMonthTur.map(t=>t.yillik) },
+      { name: 'Rapor', labels, values: pat.byMonthTur.map(t=>t.rapor) },
+    ], { x: 0.5, y: 0.8, w: 12.3, h: 2.95, showLegend: true, legendPos: 'b', legendFontSize: 9, catAxisLabelFontSize: 8.5, valAxisLabelFontSize: 9, barGrouping: 'stacked', chartColors: [IH_PRES_ACCENT, IH_PRES_PURPLE] });
+    s.addChart(pres.ChartType.line, [
+      { name: 'Çağrı', labels, values: monthCalls },
+    ], { x: 0.5, y: 3.9, w: 12.3, h: 2.6, showLegend: true, legendPos: 'b', legendFontSize: 9, catAxisLabelFontSize: 8.5, valAxisLabelFontSize: 9, chartColors: [IH_PRES_BLUE] });
   }
 
   // 3) Çarpıklık uyarıları + çakışan tarihler
