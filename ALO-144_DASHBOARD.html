@@ -7265,7 +7265,10 @@ function parseMonthTabTitlesPP(titles){
   return list;
 }
 
-// --- Personel Listesi'nden Sicil -> Takım Lideri eşlemesi ---
+// --- Personel Listesi'nden Sicil -> {personel, takim} eşlemesi ---
+// Personel Performans sayfası (29.08.2026'dan itibaren) kişi listesini ARTIK BURADAN alıyor,
+// OSMANİYE-PERFORMANS'taki geçmiş kayıtlardan DEĞİL - böylece işten ayrılan biri, geçmişte
+// performans kaydı olsa bile, Personel Listesi'nden silindiği an listeden otomatik düşer.
 async function fetchPersonelTakimMap(){
   const range = "PERSONEL LİSTESİ!A1:C1000";
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERSONEL_LISTESI_SHEET_ID}/values/${encodeURIComponent(range)}`;
@@ -7276,7 +7279,8 @@ async function fetchPersonelTakimMap(){
   const map = new Map();
   values.slice(1).forEach(row => {
     if (!row[0]) return;
-    map.set(String(row[0]).trim(), (row[2] || '').trim());
+    const sicil = String(row[0]).trim();
+    map.set(sicil, { personel: (row[1] || '').trim(), takim: (row[2] || '').trim() });
   });
   return map;
 }
@@ -7361,7 +7365,13 @@ async function loadPersonelPerformans(){
     }
   });
 
-  allRecords.forEach(r => { r.takim = TAKIM_MAP.get(r.sicil) || '(Bilinmiyor)'; });
+  // Personel Listesi'nde ARTIK OLMAYAN (işten ayrılmış) sicillerin geçmiş performans kayıtları
+  // genel/takım istatistiklerine (ortalama KKO, anket vb.) karışmasın diye burada eleniyor.
+  allRecords = allRecords.filter(r => TAKIM_MAP.has(r.sicil));
+  allRecords.forEach(r => {
+    const info = TAKIM_MAP.get(r.sicil);
+    r.takim = (info && info.takim) || '(Bilinmiyor)';
+  });
   PERF_RECORDS = allRecords;
 
   if (errors.length){
@@ -7386,17 +7396,19 @@ async function loadPersonelPerformans(){
 }
 ppRefreshBtn.addEventListener('click', () => loadPersonelPerformans());
 
-// --- Takım ve personel listelerini veriden yeniden kurar ---
+// --- Takım ve personel listelerini Personel Listesi'nden (TAKIM_MAP) yeniden kurar ---
+// NOT (29.08.2026): Kişi listesi ARTIK PERF_RECORDS'tan değil, doğrudan Personel Listesi'nden
+// kuruluyor - tıpkı takım eşlemesinde olduğu gibi. Böylece Personel Listesi tek doğru kaynak
+// oluyor: orada olmayan biri (işten ayrılmışsa) geçmiş performans kaydı olsa bile listede çıkmaz,
+// orada olan biri ise o ay için performans kaydı henüz girilmemiş olsa bile listede görünür.
 function rebuildTeamsAndPersonsPP(){
   const teamSet = new Set();
-  const personMap = new Map();
-  PERF_RECORDS.forEach(r => {
-    if (r.takim && r.takim !== '(Bilinmiyor)') teamSet.add(r.takim);
-    personMap.set(r.sicil, { personel: r.personel, takim: r.takim }); // son işlenen (en güncel ay) kazanır
-  });
-  TEAMS = [...teamSet].sort((a,b) => a.localeCompare(b, 'tr'));
-  PERSONS = [...personMap.entries()].map(([sicil, v]) => ({ sicil, personel: v.personel, takim: v.takim }))
+  PERSONS = [...TAKIM_MAP.entries()]
+    .map(([sicil, v]) => ({ sicil, personel: v.personel, takim: v.takim || '(Bilinmiyor)' }))
+    .filter(p => p.personel) // Personel Listesi'nde Ad Soyad boş bırakılmış satırları atla
     .sort((a,b) => a.personel.localeCompare(b.personel, 'tr'));
+  PERSONS.forEach(p => { if (p.takim && p.takim !== '(Bilinmiyor)') teamSet.add(p.takim); });
+  TEAMS = [...teamSet].sort((a,b) => a.localeCompare(b, 'tr'));
 
   if (!TEAMS.includes(selectedTeamLeader)) selectedTeamLeader = 'ALL';
 
