@@ -2264,15 +2264,23 @@ document.getElementById('izinSablonFile').addEventListener('change', async (e) =
   const file = e.target.files && e.target.files[0];
   const statusEl = document.getElementById('izinSablonStatus');
   if (!file) return;
-  statusEl.textContent = 'Okunuyor…';
   try {
+    // Yazma izni (Google pop-up'ı) dosyayı işlemeden ÖNCE, kullanıcının dosya seçme hareketine
+    // EN YAKIN anda istenir - bazı tarayıcılar (Safari, bazı Chrome ayarları), bir kullanıcı
+    // hareketinden belli bir süre sonra açılmaya çalışılan pop-up'ları SESSİZCE engeller (hata
+    // vermez, sadece açılmaz) - "Kaydediliyor..." sonsuza kadar takılı kalır. Token burada
+    // önceden alınıp önbelleğe alınırsa (writeAccessToken), asıl kayıt sırasında tekrar pop-up
+    // açılmasına gerek kalmaz.
+    statusEl.textContent = 'Yazma izni isteniyor (bir pop-up açılabilir, engellenmediğinden emin olun)…';
+    await ensureWriteToken();
+    statusEl.textContent = 'Okunuyor…';
     const tpl = await extractIzinTemplateFromFile(file);
     statusEl.textContent = 'Kaydediliyor…';
     await saveIzinTemplateToSheet(tpl);
     const condCount = Object.values(tpl.condRules).reduce((s, list) => s + list.length, 0);
     statusEl.textContent = `✓ Şablon kaydedildi (${tpl.header.length} sütun, ${condCount} koşullu kural). Bundan sonraki "Personel Yıllık İzin" export'ları bu görünümü kullanacak.`;
   } catch (err){
-    statusEl.textContent = '✗ Hata: ' + err.message;
+    statusEl.textContent = '✗ Hata: ' + err.message + ' (pop-up engellenmiş olabilir, adres çubuğunda engellenen pop-up simgesini kontrol edin)';
   }
   e.target.value = '';
 });
