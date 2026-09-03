@@ -1686,7 +1686,10 @@ function readImportedCellStyle(cell, themeColors){
     if (cell.alignment.wrapText) st.kaydir = true;
   }
   if (cell.border && (cell.border.top || cell.border.bottom || cell.border.left || cell.border.right)) st.kenarlik = true;
-  if (cell.numFmt && cell.numFmt !== 'General') st.sayiFormat = cell.numFmt;
+  // "@" (Metin) biçimi kasıtlı bir görsel tercih değil, genelde kaynağın kazara öyle
+  // kaydedilmesinden kaynaklanır ve gerçek tarih/sayı değerlerinin üzerine yazılıp onları
+  // bozar - bu yüzden asla kopyalanmaz (General ile aynı muameleyi görür).
+  if (cell.numFmt && cell.numFmt !== 'General' && cell.numFmt !== '@') st.sayiFormat = cell.numFmt;
   return st;
 }
 function izinStyleSignature(st){
@@ -1881,18 +1884,40 @@ function personelIzinHesapla(p){
   const kalanIzin = (hakedilen !== null && kullanilanToplam !== null) ? hakedilen - kullanilanToplam : (p.kalanIzin !== null ? p.kalanIzin : null);
   return { hakedilen, kullanilanToplam, kalanIzin };
 }
+// Sicil/TC Kimlik/Telefon sistemde METİN olarak saklanıyor (eşleştirme güvenliği için -
+// örn. Sicil'de baştaki sıfırın kaybolmaması), AMA bu rapor şablonunda Zafer bunları GERÇEK
+// SAYI olarak girmiş. Sadece rakamlardan oluşuyorsa sayıya çevrilir (rakam dışı bir karakter
+// varsa - tire, boşluk vb. - dokunulmaz, metin olarak kalır).
+function izinAsNumberIfDigits(v){
+  const s = String(v == null ? '' : v).trim();
+  return /^\d+$/.test(s) ? Number(s) : s;
+}
 const YILLIK_IZIN_FIELD_MAP = {
-  'SİCİL': p => p.sicil,
-  'TC KİMLİK NO': p => p.tcKimlik || '',
+  // --- Orijinal şablon etiketleri (ASBH_İM_Yıllık_İzin.xlsx) ---
+  'SİCİL': p => izinAsNumberIfDigits(p.sicil),
+  'TC KİMLİK NO': p => izinAsNumberIfDigits(p.tcKimlik),
   'AD SOYAD': p => p.adSoyad,
-  'TELEFON': p => p.telefon || '',
+  'TELEFON': p => izinAsNumberIfDigits(p.telefon),
   'TAKIM LİDERİ': p => p.takimLideri || '',
+  'TAKİM LİDERİ': p => p.takimLideri || '', // "Takim Lideri" (noktasız ı ile yazılmış) varyantı
   'ÜST YÖNETİCİ': () => 'ABDULSELAM DAŞDEMİR',
   'LOKASYON': () => 'OSMANİYE',
   'İŞE GİRİŞ TARİHİ': p => p.iseGirisDate || (p.iseGirisRaw || ''),
   'HAK EDİLEN GÜN': p => personelIzinHesapla(p).hakedilen,
   'KULLANILAN GÜN': p => personelIzinHesapla(p).kullanilanToplam,
   'KALAN BAKİYE': p => personelIzinHesapla(p).kalanIzin,
+  // --- "Osmaniye İzin Raporu" şablonu (farklı etiket, aynı veri) - aynı anlama gelen
+  // sütunlar için EK anahtarlar. Yeni şablon yüklendiğinde otomatik eşleşir. ---
+  'SİCİL NO': p => izinAsNumberIfDigits(p.sicil),
+  'ADI SOYADI': p => p.adSoyad,
+  'GRUP YÖNETİCİSİ': () => 'ABDULSELAM DAŞDEMİR',
+  'IZİN BAŞLANGIÇ TARİHİ': p => p.iseGirisDate || (p.iseGirisRaw || ''),
+  'TOPLAM İZİN HAKKI': p => personelIzinHesapla(p).hakedilen,
+  'KALAN': p => personelIzinHesapla(p).kalanIzin,
+  // --- Bu şablona özel, sistemde daha önce hiç olmayan yeni alanlar ---
+  'PROJE': () => 'ALO 144 - OSMANİYE',
+  'FİRMA': () => 'Aile ve Sosyal Hizmetler Bakanlığı',
+  'KIDEM YILI': p => p.iseGirisDate ? kidemHesapla(p.iseGirisDate).years : null,
 };
 
 async function exportYillikIzinToExcel(){
@@ -1977,10 +2002,10 @@ async function exportYillikIzinToExcel(){
       sorted.forEach((p, idx) => {
         const { hakedilen, kullanilanToplam, kalanIzin } = personelIzinHesapla(p);
         const row = ws.getRow(idx + 2);
-        row.getCell(1).value = p.sicil;
-        row.getCell(2).value = p.tcKimlik || '';
+        row.getCell(1).value = izinAsNumberIfDigits(p.sicil);
+        row.getCell(2).value = izinAsNumberIfDigits(p.tcKimlik);
         row.getCell(3).value = p.adSoyad;
-        row.getCell(4).value = p.telefon || '';
+        row.getCell(4).value = izinAsNumberIfDigits(p.telefon);
         row.getCell(5).value = p.takimLideri || '';
         row.getCell(6).value = 'ABDULSELAM DAŞDEMİR';
         row.getCell(7).value = 'OSMANİYE';
