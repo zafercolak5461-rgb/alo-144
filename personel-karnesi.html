@@ -2260,6 +2260,16 @@ document.getElementById('exportModeKarneBtn').addEventListener('click', () => se
 document.getElementById('exportModeIzinBtn').addEventListener('click', () => setExportMode('izin'));
 
 // Şablon dosyası seçilince: hemen okunur, biçim+koşullu kural çıkarılır, Sheet'e kaydedilir.
+// Bir promise'i verilen sürede tamamlanmazsa net bir hatayla reddeder - sessizce sonsuza
+// kadar takılı kalan işlemler için (örn. pop-up açılıp kullanıcı onayladığı halde callback
+// bir sebeple tetiklenmezse) en geç bu sürede kullanıcıya anlamlı bir mesaj göstermek için.
+function withTimeout(promise, ms, msg){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+  ]);
+}
+
 document.getElementById('izinSablonFile').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   const statusEl = document.getElementById('izinSablonStatus');
@@ -2272,15 +2282,16 @@ document.getElementById('izinSablonFile').addEventListener('change', async (e) =
     // önceden alınıp önbelleğe alınırsa (writeAccessToken), asıl kayıt sırasında tekrar pop-up
     // açılmasına gerek kalmaz.
     statusEl.textContent = 'Yazma izni isteniyor (bir pop-up açılabilir, engellenmediğinden emin olun)…';
-    await ensureWriteToken();
+    await withTimeout(ensureWriteToken(), 20000, 'Yazma izni 20 saniyede tamamlanmadı (pop-up onaylanmış olsa bile). Sayfayı yenileyip tekrar deneyin; devam ederse F12 > Console\'daki hatayı paylaşın.');
     statusEl.textContent = 'Okunuyor…';
     const tpl = await extractIzinTemplateFromFile(file);
     statusEl.textContent = 'Kaydediliyor…';
-    await saveIzinTemplateToSheet(tpl);
+    await withTimeout(saveIzinTemplateToSheet(tpl), 20000, 'Kaydetme 20 saniyede tamamlanmadı. F12 > Console\'daki hatayı paylaşın.');
     const condCount = Object.values(tpl.condRules).reduce((s, list) => s + list.length, 0);
     statusEl.textContent = `✓ Şablon kaydedildi (${tpl.header.length} sütun, ${condCount} koşullu kural). Bundan sonraki "Personel Yıllık İzin" export'ları bu görünümü kullanacak.`;
   } catch (err){
-    statusEl.textContent = '✗ Hata: ' + err.message + ' (pop-up engellenmiş olabilir, adres çubuğunda engellenen pop-up simgesini kontrol edin)';
+    statusEl.textContent = '✗ Hata: ' + err.message;
+    console.error('İzin şablonu kaydetme hatası:', err);
   }
   e.target.value = '';
 });
