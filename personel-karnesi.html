@@ -1852,7 +1852,14 @@ async function saveIzinTemplateToSheet(templateObj){
   const chunks = [];
   for (let i = 0; i < json.length; i += CHUNK) chunks.push(json.slice(i, i + CHUNK));
   const row = ['sablon', ...chunks];
-  const lastCol = colNumToLetter(row.length);
+  // ÖNEMLİ: sabit GENİŞ bir aralığa (50 sütun) yazılır ve kullanılmayan sütunlar boş string
+  // ile DOLDURULUR. Aksi halde, önceki bir kayıt daha fazla parçaya (sütuna) yayılmışsa, yeni
+  // (daha kısa) kayıt sadece baştaki sütunları günceller - eski parçalar SİLİNMEDEN sağda
+  // kalır, okurken yeni+eski veri karışıp bozuk JSON oluşturur (JSON.parse sessizce başarısız
+  // olur, kod "şablon yok" sanıp varsayılana düşer - dışarıdan "kaydetme tutmuyor" gibi görünür).
+  const FIXED_WIDTH = 50;
+  while (row.length < FIXED_WIDTH) row.push('');
+  const lastCol = colNumToLetter(FIXED_WIDTH);
   const range = `${IZIN_SABLON_TAB_NAME}!A1:${lastCol}1`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
   const res = await fetch(url, {
