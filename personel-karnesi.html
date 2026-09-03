@@ -1975,48 +1975,44 @@ async function exportYillikIzinToExcel(){
         });
       });
     } else {
-      // ===== Şablon henüz yüklenmemiş - eski sabit (lacivert/beyaz) görünümle üretilir =====
+      // ===== VARSAYILAN (şablon YOKSA da hep bu kullanılır) - "Osmaniye İzin Raporu" yapısı =====
       const cols = [
-        { header: 'Sicil', width: 10 },
-        { header: 'TC Kimlik No', width: 15 },
-        { header: 'Ad Soyad', width: 24 },
-        { header: 'Telefon', width: 15 },
-        { header: 'Takım Lideri', width: 18 },
-        { header: 'Üst Yönetici', width: 20 },
+        { header: 'Sicil No', width: 10 },
+        { header: 'Adı Soyadı', width: 24 },
+        { header: 'Takim Lideri', width: 18 },
+        { header: 'Grup Yöneticisi', width: 20 },
+        { header: 'Proje', width: 20 },
+        { header: 'Firma', width: 30 },
         { header: 'Lokasyon', width: 14 },
-        { header: 'İşe Giriş Tarihi', width: 16 },
-        { header: 'Hak Edilen Gün', width: 15 },
+        { header: 'Izin Başlangıç Tarihi', width: 18 },
+        { header: 'Kıdem Yılı', width: 12 },
+        { header: 'Toplam İzin Hakkı', width: 16 },
         { header: 'Kullanılan Gün', width: 15 },
-        { header: 'Kalan Bakiye', width: 14 },
+        { header: 'Kalan', width: 10 },
       ];
       ws.columns = cols.map(c => ({ width: c.width }));
 
       const headerRow = ws.getRow(1);
       cols.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
       headerRow.eachCell(cell => {
-        cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002060' } };
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
       });
       headerRow.height = 20;
 
       sorted.forEach((p, idx) => {
-        const { hakedilen, kullanilanToplam, kalanIzin } = personelIzinHesapla(p);
         const row = ws.getRow(idx + 2);
-        row.getCell(1).value = izinAsNumberIfDigits(p.sicil);
-        row.getCell(2).value = izinAsNumberIfDigits(p.tcKimlik);
-        row.getCell(3).value = p.adSoyad;
-        row.getCell(4).value = izinAsNumberIfDigits(p.telefon);
-        row.getCell(5).value = p.takimLideri || '';
-        row.getCell(6).value = 'ABDULSELAM DAŞDEMİR';
-        row.getCell(7).value = 'OSMANİYE';
-        row.getCell(8).value = p.iseGirisDate ? p.iseGirisDate : (p.iseGirisRaw || '');
-        if (p.iseGirisDate) row.getCell(8).numFmt = 'dd.mm.yyyy';
-        row.getCell(9).value = hakedilen !== null ? hakedilen : null;
-        row.getCell(10).value = kullanilanToplam !== null ? kullanilanToplam : null;
-        row.getCell(11).value = kalanIzin !== null ? kalanIzin : null;
-        row.eachCell(cell => { cell.font = { name: 'Calibri', size: 11 }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
-        row.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' };
+        cols.forEach((c, i) => {
+          const key = c.header.trim().toLocaleUpperCase('tr');
+          const getter = YILLIK_IZIN_FIELD_MAP[key];
+          const val = getter ? getter(p) : null;
+          const cell = row.getCell(i + 1);
+          cell.value = (val === undefined) ? null : val;
+          if (val instanceof Date) cell.numFmt = 'dd.mm.yyyy';
+        });
+        row.eachCell(cell => { cell.font = { name: 'Calibri', size: 10 }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
+        row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
       });
     }
 
