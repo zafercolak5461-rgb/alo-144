@@ -336,6 +336,7 @@
             <div class="search-label">Biçimlendirme Şablonu (Sadece Süper Yetkili)</div>
             <p class="hint" style="font-size:12px; line-height:1.5; margin:0;">Tamamen biçimlendirilmiş (hücre renkleri + koşullu biçimlendirme dahil) bir Excel dosyası yükle - dosyanın GÖRÜNÜMÜ aynen kaydedilir, her export'ta bu görünümle üretilir.</p>
             <input type="file" id="izinSablonFile" accept=".xlsx">
+            <button class="refresh-btn" id="izinSablonSaveBtn" style="display:none; align-self:flex-start;">💾 Şablonu Kaydet</button>
             <span id="izinSablonStatus" class="hint" style="font-size:12.5px; color:var(--dim);"></span>
           </div>
         </div>
@@ -2270,30 +2271,54 @@ function withTimeout(promise, ms, msg){
   ]);
 }
 
+let pendingIzinTemplate = null; // dosya seçildiğinde okunur, "Kaydet"e basınca yazılır
+
 document.getElementById('izinSablonFile').addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   const statusEl = document.getElementById('izinSablonStatus');
+  const saveBtn = document.getElementById('izinSablonSaveBtn');
+  saveBtn.style.display = 'none';
+  pendingIzinTemplate = null;
   if (!file) return;
+  statusEl.textContent = 'Okunuyor…';
   try {
-    // Yazma izni (Google pop-up'ı) dosyayı işlemeden ÖNCE, kullanıcının dosya seçme hareketine
-    // EN YAKIN anda istenir - bazı tarayıcılar (Safari, bazı Chrome ayarları), bir kullanıcı
-    // hareketinden belli bir süre sonra açılmaya çalışılan pop-up'ları SESSİZCE engeller (hata
-    // vermez, sadece açılmaz) - "Kaydediliyor..." sonsuza kadar takılı kalır. Token burada
-    // önceden alınıp önbelleğe alınırsa (writeAccessToken), asıl kayıt sırasında tekrar pop-up
-    // açılmasına gerek kalmaz.
+    // ÖNEMLİ: burada SADECE dosya okunuyor, yazma izni (Google pop-up'ı) İSTENMİYOR. Chrome,
+    // dosya seçme penceresinin (file chooser) hemen ardından açılan pop-up'ları zamanlamadan
+    // bağımsız olarak ENGELLİYOR ("window.open blocked due to active file chooser" - F12
+    // konsolunda görüldü). Bu yüzden yazma izni, dosya seçiminden TAMAMEN AYRI, gerçek bir
+    // buton tıklamasıyla (aşağıdaki "Kaydet") isteniyor - dosya seçici ile hiç ilişkisi olmayan
+    // temiz bir kullanıcı hareketi olduğu için pop-up engellenmiyor.
+    pendingIzinTemplate = await extractIzinTemplateFromFile(file);
+    const condCount = Object.values(pendingIzinTemplate.condRules).reduce((s, list) => s + list.length, 0);
+    statusEl.textContent = `Okundu: ${pendingIzinTemplate.header.length} sütun, ${condCount} koşullu kural. Kaydetmek için "Şablonu Kaydet"e bas.`;
+    saveBtn.style.display = '';
+  } catch (err){
+    statusEl.textContent = '✗ Okuma hatası: ' + err.message;
+    console.error('İzin şablonu okuma hatası:', err);
+  }
+  e.target.value = '';
+});
+
+document.getElementById('izinSablonSaveBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('izinSablonStatus');
+  const saveBtn = document.getElementById('izinSablonSaveBtn');
+  if (!pendingIzinTemplate) return;
+  saveBtn.disabled = true;
+  try {
     statusEl.textContent = 'Yazma izni isteniyor (bir pop-up açılabilir, engellenmediğinden emin olun)…';
     await withTimeout(ensureWriteToken(), 20000, 'Yazma izni 20 saniyede tamamlanmadı (pop-up onaylanmış olsa bile). Sayfayı yenileyip tekrar deneyin; devam ederse F12 > Console\'daki hatayı paylaşın.');
-    statusEl.textContent = 'Okunuyor…';
-    const tpl = await extractIzinTemplateFromFile(file);
     statusEl.textContent = 'Kaydediliyor…';
-    await withTimeout(saveIzinTemplateToSheet(tpl), 20000, 'Kaydetme 20 saniyede tamamlanmadı. F12 > Console\'daki hatayı paylaşın.');
+    await withTimeout(saveIzinTemplateToSheet(pendingIzinTemplate), 20000, 'Kaydetme 20 saniyede tamamlanmadı. F12 > Console\'daki hatayı paylaşın.');
+    const tpl = pendingIzinTemplate;
     const condCount = Object.values(tpl.condRules).reduce((s, list) => s + list.length, 0);
     statusEl.textContent = `✓ Şablon kaydedildi (${tpl.header.length} sütun, ${condCount} koşullu kural). Bundan sonraki "Personel Yıllık İzin" export'ları bu görünümü kullanacak.`;
+    saveBtn.style.display = 'none';
+    pendingIzinTemplate = null;
   } catch (err){
     statusEl.textContent = '✗ Hata: ' + err.message;
     console.error('İzin şablonu kaydetme hatası:', err);
   }
-  e.target.value = '';
+  saveBtn.disabled = false;
 });
 
 document.getElementById('openExportModalBtn').addEventListener('click', () => {
