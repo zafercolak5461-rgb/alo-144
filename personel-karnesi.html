@@ -6,22 +6,32 @@
 <title>Personel Karnesi — ALO 144</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
   :root{
     /* --- TEMA D: Premium Lacivert + Altın (kullanıcı onayladı) --- */
+    /* Ana İçerik teması - Süper Yetkili tarafından Yetki Atama > Tema Ayarları panelinden
+       değiştirilebilir (bkz. loadThemeConfig/applyThemeColors). Buradaki değerler, Sheet'te
+       "Tema" sekmesi yoksa ya da eksikse kullanılan VARSAYILAN (fallback) değerlerdir. */
     --bg:#10182B; --panel:#16213D; --panel2:#1C2944; --panel3:#1F2A3D; --line:#2A3A5C;
     --text:#FFFFFF; --dim:#8FA3C9; --dim2:#5D7299;
-    --accent:#E8A53D; --accent-soft:rgba(232,165,61,0.16);
+    --accent:#E8A53D; --accent-soft:color-mix(in srgb, var(--accent) 16%, transparent);
     --blue:#5b9cf6; --blue-soft:rgba(91,156,246,0.16);
     --ok:#3ddc97; --ok-soft:rgba(61,220,151,0.16);
     --danger:#e85d5d; --danger-soft:rgba(232,93,93,0.16);
     --warn:#F5C451; --warn-soft:rgba(245,196,81,0.16);
     --neutral-gauge:#8B7FD8;
+
+    /* Sol Menü (Shell) teması - Ana İçerik'ten BAĞIMSIZ, kendi renkleri. Aynı panelden,
+       ayrı bir blok olarak değiştirilebilir. Varsayılanlar Ana İçerik'le aynı görünüm
+       verecek şekilde seçildi (mevcut tasarımla birebir), ama artık ayrı yönetilebilir. */
+    --shell-bg:#16213D; --shell-panel:#1C2944; --shell-line:#2A3A5C;
+    --shell-text:#FFFFFF; --shell-dim:#8FA3C9; --shell-dim2:#5D7299;
+    --shell-accent:#E8A53D; --shell-accent-soft:color-mix(in srgb, var(--shell-accent) 16%, transparent);
   }
   *{ box-sizing:border-box; }
   html,body{ margin:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; }
@@ -29,13 +39,13 @@
   .app-shell{ display:flex; min-height:100vh; }
 
   /* --- Sol sekme alanı + hamburger --- */
-  .sidebar{ width:230px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:20px 12px; transition:width 0.22s ease, padding 0.22s ease, opacity 0.18s ease; overflow:hidden; }
+  .sidebar{ width:230px; flex-shrink:0; background:var(--shell-bg); border-right:1px solid var(--shell-line); padding:20px 12px; transition:width 0.22s ease, padding 0.22s ease, opacity 0.18s ease; overflow:hidden; }
   .sidebar.collapsed{ width:0; padding:20px 0; opacity:0; border-right:none; }
-  .sidebar-nav-item{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--dim); font-family:'Inter',sans-serif; font-size:13.5px; padding:13px 16px; border-radius:10px; cursor:pointer; margin-bottom:4px; white-space:nowrap; }
-  .sidebar-nav-item:hover{ background:var(--panel2); color:var(--text); }
-  .sidebar-nav-item.active{ background:var(--accent-soft); color:var(--accent); font-weight:600; }
-  .hamburger-btn{ background:var(--panel); border:1px solid var(--line); color:var(--text); width:40px; height:40px; border-radius:9px; cursor:pointer; font-size:16px; flex-shrink:0; }
-  .hamburger-btn:hover{ background:var(--panel2); }
+  .sidebar-nav-item{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--shell-dim); font-family:'Inter',sans-serif; font-size:13.5px; padding:13px 16px; border-radius:10px; cursor:pointer; margin-bottom:4px; white-space:nowrap; }
+  .sidebar-nav-item:hover{ background:var(--shell-panel); color:var(--shell-text); }
+  .sidebar-nav-item.active{ background:var(--shell-accent-soft); color:var(--shell-accent); font-weight:600; }
+  .hamburger-btn{ background:var(--shell-bg); border:1px solid var(--shell-line); color:var(--shell-text); width:40px; height:40px; border-radius:9px; cursor:pointer; font-size:16px; flex-shrink:0; }
+  .hamburger-btn:hover{ background:var(--shell-panel); }
 
   .main-area{ flex:1; min-width:0; padding:36px 44px; }
   .main-inner{ max-width:1500px; margin:0 auto; }
@@ -307,13 +317,28 @@
 
   <div class="modal-overlay" id="exportModalOverlay" style="display:none;">
     <div class="modal-box">
-      <div class="modal-head">Excel'e Aktarılacak Parametreleri Seçin</div>
+      <div class="modal-head">Excel'e Aktar</div>
       <div class="modal-body">
-        <div style="display:flex; gap:8px; margin-bottom:14px;">
-          <button class="refresh-btn" id="exportSelectAllBtn">Tümünü Seç</button>
-          <button class="refresh-btn" id="exportClearBtn">Temizle</button>
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <button class="refresh-btn" id="exportModeKarneBtn" style="background:var(--accent-soft); color:var(--accent); border-color:var(--accent);">Personel Karnesi</button>
+          <button class="refresh-btn" id="exportModeIzinBtn">Personel Yıllık İzin</button>
         </div>
-        <div id="exportMetricChecklist"></div>
+        <div id="exportKarneSection">
+          <div style="display:flex; gap:8px; margin-bottom:14px;">
+            <button class="refresh-btn" id="exportSelectAllBtn">Tümünü Seç</button>
+            <button class="refresh-btn" id="exportClearBtn">Temizle</button>
+          </div>
+          <div id="exportMetricChecklist"></div>
+        </div>
+        <div id="exportIzinSection" style="display:none;">
+          <p class="hint" style="font-size:13px; line-height:1.6; margin:0 0 14px 0;">Sicil, TC Kimlik No, Ad Soyad, Telefon, Takım Lideri, Üst Yönetici, Lokasyon, İşe Giriş Tarihi, Hak Edilen/Kullanılan/Kalan İzin — TÜM personel için tek bir Excel dosyasında üretilir. Kişi seçimi gerekmez.</p>
+          <div class="formatpanel-only" style="border-top:1px solid var(--line); padding-top:14px; display:flex; flex-direction:column; gap:8px;">
+            <div class="search-label">Biçimlendirme Şablonu (Sadece Süper Yetkili)</div>
+            <p class="hint" style="font-size:12px; line-height:1.5; margin:0;">Tamamen biçimlendirilmiş (hücre renkleri + koşullu biçimlendirme dahil) bir Excel dosyası yükle - dosyanın GÖRÜNÜMÜ aynen kaydedilir, her export'ta bu görünümle üretilir.</p>
+            <input type="file" id="izinSablonFile" accept=".xlsx">
+            <span id="izinSablonStatus" class="hint" style="font-size:12.5px; color:var(--dim);"></span>
+          </div>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="refresh-btn" id="exportCancelBtn">İptal</button>
@@ -444,8 +469,19 @@ let AUTH_TABLE = [];
 let accessToken = null;
 let tokenClient = null;
 
-function authFetch(url, token){
-  return fetch(url, { headers: { 'Authorization': 'Bearer ' + (token || accessToken) } });
+// Google API'leri ara sıra geçici olarak 503/500/429 gibi hatalar döndürebiliyor ("The
+// service is currently unavailable" gibi) - kalıcı bir sorun değil, birkaç saniye içinde
+// kendiliğinden düzeliyor. Bu yüzden authFetch böyle geçici hatalarda otomatik olarak
+// (kısa bir bekleme ile) 2 kez daha dener - kullanıcı elle "tekrar dene" yapmak zorunda kalmaz.
+async function authFetch(url, token, attempt){
+  attempt = attempt || 1;
+  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + (token || accessToken) } });
+  const RETRYABLE_STATUSES = [429, 500, 502, 503, 504];
+  if (RETRYABLE_STATUSES.includes(res.status) && attempt < 3){
+    await new Promise(r => setTimeout(r, attempt * 700));
+    return authFetch(url, token, attempt + 1);
+  }
+  return res;
 }
 
 function showLoginError(msg){
@@ -666,6 +702,7 @@ function initGoogleSignIn(){
       accessToken = resp.access_token;
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appShell').style.display = '';
+      loadThemeConfig(); // herkes için - Süper Yetkili'nin kaydettiği tema herkese aynı yansır
       loadData();
       initIslemAccess();
     },
@@ -1077,7 +1114,146 @@ async function fetchFormatRowsForPanel(){
   return rows;
 }
 
+// ===== TEMA AYARLARI (Süper Yetkili panelden değiştirir, herkes aynı temayı görür) =====
+// Aynı config Sheet'inde (EXPORT_FORMAT_SHEET_ID) ayrı bir "Tema" sekmesi, Anahtar/Değer
+// formatında. Sekme yoksa/eksikse kod içindeki varsayılanlar (yukarıdaki :root ve
+// ANALIZ_SLOT_DEFAULTS) fallback olarak kullanılır - hiçbir kayıt zorunlu değildir.
+const THEME_TAB_NAME = 'Tema';
+let THEME_TAB_GID = null;
 
+// Her tema anahtarının: Sheet'teki adı, karşılık geldiği CSS değişkeni (varsa), grup
+// (main/shell/slot) ve panelde gösterilecek etiketi. slot* anahtarlarının cssVar'ı yok,
+// çünkü onlar CSS değil ANALIZ_SLOT_BASE dizisine yazılıyor.
+const THEME_KEYS = [
+  { key: 'main-bg', cssVar: '--bg', group: 'main', label: 'Arkaplan' },
+  { key: 'main-panel', cssVar: '--panel', group: 'main', label: 'Panel' },
+  { key: 'main-panel2', cssVar: '--panel2', group: 'main', label: 'Panel 2' },
+  { key: 'main-panel3', cssVar: '--panel3', group: 'main', label: 'Panel 3' },
+  { key: 'main-text', cssVar: '--text', group: 'main', label: 'Ana Yazı' },
+  { key: 'main-dim', cssVar: '--dim', group: 'main', label: 'İkincil Yazı' },
+  { key: 'main-dim2', cssVar: '--dim2', group: 'main', label: 'İkincil Yazı 2' },
+  { key: 'main-line', cssVar: '--line', group: 'main', label: 'Kenarlık' },
+  { key: 'main-accent', cssVar: '--accent', group: 'main', label: 'Vurgu' },
+  { key: 'shell-bg', cssVar: '--shell-bg', group: 'shell', label: 'Arkaplan' },
+  { key: 'shell-panel', cssVar: '--shell-panel', group: 'shell', label: 'Panel' },
+  { key: 'shell-line', cssVar: '--shell-line', group: 'shell', label: 'Kenarlık' },
+  { key: 'shell-text', cssVar: '--shell-text', group: 'shell', label: 'Ana Yazı' },
+  { key: 'shell-dim', cssVar: '--shell-dim', group: 'shell', label: 'İkincil Yazı' },
+  { key: 'shell-dim2', cssVar: '--shell-dim2', group: 'shell', label: 'İkincil Yazı 2' },
+  { key: 'shell-accent', cssVar: '--shell-accent', group: 'shell', label: 'Vurgu' },
+  { key: 'slot1', cssVar: null, group: 'slot', label: 'Slot 1' },
+  { key: 'slot2', cssVar: null, group: 'slot', label: 'Slot 2' },
+  { key: 'slot3', cssVar: null, group: 'slot', label: 'Slot 3' },
+  { key: 'slot4', cssVar: null, group: 'slot', label: 'Slot 4' },
+  { key: 'slot5', cssVar: null, group: 'slot', label: 'Slot 5' },
+];
+
+// Kod içindeki varsayılanları (mevcut :root + ANALIZ_SLOT_DEFAULTS) tek bir haritada
+// toplar - Sheet'te bir anahtar eksikse buradan fallback alınır.
+function themeDefaultsMap(){
+  const map = {};
+  THEME_KEYS.forEach(k => {
+    if (k.group === 'slot'){
+      map[k.key] = ANALIZ_SLOT_DEFAULTS[Number(k.key.replace('slot','')) - 1];
+    } else {
+      // :root'taki ORİJİNAL (henüz hiç override edilmemiş) değeri CSS dosyasından biliyoruz,
+      // burada elle tekrar yazıyoruz ki Sheet tamamen boşken de doğru varsayılan uygulansın.
+      const HARD_DEFAULTS = {
+        '--bg':'#10182B', '--panel':'#16213D', '--panel2':'#1C2944', '--panel3':'#1F2A3D',
+        '--text':'#FFFFFF', '--dim':'#8FA3C9', '--dim2':'#5D7299', '--line':'#2A3A5C', '--accent':'#E8A53D',
+        '--shell-bg':'#16213D', '--shell-panel':'#1C2944', '--shell-line':'#2A3A5C',
+        '--shell-text':'#FFFFFF', '--shell-dim':'#8FA3C9', '--shell-dim2':'#5D7299', '--shell-accent':'#E8A53D',
+      };
+      map[k.key] = HARD_DEFAULTS[k.cssVar];
+    }
+  });
+  return map;
+}
+
+// Verilen {key: hex} haritasını hem :root CSS değişkenlerine hem ANALIZ_SLOT_BASE dizisine
+// CANLI olarak uygular - panelde renk seçildikçe (kaydetmeden ÖNCE) anında önizleme, ve
+// sayfa açılışında Sheet'ten okunan değerlerin uygulanması için ORTAK fonksiyon.
+function applyThemeColors(colorMap){
+  THEME_KEYS.forEach(k => {
+    const hex = colorMap[k.key];
+    if (!hex) return;
+    if (k.group === 'slot'){
+      ANALIZ_SLOT_BASE[Number(k.key.replace('slot','')) - 1] = hex;
+    } else {
+      document.documentElement.style.setProperty(k.cssVar, hex);
+    }
+  });
+  ANALIZ_SLOT_COLORS = ANALIZ_SLOT_BASE.map(slotColorObj);
+}
+
+async function getThemeTabGid(){
+  if (THEME_TAB_GID != null) return THEME_TAB_GID;
+  THEME_TAB_GID = await getTabGid(THEME_TAB_NAME);
+  return THEME_TAB_GID;
+}
+
+// "Tema" sekmesi Sheet'te hiç yoksa (ilk kullanım) otomatik oluşturur - Zafer'in elle bir
+// sekme açıp başlık yazması gerekmesin diye. Zaten varsa dokunmaz.
+async function ensureThemeTabExists(){
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?fields=sheets.properties(sheetId,title)`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  const found = (data.sheets || []).find(s => s.properties.title === THEME_TAB_NAME);
+  if (found){ THEME_TAB_GID = found.properties.sheetId; return; }
+  const token = await ensureWriteToken();
+  const addUrl = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}:batchUpdate`;
+  const addRes = await fetch(addUrl, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: THEME_TAB_NAME } } }] }),
+  });
+  const addData = await addRes.json();
+  if (addData.error) throw new Error(addData.error.message || 'Tema sekmesi oluşturulamadı.');
+  THEME_TAB_GID = addData.replies[0].addSheet.properties.sheetId;
+  await ensureHeaderRow(THEME_TAB_NAME, ['Anahtar', 'Değer']);
+}
+
+// Sayfa açılışında HERKES tarafından çağrılır (yetkiden bağımsız) - Sheet'ten okur, eksik
+// anahtarlar için kod-içi varsayılanı kullanır, hepsini CSS'e ve slot dizisine uygular.
+// Sheet'e hiç erişilemezse (sekme yok, ağ hatası vb.) sessizce mevcut varsayılanlarda kalır.
+async function loadThemeConfig(){
+  const defaults = themeDefaultsMap();
+  try {
+    const range = `${THEME_TAB_NAME}!A1:B50`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    if (data.error) { applyThemeColors(defaults); return; }
+    const values = data.values || [];
+    const fromSheet = {};
+    for (let i = 1; i < values.length; i++){
+      const row = values[i] || [];
+      const key = String(row[0] || '').trim();
+      const hex = String(row[1] || '').trim();
+      if (key && /^#[0-9A-Fa-f]{6}$/.test(hex)) fromSheet[key] = hex;
+    }
+    applyThemeColors(Object.assign({}, defaults, fromSheet));
+  } catch(e){
+    applyThemeColors(defaults); // Sheet okunamadı - mevcut varsayılanlarda kal
+  }
+}
+
+// Panelden "Kaydet" dendiğinde çağrılır - tüm renk haritasını (21 anahtar) Sheet'e tek
+// seferde yazar (batch update), gerekiyorsa "Tema" sekmesini önce oluşturur.
+async function saveThemeConfig(colorMap){
+  await ensureThemeTabExists();
+  const token = await ensureWriteToken();
+  const rows = [['Anahtar', 'Değer']].concat(THEME_KEYS.map(k => [k.key, colorMap[k.key] || '']));
+  const range = `${THEME_TAB_NAME}!A1:B${rows.length}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: rows }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Tema kaydedilemedi.');
+}
 
 const EXPORT_TARGET_KEYS = {
   'Kişi Başlığı': 'kisiBasligi',
@@ -1422,6 +1598,417 @@ function exportYearsList(){
   years.sort((a,b)=>a-b);
   return years;
 }
+// ===== Personel Yıllık İzin - TÜM personeli tek Excel dosyasında listeler (kişi seçimi
+// GEREKMEZ). Şablon: ASBH_İM_Yıllık_İzin.xlsx (Zafer'in yüklediği dosya) ile birebir aynı
+// sütun sırası/başlık stili (koyu lacivert dolgu FF002060, beyaz kalın Calibri 12, ortalı).
+// Hak Edilen/Kullanılan/Kalan İzin, Personel Bilgileri kartındaki İLE AYNI formülle
+// hesaplanır (statik Personel Listesi değeri + Vardiya'dan otomatik sayılan bonus).
+// ===== TAM BİÇİM İÇE AKTARMA (Personel Yıllık İzin şablonu) =====
+// Zafer'in yüklediği, tamamen biçimlendirilmiş + koşullu kurallı bir Excel dosyasının
+// GÖRÜNÜMÜNÜ (hücre renkleri, yazı stili, kenarlık, koşullu biçimlendirme, sütun genişliği)
+// birebir çıkarıp Sheet'e kaydeder - export sırasında bu görünüm veriye AYNEN uygulanır.
+// Veri Hazırlama projesinde kurulan ve kanıtlanmış aynı mimari (3 renk sistemi: argb/tema+
+// tint/indexed palet, RLE sıkıştırma, koşullu kuralların round-trip'te tip kaybı vb. - hepsi
+// orada çözülmüş sorunlar, burada aynen tekrar kullanılıyor).
+
+const IZIN_SABLON_TAB_NAME = 'İzin Şablonu';
+
+// --- Renk çözümleme (argb / tema+tint / indexed - Excel'in 3 farklı renk mekanizması) ---
+const EXCEL_INDEXED_COLORS = [
+  '000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF',
+  '000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF',
+  '800000','008000','000080','808000','800080','008080','C0C0C0','808080',
+  '9999FF','993366','FFFFCC','CCFFFF','660066','FF8080','0066CC','CCCCFF',
+  '000080','FF00FF','FFFF00','00FFFF','800080','800000','008080','0000FF',
+  '00CCFF','CCFFFF','CCFFCC','FFFF99','99CCFF','FF99CC','CC99FF','FFCC99',
+  '3366FF','33CCCC','99CC00','FFCC00','FF9900','FF6600','666699','969696',
+  '003366','339966','003300','333300','993300','993366','333399','333333',
+];
+const THEME_INDEX_ORDER = ['lt1', 'dk1', 'lt2', 'dk2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'];
+
+// Yüklenen dosyanın ZIP içindeki xl/theme/theme1.xml'inden 12 tema rengini çıkarır (dosya
+// "tema rengine" referans veren hücreler kullanıyorsa, .argb değil {theme,tint} gelir).
+async function extractThemeColors(fileArrayBuffer){
+  try {
+    const zip = await JSZip.loadAsync(fileArrayBuffer);
+    const themeFile = zip.file('xl/theme/theme1.xml') || Object.values(zip.files).find(f => /xl\/theme\/theme\d*\.xml$/i.test(f.name));
+    if (!themeFile) return null;
+    const xml = await themeFile.async('string');
+    const scheme = {};
+    THEME_INDEX_ORDER.forEach(key => {
+      const block = xml.match(new RegExp(`<a:${key}>(.*?)</a:${key}>`, 's'));
+      if (!block) return;
+      // Tema rengi ya doğrudan sabit renk (<a:srgbClr val="RRGGBB"/>) ya da SİSTEM rengine
+      // referans (<a:sysClr val="window" lastClr="RRGGBB"/>) olarak tanımlanabilir - ikinci
+      // durumda asıl renk "val" değil "lastClr" içinde. Önce sabit rengi dene, yoksa lastClr'a düş.
+      const srgb = block[1].match(/<a:srgbClr val="([0-9A-Fa-f]{6})"/) || block[1].match(/lastClr="([0-9A-Fa-f]{6})"/);
+      if (srgb) scheme[key] = srgb[1].toUpperCase();
+    });
+    return THEME_INDEX_ORDER.map(key => scheme[key] || '000000');
+  } catch(e){ return null; }
+}
+function applyImportedTint(hex, tint){
+  if (!tint) return hex;
+  const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+  const adj = (c) => { const v = tint < 0 ? c*(1+tint) : c*(1-tint)+255*tint; return Math.max(0, Math.min(255, Math.round(v))); };
+  const toHex = (n) => n.toString(16).padStart(2,'0');
+  return toHex(adj(r)) + toHex(adj(g)) + toHex(adj(b));
+}
+function resolveImportedColor(colorObj, themeColors){
+  if (!colorObj) return null;
+  if (colorObj.argb){
+    const rgb = colorObj.argb.length === 8 ? colorObj.argb.slice(2) : colorObj.argb;
+    return '#' + rgb.toLowerCase();
+  }
+  if (colorObj.theme !== undefined && themeColors && themeColors[colorObj.theme]){
+    return ('#' + applyImportedTint(themeColors[colorObj.theme], colorObj.tint || 0)).toLowerCase();
+  }
+  if (colorObj.indexed !== undefined && EXCEL_INDEXED_COLORS[colorObj.indexed]){
+    return '#' + EXCEL_INDEXED_COLORS[colorObj.indexed].toLowerCase();
+  }
+  return null;
+}
+
+// --- Hücre stili okuma/uygulama ---
+function readImportedCellStyle(cell, themeColors){
+  const st = { kalin: false, yaziRengi: null, argPlan: null, hizalama: null, kenarlik: false, sayiFormat: null, kaydir: false, yaziBoyutu: null };
+  if (cell.font){
+    st.kalin = !!cell.font.bold;
+    if (cell.font.color) st.yaziRengi = resolveImportedColor(cell.font.color, themeColors);
+    if (cell.font.size) st.yaziBoyutu = cell.font.size;
+  }
+  if (cell.fill && cell.fill.type === 'pattern'){
+    const c = cell.fill.fgColor || cell.fill.bgColor;
+    if (c) st.argPlan = resolveImportedColor(c, themeColors);
+  }
+  if (cell.alignment){
+    if (cell.alignment.horizontal) st.hizalama = cell.alignment.horizontal;
+    if (cell.alignment.wrapText) st.kaydir = true;
+  }
+  if (cell.border && (cell.border.top || cell.border.bottom || cell.border.left || cell.border.right)) st.kenarlik = true;
+  if (cell.numFmt && cell.numFmt !== 'General') st.sayiFormat = cell.numFmt;
+  return st;
+}
+function izinStyleSignature(st){
+  return JSON.stringify([st.kalin, st.yaziRengi, st.argPlan, st.hizalama, st.kenarlik, st.sayiFormat, st.kaydir, st.yaziBoyutu]);
+}
+function izinIsBlankStyle(st){
+  return !st.kalin && !st.yaziRengi && !st.argPlan && !st.hizalama && !st.kenarlik && !st.sayiFormat && !st.kaydir && !st.yaziBoyutu;
+}
+// Bir satırın TÜM hücrelerini okuyup, aynı stildeki ARDIŞIK hücreleri tek bloğa sıkıştırır
+// (RLE) - Sheets'in 50.000 karakter/hücre sınırına sığması için (Veri Hazırlama'da kanıtlandı).
+function readImportedRowStyleRuns(ws, r, maxCol, themeColors){
+  const row = ws.getRow(r);
+  const runs = [];
+  let curSig = null, curStyle = null, runStart = null;
+  for (let c = 1; c <= maxCol; c++){
+    const st = readImportedCellStyle(row.getCell(c), themeColors);
+    const sig = izinIsBlankStyle(st) ? null : izinStyleSignature(st);
+    if (sig !== curSig){
+      if (curSig !== null) runs.push([runStart, c - 1, curStyle]);
+      curSig = sig; curStyle = sig ? st : null; runStart = c;
+    }
+  }
+  if (curSig !== null) runs.push([runStart, maxCol, curStyle]);
+  return runs;
+}
+function applyImportedCellStyle(cell, st){
+  if (!st) return;
+  cell.font = {
+    name: 'Calibri',
+    bold: !!st.kalin,
+    size: st.yaziBoyutu || 11,
+    color: st.yaziRengi ? { argb: 'FF' + st.yaziRengi.replace('#','').toUpperCase() } : undefined,
+  };
+  if (st.argPlan){
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + st.argPlan.replace('#','').toUpperCase() } };
+  }
+  const alignment = {};
+  if (st.hizalama){ alignment.horizontal = st.hizalama; alignment.vertical = 'middle'; }
+  if (st.kaydir) alignment.wrapText = true;
+  if (Object.keys(alignment).length) cell.alignment = alignment;
+  if (st.kenarlik){
+    const thin = { style: 'thin', color: { argb: 'FFB0B0B0' } };
+    cell.border = { top: thin, bottom: thin, left: thin, right: thin };
+  }
+  if (st.sayiFormat) cell.numFmt = st.sayiFormat;
+}
+
+// --- Koşullu biçimlendirme içe aktarma - mevcut CONDITIONAL_FORMAT_RULES ile AYNI şekle
+// çevrilir ({operator, val1, val1Text, val2, colorHex, priority}, metrik adına göre gruplu),
+// böylece export sırasında zaten var olan resolveConditionalColor() birebir kullanılabiliyor. ---
+const IZIN_COND_OP_MAP_REVERSE = {
+  greaterThan: 'Büyük', lessThan: 'Küçük', greaterThanOrEqual: 'Büyük Eşit',
+  lessThanOrEqual: 'Küçük Eşit', equal: 'Eşit', notEqual: 'Farklı', between: 'Aralık',
+};
+function izinColLetterToNum(letter){
+  let n = 0;
+  for (const ch of letter) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+function izinParseRefColumns(ref){
+  const firstRef = String(ref).split(/[\s,]+/)[0].trim();
+  const m = firstRef.match(/^\$?([A-Z]+)\$?\d+(?::\$?([A-Z]+)\$?\d+)?$/i);
+  if (!m) return null;
+  return { colStart: m[1].toUpperCase(), colEnd: (m[2] || m[1]).toUpperCase() };
+}
+function izinUnquote(v){
+  const s = String(v == null ? '' : v).trim();
+  const m = s.match(/^"(.*)"$/);
+  return m ? m[1].replace(/""/g, '"') : s;
+}
+function importCondFormattingFromSheet(ws, header, themeColors){
+  const rulesByMetric = {};
+  let oncelikSeq = 1;
+  (ws.conditionalFormattings || []).forEach(cf => {
+    const cols = izinParseRefColumns(cf.ref);
+    if (!cols) return;
+    const startCol = izinColLetterToNum(cols.colStart);
+    const endCol = izinColLetterToNum(cols.colEnd);
+    (cf.rules || []).forEach(rule => {
+      const colorObj = (rule.style && rule.style.fill && (rule.style.fill.fgColor || rule.style.fill.bgColor)) || null;
+      const renkHex = resolveImportedColor(colorObj, themeColors) || '#ffff00';
+      const colorHex = 'FF' + renkHex.replace('#','').toUpperCase();
+      const searchMatch = !rule.type && (rule.formulae || [])[0] && String(rule.formulae[0]).match(/SEARCH\(\s*"([^"]*)"/i);
+      for (let c = startCol; c <= endCol; c++){
+        const metrik = header[c] || '';
+        if (!metrik) continue;
+        const key = metrik.trim().toLocaleUpperCase('tr');
+        let entry = null;
+        if (rule.type === 'containsText' || searchMatch){
+          const text = rule.type === 'containsText' ? (rule.text || '') : searchMatch[1];
+          entry = { operator: 'İÇERİR', val1: null, val1Text: text, val2: null, colorHex, priority: rule.priority || oncelikSeq++ };
+        } else if (rule.type === 'cellIs' || (!rule.type && rule.operator)){
+          const opWord = IZIN_COND_OP_MAP_REVERSE[rule.operator];
+          if (!opWord) continue;
+          const op = exportNormOperator(opWord);
+          const f = rule.formulae || [];
+          const v1raw = izinUnquote(f[0]);
+          const v2raw = op === 'ARALIK' ? izinUnquote(f[1]) : null;
+          entry = { operator: op, val1: exportParseNum(v1raw), val1Text: v1raw, val2: exportParseNum(v2raw), colorHex, priority: rule.priority || oncelikSeq++ };
+        }
+        if (entry){
+          if (!rulesByMetric[key]) rulesByMetric[key] = [];
+          rulesByMetric[key].push(entry);
+        }
+      }
+    });
+  });
+  Object.values(rulesByMetric).forEach(list => list.sort((a,b) => (a.priority||999) - (b.priority||999)));
+  return rulesByMetric;
+}
+
+// --- Yüklenen dosyadan tam şablonu çıkarır ---
+async function extractIzinTemplateFromFile(file){
+  const buf = await file.arrayBuffer();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf.slice(0));
+  const themeColors = await extractThemeColors(buf.slice(0));
+  const ws = wb.worksheets[0];
+  const maxCol = ws.columnCount || 20;
+  const maxRow = ws.rowCount || 2;
+
+  const header = [];
+  ws.getRow(1).eachCell({ includeEmpty: true }, (cell, c) => { header[c - 1] = String(cell.value == null ? '' : cell.value).trim(); });
+
+  const rowRuns = {};
+  for (let r = 1; r <= maxRow; r++) rowRuns[r] = readImportedRowStyleRuns(ws, r, maxCol, themeColors);
+
+  const colWidths = [];
+  for (let c = 1; c <= maxCol; c++) colWidths.push(ws.getColumn(c).width || 14);
+
+  const condRules = importCondFormattingFromSheet(ws, header, themeColors);
+
+  return { header, rowRuns, rowCount: maxRow, colCount: maxCol, colWidths, condRules };
+}
+
+// --- Sheet'e kaydet/oku (chunk'lı - 45.000 karakter/hücre sınırı, Veri Hazırlama'daki
+// "Sablonlar" sekmesiyle aynı kalıp) ---
+async function ensureIzinSablonuTabExists(){
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?fields=sheets.properties(sheetId,title)`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  const found = (data.sheets || []).find(s => s.properties.title === IZIN_SABLON_TAB_NAME);
+  if (found) return;
+  const token = await ensureWriteToken();
+  const addUrl = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}:batchUpdate`;
+  const addRes = await fetch(addUrl, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: IZIN_SABLON_TAB_NAME } } }] }),
+  });
+  const addData = await addRes.json();
+  if (addData.error) throw new Error(addData.error.message || 'İzin Şablonu sekmesi oluşturulamadı.');
+}
+async function saveIzinTemplateToSheet(templateObj){
+  await ensureIzinSablonuTabExists();
+  const token = await ensureWriteToken();
+  const json = JSON.stringify(templateObj);
+  const CHUNK = 45000;
+  const chunks = [];
+  for (let i = 0; i < json.length; i += CHUNK) chunks.push(json.slice(i, i + CHUNK));
+  const row = ['sablon', ...chunks];
+  const lastCol = colNumToLetter(row.length);
+  const range = `${IZIN_SABLON_TAB_NAME}!A1:${lastCol}1`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [row] }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Şablon kaydedilemedi.');
+}
+async function loadIzinTemplateFromSheet(){
+  try {
+    const range = `${IZIN_SABLON_TAB_NAME}!A1:ZZ1`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    if (data.error) return null;
+    const row = (data.values && data.values[0]) || [];
+    if (!row.length || row[0] !== 'sablon') return null;
+    const json = row.slice(1).join('');
+    return json ? JSON.parse(json) : null;
+  } catch(e){ return null; }
+}
+
+// --- Personel verisini şablonun sütun BAŞLIKLARINA göre eşleştirir ---
+function personelIzinHesapla(p){
+  const vardiyaBonus = VARDIYA_IZIN_MAP.get(p.sicil) || 0;
+  const kullanilanToplam = p.kullanilanIzin !== null ? p.kullanilanIzin + vardiyaBonus : (vardiyaBonus > 0 ? vardiyaBonus : null);
+  const hakedilen = p.hakedilenIzin !== null ? p.hakedilenIzin : null;
+  const kalanIzin = (hakedilen !== null && kullanilanToplam !== null) ? hakedilen - kullanilanToplam : (p.kalanIzin !== null ? p.kalanIzin : null);
+  return { hakedilen, kullanilanToplam, kalanIzin };
+}
+const YILLIK_IZIN_FIELD_MAP = {
+  'SİCİL': p => p.sicil,
+  'TC KİMLİK NO': p => p.tcKimlik || '',
+  'AD SOYAD': p => p.adSoyad,
+  'TELEFON': p => p.telefon || '',
+  'TAKIM LİDERİ': p => p.takimLideri || '',
+  'ÜST YÖNETİCİ': () => 'ABDULSELAM DAŞDEMİR',
+  'LOKASYON': () => 'OSMANİYE',
+  'İŞE GİRİŞ TARİHİ': p => p.iseGirisDate || (p.iseGirisRaw || ''),
+  'HAK EDİLEN GÜN': p => personelIzinHesapla(p).hakedilen,
+  'KULLANILAN GÜN': p => personelIzinHesapla(p).kullanilanToplam,
+  'KALAN BAKİYE': p => personelIzinHesapla(p).kalanIzin,
+};
+
+async function exportYillikIzinToExcel(){
+  try {
+    const template = await loadIzinTemplateFromSheet();
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ALO 144 Osmaniye';
+    wb.lastModifiedBy = 'ALO 144 Osmaniye';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Sayfa1');
+    const sorted = [...PERSONNEL].sort((a, b) => a.adSoyad.localeCompare(b.adSoyad, 'tr'));
+
+    if (template && template.header && template.header.length){
+      // ===== Şablon YÜKLENMİŞ - biçimlendirme + koşullu biçimlendirme AYNEN uygulanır =====
+      const headers = template.header;
+      const colCount = template.colCount || headers.length;
+      headers.forEach((h, i) => { ws.getColumn(i + 1).width = (template.colWidths && template.colWidths[i]) || 14; });
+
+      const headerRow = ws.getRow(1);
+      headers.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
+      (template.rowRuns[1] || []).forEach(([cs, ce, st]) => {
+        for (let c = cs; c <= Math.min(ce, colCount); c++) applyImportedCellStyle(headerRow.getCell(c), st);
+      });
+
+      // Şablonun VERİ satırlarında (2. satırdan itibaren) kaç farklı stil varsa, üretilen
+      // personel satırlarına DÖNGÜSEL (zebra) uygulanır - şablonda 1 veri satırı varsa hepsi
+      // aynı, 2+ varsa (örn. açık/koyu şeritli) aynı desen otomatik devam eder.
+      const templateDataRowNums = Object.keys(template.rowRuns).map(Number).filter(n => n > 1).sort((a, b) => a - b);
+      const cycleLen = templateDataRowNums.length || 1;
+
+      sorted.forEach((p, idx) => {
+        const rowNum = idx + 2;
+        const row = ws.getRow(rowNum);
+        headers.forEach((h, i) => {
+          const key = h.trim().toLocaleUpperCase('tr');
+          const getter = YILLIK_IZIN_FIELD_MAP[key];
+          const val = getter ? getter(p) : null;
+          const cell = row.getCell(i + 1);
+          cell.value = (val === undefined) ? null : val;
+          if (val instanceof Date) cell.numFmt = 'dd.mm.yyyy';
+        });
+        const templRowNum = templateDataRowNums.length ? templateDataRowNums[idx % cycleLen] : 2;
+        (template.rowRuns[templRowNum] || []).forEach(([cs, ce, st]) => {
+          for (let c = cs; c <= Math.min(ce, colCount); c++) applyImportedCellStyle(row.getCell(c), st);
+        });
+        // Koşullu biçimlendirme - satır stilinin ÜSTÜNE, sadece eşleşen sütunun dolgusu değişir
+        headers.forEach((h, i) => {
+          const key = h.trim().toLocaleUpperCase('tr');
+          if (!template.condRules || !template.condRules[key]) return;
+          const cell = row.getCell(i + 1);
+          const color = resolveConditionalColor(template.condRules, h, cell.value);
+          if (color) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+        });
+      });
+    } else {
+      // ===== Şablon henüz yüklenmemiş - eski sabit (lacivert/beyaz) görünümle üretilir =====
+      const cols = [
+        { header: 'Sicil', width: 10 },
+        { header: 'TC Kimlik No', width: 15 },
+        { header: 'Ad Soyad', width: 24 },
+        { header: 'Telefon', width: 15 },
+        { header: 'Takım Lideri', width: 18 },
+        { header: 'Üst Yönetici', width: 20 },
+        { header: 'Lokasyon', width: 14 },
+        { header: 'İşe Giriş Tarihi', width: 16 },
+        { header: 'Hak Edilen Gün', width: 15 },
+        { header: 'Kullanılan Gün', width: 15 },
+        { header: 'Kalan Bakiye', width: 14 },
+      ];
+      ws.columns = cols.map(c => ({ width: c.width }));
+
+      const headerRow = ws.getRow(1);
+      cols.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+      headerRow.eachCell(cell => {
+        cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002060' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+      headerRow.height = 20;
+
+      sorted.forEach((p, idx) => {
+        const { hakedilen, kullanilanToplam, kalanIzin } = personelIzinHesapla(p);
+        const row = ws.getRow(idx + 2);
+        row.getCell(1).value = p.sicil;
+        row.getCell(2).value = p.tcKimlik || '';
+        row.getCell(3).value = p.adSoyad;
+        row.getCell(4).value = p.telefon || '';
+        row.getCell(5).value = p.takimLideri || '';
+        row.getCell(6).value = 'ABDULSELAM DAŞDEMİR';
+        row.getCell(7).value = 'OSMANİYE';
+        row.getCell(8).value = p.iseGirisDate ? p.iseGirisDate : (p.iseGirisRaw || '');
+        if (p.iseGirisDate) row.getCell(8).numFmt = 'dd.mm.yyyy';
+        row.getCell(9).value = hakedilen !== null ? hakedilen : null;
+        row.getCell(10).value = kullanilanToplam !== null ? kullanilanToplam : null;
+        row.getCell(11).value = kalanIzin !== null ? kalanIzin : null;
+        row.eachCell(cell => { cell.font = { name: 'Calibri', size: 11 }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
+        row.getCell(3).alignment = { horizontal: 'left', vertical: 'middle' };
+      });
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const stamp = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `personel-yillik-izin-${stamp}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert("Yıllık izin listesi aktarılırken bir hata oluştu: " + e.message);
+  }
+}
+
 async function exportSelectedMetricsToExcel(selectedKeys){
   if (!selectedKeys.length){ alert('En az bir parametre seçin.'); return; }
   try {
@@ -1632,15 +2219,51 @@ async function exportSelectedMetricsToExcel(selectedKeys){
 // --- Modal aç/kapa + seçim mantığı ---
 const exportModalOverlay = document.getElementById('exportModalOverlay');
 const exportMetricChecklist = document.getElementById('exportMetricChecklist');
+let exportMode = 'karne'; // 'karne' (mevcut, kişi bazlı) | 'izin' (yeni, tüm personel)
+
+function setExportMode(mode){
+  exportMode = mode;
+  const karneBtn = document.getElementById('exportModeKarneBtn');
+  const izinBtn = document.getElementById('exportModeIzinBtn');
+  const activeStyle = 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);';
+  karneBtn.style.cssText = mode === 'karne' ? activeStyle : '';
+  izinBtn.style.cssText = mode === 'izin' ? activeStyle : '';
+  document.getElementById('exportKarneSection').style.display = mode === 'karne' ? '' : 'none';
+  document.getElementById('exportIzinSection').style.display = mode === 'izin' ? '' : 'none';
+}
+document.getElementById('exportModeKarneBtn').addEventListener('click', () => setExportMode('karne'));
+document.getElementById('exportModeIzinBtn').addEventListener('click', () => setExportMode('izin'));
+
+// Şablon dosyası seçilince: hemen okunur, biçim+koşullu kural çıkarılır, Sheet'e kaydedilir.
+document.getElementById('izinSablonFile').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  const statusEl = document.getElementById('izinSablonStatus');
+  if (!file) return;
+  statusEl.textContent = 'Okunuyor…';
+  try {
+    const tpl = await extractIzinTemplateFromFile(file);
+    statusEl.textContent = 'Kaydediliyor…';
+    await saveIzinTemplateToSheet(tpl);
+    const condCount = Object.values(tpl.condRules).reduce((s, list) => s + list.length, 0);
+    statusEl.textContent = `✓ Şablon kaydedildi (${tpl.header.length} sütun, ${condCount} koşullu kural). Bundan sonraki "Personel Yıllık İzin" export'ları bu görünümü kullanacak.`;
+  } catch (err){
+    statusEl.textContent = '✗ Hata: ' + err.message;
+  }
+  e.target.value = '';
+});
+
 document.getElementById('openExportModalBtn').addEventListener('click', () => {
-  if (!selectedSicil){ alert('Önce sağ üstten bir personel seçin.'); return; }
-  if (!KARNE_METRICS.length){ alert('Henüz karne verisi yok. Önce "Yenile"ye basın.'); return; }
-  exportMetricChecklist.innerHTML = KARNE_METRICS.map(m => `
-    <label class="modal-check-item">
-      <input type="checkbox" value="${m.key}" checked>
-      ${m.label}
-    </label>
-  `).join('');
+  setExportMode('karne');
+  if (selectedSicil && KARNE_METRICS.length){
+    exportMetricChecklist.innerHTML = KARNE_METRICS.map(m => `
+      <label class="modal-check-item">
+        <input type="checkbox" value="${m.key}" checked>
+        ${m.label}
+      </label>
+    `).join('');
+  } else {
+    exportMetricChecklist.innerHTML = '';
+  }
   exportModalOverlay.style.display = 'flex';
 });
 document.getElementById('exportCancelBtn').addEventListener('click', () => { exportModalOverlay.style.display = 'none'; });
@@ -1652,6 +2275,14 @@ document.getElementById('exportClearBtn').addEventListener('click', () => {
   exportMetricChecklist.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
 });
 document.getElementById('exportConfirmBtn').addEventListener('click', () => {
+  if (exportMode === 'izin'){
+    if (!PERSONNEL.length){ alert('Henüz personel verisi yok. Önce "Yenile"ye basın.'); return; }
+    exportYillikIzinToExcel();
+    exportModalOverlay.style.display = 'none';
+    return;
+  }
+  if (!selectedSicil){ alert('Önce sağ üstten bir personel seçin.'); return; }
+  if (!KARNE_METRICS.length){ alert('Henüz karne verisi yok. Önce "Yenile"ye basın.'); return; }
   const selectedKeys = [...exportMetricChecklist.querySelectorAll('input[type=checkbox]:checked')].map(cb => cb.value);
   exportSelectedMetricsToExcel(selectedKeys);
   exportModalOverlay.style.display = 'none';
@@ -2673,9 +3304,16 @@ async function generateAnalizPresentation(year, month){
   await pres.writeFile({ fileName: `ALO144_Analiz_${year}${month !== null ? '_' + TR_MONTHS[month] : ''}.pptx` });
 }
 
+// Grafik eksen/tick/legend YAZI rengi - artık sabit hex DEĞİL, temanın İkincil Yazı
+// (--dim) rengine bağlı. Arkaplan/panel rengi değişince grafik yazıları otomatik okunur
+// kalsın diye canlı olarak :root'tan okunuyor (her çağrıda taze, önbellek yok).
+function chartDimColor(){
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--dim').trim();
+  return v || '#8FA3C9';
+}
 // ===== ALO-144'teki ORTAK GRAFİK OLUŞTURUCU PANELİ (Genel Değerlendirme için) =====
 function chartTheme(){
-  return { grid:'#2A3A5C', text:'#8FA3C9', accent:'#3ddc97', blue:'#5b9cf6', warn:'#e8a53d', danger:'#e85d5d' };
+  return { grid:'#2A3A5C', text: chartDimColor(), accent:'#3ddc97', blue:'#5b9cf6', warn:'#e8a53d', danger:'#e85d5d' };
 }
 function secToLabel(sec){
   const h = Math.floor(sec / 3600);
@@ -3796,6 +4434,26 @@ let yetkiBusy = false;
 let fotoSicil = null;
 let fotoBusy = false;
 let fotoPreviewUrl = null; // seçilen dosyanın yerel önizlemesi (yüklenmeden önce)
+
+let themeColors = null; // Yetki Atama sekmesi ilk açıldığında mevcut :root/slot değerlerinden doldurulur
+let themeBusy = false;
+let themeStatusMsg = '';
+
+// Panelde renk seçicilerin şu anki (henüz kaydedilmemiş olabilecek) değerlerini okur -
+// yoksa (ilk açılış) mevcut CSS/slot değerlerinden başlatır.
+function ensureThemeColorsInit(){
+  if (themeColors) return;
+  themeColors = {};
+  const cs = getComputedStyle(document.documentElement);
+  THEME_KEYS.forEach(k => {
+    if (k.group === 'slot'){
+      themeColors[k.key] = ANALIZ_SLOT_BASE[Number(k.key.replace('slot','')) - 1];
+    } else {
+      const v = cs.getPropertyValue(k.cssVar).trim();
+      themeColors[k.key] = v && v.startsWith('#') ? v : (themeDefaultsMap()[k.key] || '#000000');
+    }
+  });
+}
 let fotoSelectedFile = null;
 
 const AUTH_COLS = [
@@ -3822,13 +4480,23 @@ function makeAnalizSlots(){ return [
 ]; }
 let analizTrendSlots = makeAnalizSlots();
 let analizYearCmpSlots = makeAnalizSlots();
-const ANALIZ_SLOT_COLORS = [
-  { solid: '#E8A53D', bar: 'rgba(232,165,61,0.75)', line: 'rgba(232,165,61,0.15)' },
-  { solid: '#5b9cf6', bar: 'rgba(91,156,246,0.65)', line: 'rgba(91,156,246,0.15)' },
-  { solid: '#3ddc97', bar: 'rgba(61,220,151,0.65)', line: 'rgba(61,220,151,0.15)' },
-  { solid: '#e85d5d', bar: 'rgba(232,93,93,0.65)', line: 'rgba(232,93,93,0.15)' },
-  { solid: '#8B7FD8', bar: 'rgba(139,127,216,0.65)', line: 'rgba(139,127,216,0.15)' },
-];
+
+// hex -> rgba(...) çevirir; grafik slot renklerinin bar/line (yarı saydam) hallerini tek
+// bir "solid" hex değerinden üretmek için kullanılır - artık 3 renk elle tutulmuyor.
+function hexToRgba(hex, alpha){
+  const h = String(hex || '').replace('#', '');
+  if (!/^[0-9A-Fa-f]{6}$/.test(h)) return `rgba(139,127,216,${alpha})`;
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function slotColorObj(hex){
+  return { solid: hex, bar: hexToRgba(hex, 0.65), line: hexToRgba(hex, 0.15) };
+}
+// Grafik slot renklerinin VARSAYILAN (fallback) taban renkleri - Tema Ayarları panelinden
+// Süper Yetkili tarafından değiştirilebilir, Sheet'ten okunup ANALIZ_SLOT_BASE güncellenir.
+const ANALIZ_SLOT_DEFAULTS = ['#E8A53D', '#5b9cf6', '#3ddc97', '#e85d5d', '#8B7FD8'];
+let ANALIZ_SLOT_BASE = ANALIZ_SLOT_DEFAULTS.slice();
+let ANALIZ_SLOT_COLORS = ANALIZ_SLOT_BASE.map(slotColorObj);
 const ANALIZ_CHART_INSTANCES = {};
 
 function destroyAnalizCharts(){
@@ -4480,7 +5148,7 @@ function renderAnalizContentHtml(){
 function wireAnalizCharts(){
   const a = computeAnaliz(analizYear, analizMonth);
   destroyAnalizCharts();
-  const chartTextColor = '#8FA3C9';
+  const chartTextColor = chartDimColor();
   const chartGridColor = 'rgba(143,163,201,0.12)';
 
   // Dağılım donut
@@ -4762,10 +5430,84 @@ function renderYetkiTab(){
         <span id="fotoStatusMsg" class="hint" style="font-size:12.5px; color:var(--dim);"></span>
       </div>
     </div>
+
+    ${renderTemaPanel()}
   `;
 }
 
+// Renk seçicilerden bir grubu (main/shell/slot) grid halinde üretir. Seçim yapılır yapılmaz
+// (input event) canlı önizleme uygulanır - Kaydet'e basmadan önce sadece o tarayıcıda görünür.
+function renderThemeColorGroupHtml(group){
+  return `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:14px;">
+    ${THEME_KEYS.filter(k => k.group === group).map(k => `
+      <label style="display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--dim);">
+        ${k.label}
+        <input type="color" data-themekey="${k.key}" value="${themeColors[k.key]}" style="width:100%; height:34px; border:1px solid var(--line); border-radius:8px; background:none; cursor:pointer; padding:2px;">
+      </label>`).join('')}
+  </div>`;
+}
+
+function renderTemaPanel(){
+  ensureThemeColorsInit();
+  return `
+    <div class="panel" style="margin-top:20px;">
+      <div class="panel-head">Tema Ayarları <span class="hint" style="font-weight:400; margin-left:8px;">Sadece Süper Yetkili · Herkeste aynı görünür</span></div>
+      <div class="panel-body" style="display:flex; flex-direction:column; gap:22px;">
+        <div>
+          <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:10px;">Ana İçerik Teması</div>
+          ${renderThemeColorGroupHtml('main')}
+        </div>
+        <div>
+          <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:10px;">Sol Menü Teması</div>
+          ${renderThemeColorGroupHtml('shell')}
+        </div>
+        <div>
+          <div style="font-size:13px; font-weight:600; color:var(--text); margin-bottom:10px;">Grafik Renk Paleti (5 Slot)</div>
+          ${renderThemeColorGroupHtml('slot')}
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:16px;">
+          <button class="refresh-btn" id="temaSaveBtn" style="background:var(--accent-soft); color:var(--accent); border-color:var(--accent);">${themeBusy ? 'Kaydediliyor…' : '💾 Kaydet'}</button>
+          <button class="refresh-btn" id="temaResetBtn">Varsayılana Dön</button>
+          <span id="temaStatusMsg" class="hint" style="font-size:12.5px; color:var(--dim);">${themeStatusMsg}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function wireTemaTab(){
+  document.querySelectorAll('[data-themekey]').forEach(input => {
+    input.addEventListener('input', () => {
+      const key = input.dataset.themekey;
+      themeColors[key] = input.value;
+      applyThemeColors({ [key]: input.value }); // canlı önizleme - tüm sayfa anında güncellenir
+    });
+  });
+  const saveBtn = document.getElementById('temaSaveBtn');
+  if (saveBtn) saveBtn.addEventListener('click', async () => {
+    themeBusy = true; themeStatusMsg = '';
+    renderContentArea();
+    try {
+      await saveThemeConfig(themeColors);
+      themeStatusMsg = 'Kaydedildi ✓ — herkeste bu renkler görünecek.';
+    } catch(e){
+      themeStatusMsg = 'Hata: ' + e.message;
+    } finally {
+      themeBusy = false;
+      renderContentArea();
+    }
+  });
+  const resetBtn = document.getElementById('temaResetBtn');
+  if (resetBtn) resetBtn.addEventListener('click', () => {
+    themeColors = themeDefaultsMap();
+    applyThemeColors(themeColors);
+    themeStatusMsg = 'Varsayılan renklere dönüldü — kalıcı olması için Kaydet\'e basmayı unutma.';
+    renderContentArea();
+  });
+}
+
 function wireYetkiTab(){
+  wireTemaTab();
   const filterInput = document.getElementById('yetkiFilterInput');
   if (filterInput) filterInput.addEventListener('input', () => {
     yetkiFilterText = filterInput.value;
