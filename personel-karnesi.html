@@ -375,6 +375,10 @@
     <div class="modal-box">
       <div class="modal-head">Sunum Oluştur</div>
       <div class="modal-body">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+          <label for="pptBgColorPicker" class="hint" style="font-size:12.5px;">Sunum Arkaplan Rengi</label>
+          <input type="color" id="pptBgColorPicker" value="#141A44" style="width:40px; height:32px; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; padding:2px;">
+        </div>
         <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--line); padding-bottom:14px;">
           <button class="refresh-btn" id="pptTabPersonelBtn" style="flex:1;">👤 Personel Sunum</button>
           <button class="refresh-btn" id="pptTabAnalizBtn" style="flex:1;">📊 Analiz Sunumu</button>
@@ -2806,6 +2810,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
   }
   const btn = document.getElementById('openPptModalBtn');
   const originalText = btn.textContent;
+  const bgColorHex = (document.getElementById('pptBgColorPicker').value || '#141A44').replace('#', '').toUpperCase();
 
   if (pptActiveTab === 'personel'){
     if (!selectedSicil){ alert('Önce sağ üstten bir personel seçin.'); return; }
@@ -2815,7 +2820,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generatePresentation(years, pptFindingsMode);
+      await generatePresentation(years, pptFindingsMode, bgColorHex);
     } catch (e) {
       console.error(e);
       alert("Sunum oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -2831,7 +2836,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generateAnalizPresentation(year, month);
+      await generateAnalizPresentation(year, month, bgColorHex);
     } catch (e) {
       console.error(e);
       alert("Analiz sunumu oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -2940,11 +2945,11 @@ function personelFindings(sicil, years, mode){
   return findings;
 }
 
-async function generatePresentation(selectedYears, findingsMode){
+async function generatePresentation(selectedYears, findingsMode, bgColorHex){
   const mode = findingsMode || 'kisiye';
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p) return;
-  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = '141A44', WHITE = 'FFFFFF', DIM = '5D6572', LINE = 'E3E6EF';
+  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = 'FFFFFF', DIM = '5D6572', LINE = 'E3E6EF';
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_WIDE';
   pres.author = 'ZAFER ÇOLAK';
@@ -3127,8 +3132,8 @@ async function generatePresentation(selectedYears, findingsMode){
 }
 
 // ===== Analiz Sunumu (Analiz sekmesindeki bulguları kapsayan detaylı PPT) =====
-async function generateAnalizPresentation(year, month){
-  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = '141A44', WHITE = 'FFFFFF', DIM = '5D6572';
+async function generateAnalizPresentation(year, month, bgColorHex){
+  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = 'FFFFFF', DIM = '5D6572';
   const OK = '3ddc97', DANGER = 'e85d5d', BLUE = '5b9cf6', WARN = 'F5C451';
   const a = computeAnaliz(year, month);
   const periodLabel = month === null ? `${year} (Tüm Yıl)` : `${TR_MONTHS[month]} ${year}`;
