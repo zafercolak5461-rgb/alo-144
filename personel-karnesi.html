@@ -400,7 +400,7 @@
         </div>
 
         <div id="pptAnalizPanel" style="display:none;">
-          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Analiz sekmesindeki tüm bulguları (genel bakış, en iyi/en kötü, dağılım, sıralamalar, trend, yıl kıyaslama, dikkat edilmesi gerekenler) kapsayan detaylı bir sunum oluşturur.</p>
+          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Analiz sekmesindeki tüm bulguları (genel bakış, en iyi/en kötü, dağılım, sıralamalar, trend, yıl kıyaslama, takım kıyaslama, kıdem bandı, erken uyarı, sağlık skoru, dikkat edilmesi gerekenler) kapsayan detaylı bir sunum oluşturur.</p>
           <div style="display:flex; gap:20px; flex-wrap:wrap;">
             <div style="min-width:140px; flex:1;">
               <div class="search-label" style="margin-bottom:6px;">Yıl</div>
@@ -485,6 +485,29 @@ async function authFetch(url, token, attempt){
     return authFetch(url, token, attempt + 1);
   }
   return res;
+}
+
+// Bir dizi öğeyi, AYNI ANDA en fazla `limit` tanesi işlenecek şekilde işler (Promise.allSettled
+// gibi hepsini birden ateşlemez). Google Sheets API'nin dakikalık istek kotası, çok sayıda ay
+// sekmesi biriktiğinde (Karne/Vardiya/Personel Performansı - üçü de aylık sekme bazlı) tüm
+// ayları TEK SEFERDE paralel çekmekle kolayca aşılıyordu (429 Too Many Requests). Sonuç,
+// Promise.allSettled ile aynı şekilde {status,value/reason} dizisi olarak döner.
+async function fetchWithConcurrencyLimit(items, limit, fn){
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker(){
+    while (nextIndex < items.length){
+      const i = nextIndex++;
+      try {
+        results[i] = { status: 'fulfilled', value: await fn(items[i], i) };
+      } catch (e){
+        results[i] = { status: 'rejected', reason: e };
+      }
+    }
+  }
+  const workerCount = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 function showLoginError(msg){
@@ -3148,7 +3171,74 @@ async function generateAnalizPresentation(year, month){
     s.addTable(tblRows, Object.assign({ x: 0.6, y: 1.3, w: 8, rowH: 0.4 }, tableOpts));
   }
 
-  // --- En İyi / En Kötü Değerler ---
+  // --- Genel Sağlık Özeti (Analiz sekmesindeki aynı panel - Takım Kıyaslama, Kıdem Bandı) ---
+  const saglik = computeSaglikOzeti(a, year);
+  if (saglik.takimKarsilastirma.length){
+    const s = pres.addSlide();
+    s.background = { color: DARK };
+    s.addText('Takım Lideri Kıyaslama', { x: 0.5, y: 0.35, w: 11, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
+    s.addText('Kişi = toplam takım büyüklüğü. Ort. Performans, sadece 6+ ay kıdemli ve bu dönem verisi olan personelden hesaplanır.', { x: 0.5, y: 0.85, w: 11.5, h: 0.3, fontFace: 'Arial', fontSize: 9.5, color: DIM });
+    const tblRows = [
+      [{ text: 'Takım', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY } },
+       { text: 'Kişi', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'center' } },
+       { text: 'Ort. Performans', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } },
+       { text: 'Rapor', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } },
+       { text: 'Tutanak', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } }],
+      ...saglik.takimKarsilastirma.map(t => [
+        { text: t.takim, options: { color: WHITE } },
+        { text: String(t.kisiSayisi), options: { align: 'center', color: 'CADCFC' } },
+        { text: fmtKarneVal(t.ortPerf), options: { align: 'right', color: ACCENT, bold: true } },
+        { text: fmtKarneVal(t.rapor), options: { align: 'right', color: 'CADCFC' } },
+        { text: fmtKarneVal(t.tutanak), options: { align: 'right', color: 'CADCFC' } },
+      ]),
+    ];
+    s.addTable(tblRows, Object.assign({ x: 0.5, y: 1.3, w: 11.5, rowH: 0.36 }, tableOpts));
+  }
+
+  if (saglik.kidemOzet.some(k => k.sayi > 0)){
+    const s = pres.addSlide();
+    s.background = { color: DARK };
+    s.addText('Kıdem Bandına Göre Ortalama Performans', { x: 0.5, y: 0.35, w: 11.5, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
+    try {
+      s.addChart('bar', [{ name: 'Ortalama Performans', labels: saglik.kidemOzet.map(k => k.label), values: saglik.kidemOzet.map(k => k.ort) }], {
+        x: 1.5, y: 1.3, w: 9.3, h: 5.4,
+        chartColors: [ACCENT], showLegend: false,
+        catAxisLabelColor: WHITE, valAxisLabelColor: WHITE, catAxisLabelFontSize: 12, valAxisLabelFontSize: 9,
+        showValue: true, dataLabelColor: WHITE, dataLabelPosition: 'outEnd', dataLabelFontSize: 12,
+      });
+    } catch(e){}
+  }
+
+  if (saglik.trendUyarilari.length){
+    const s = pres.addSlide();
+    s.background = { color: DARK };
+    s.addText('Erken Uyarı — Henüz Düşmedi Ama Geriliyor', { x: 0.5, y: 0.35, w: 11.5, h: 0.5, fontFace: 'Georgia', fontSize: 20, color: WARN, bold: true });
+    const bulletLines = saglik.trendUyarilari.map(t => ({
+      text: `📉  ${t.name}: son 3 ayda ${fmtKarneVal(t.dusus)} puan geriledi (şu an ${fmtKarneVal(t.sonDeger)})`,
+      options: { fontFace: 'Arial', fontSize: 14, color: WARN, breakLine: true, paraSpaceAfter: 12 },
+    }));
+    s.addText(bulletLines, { x: 0.6, y: 1.3, w: 11.5, h: 5.3, valign: 'top' });
+  }
+
+  if (saglik.saglikSkorlari.length){
+    const s = pres.addSlide();
+    s.background = { color: DARK };
+    s.addText('En Düşük Sağlık Skoru (10 kişi)', { x: 0.5, y: 0.35, w: 11, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
+    s.addText('Skor = %50 Performans + %20 İzin Sağlığı + %15 Rapor/Tutanak Sıklığı (düşük=iyi) + %15 Kıdem.', { x: 0.5, y: 0.85, w: 11.5, h: 0.3, fontFace: 'Arial', fontSize: 9.5, color: DIM });
+    const dusukSkorlular = saglik.saglikSkorlari.slice(0, 10);
+    const tblRows = [
+      [{ text: 'Sıra', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'center' } },
+       { text: 'Personel', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY } },
+       { text: 'Skor', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } }],
+      ...dusukSkorlular.map((sk,i) => [
+        { text: String(i+1), options: { align: 'center', color: 'CADCFC' } },
+        { text: sk.name, options: { color: WHITE } },
+        { text: String(sk.skor), options: { align: 'right', bold: true, color: sk.skor < 60 ? DANGER : sk.skor < 75 ? WARN : ACCENT } },
+      ]),
+    ];
+    s.addTable(tblRows, Object.assign({ x: 0.5, y: 1.3, w: 8, rowH: 0.34 }, tableOpts));
+  }
+
   {
     const s = pres.addSlide();
     s.background = { color: DARK };
@@ -3523,7 +3613,7 @@ async function loadVardiyaIzinCounts(){
       m.year > IZIN_OTOMATIK_BASLANGIC.year || (m.year === IZIN_OTOMATIK_BASLANGIC.year && m.month >= IZIN_OTOMATIK_BASLANGIC.month)
     );
     const izinCounts = new Map();
-    await Promise.allSettled(months.map(async m => {
+    await fetchWithConcurrencyLimit(months, 5, async m => {
       const range = `${m.tabName}!A1:ZZ500`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${VARDIYA_SHEET_ID}/values/${encodeURIComponent(range)}`;
       const res = await authFetch(url);
@@ -3541,7 +3631,7 @@ async function loadVardiyaIzinCounts(){
         }
         izinCounts.set(sicil, (izinCounts.get(sicil) || 0) + dayCount);
       }
-    }));
+    });
     VARDIYA_IZIN_MAP = izinCounts;
   } catch(e){
     VARDIYA_IZIN_MAP = new Map(); // başarısızsa boş - eski statik davranışa döner
@@ -3745,7 +3835,7 @@ async function loadData(){
     try {
       const titles = await fetchExistingMonthTabsKarne(KARNE_SHEET_ID);
       KARNE_MONTHS = parseMonthTabTitlesKarne(titles);
-      const results = await Promise.allSettled(KARNE_MONTHS.map(m => fetchKarneMonth(m, activeSicilSet)));
+      const results = await fetchWithConcurrencyLimit(KARNE_MONTHS, 5, m => fetchKarneMonth(m, activeSicilSet));
       let allKarne = [];
       const headerOrder = [];
       const headerSeen = new Set();
@@ -4861,7 +4951,7 @@ async function loadPersonelPerformans(){
     AVAILABLE_MONTHS = [];
   }
 
-  const results = await Promise.allSettled(AVAILABLE_MONTHS.map(m => fetchPerformansMonth(m)));
+  const results = await fetchWithConcurrencyLimit(AVAILABLE_MONTHS, 5, m => fetchPerformansMonth(m));
   let allRecords = [];
   results.forEach((r, i) => {
     if (r.status === 'fulfilled'){
@@ -5124,6 +5214,14 @@ let PP_CHART_INSTANCES = {};
 function destroyPpCharts(){
   Object.keys(PP_CHART_INSTANCES).forEach(k => { try { PP_CHART_INSTANCES[k].destroy(); } catch(e){} delete PP_CHART_INSTANCES[k]; });
 }
+// Analiz sayfasındaki AYNI 5-slotlu esnek grafik motoru (analizSlotSelectorsHtml/
+// analizBuildSlotDatasets/wireAnalizSlotSelectors) burada da kullanılıyor - Karne'ye özel
+// değil, tamamen jenerik (idPrefix/slots/metrics/valueGetter alıyor). Her slot için ayrı
+// metrik VE grafik türü (çizgi/sütun) seçilebiliyor, tıpkı Analiz'deki Aylık Trend gibi.
+let ppRankSlots = makeAnalizSlots();
+let ppCardSlots = makeAnalizSlots();
+ppRankSlots[0].metricKey = 'performans';
+ppCardSlots[0].metricKey = 'performans';
 
 function ppMetricHeroCard(label, val, sub){
   return `<div class="analiz-hero"><div class="ah-label">${label}</div><div class="ah-val"><span data-count-target="${val === null || val === undefined ? '' : val}" data-count-decimals="1">0</span></div>${sub ? `<div class="ah-sub">${sub}</div>` : ''}</div>`;
@@ -5161,9 +5259,9 @@ function renderRankingViewHtml(){
   const overallAvg = avgOf(records.map(r => r.performans).filter(v => v !== null));
   const heroLabel = (selectedTeamLeader === 'ALL' ? 'Lokasyon' : selectedTeamLeader) + ' Performans Ortalaması';
 
-  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Sıra</th><th style="padding:8px 10px; text-align:left;">Personel</th><th style="padding:8px 10px; text-align:left;">Takım Lideri</th>${activeMetrics.map(m => `<th style="padding:8px 10px; text-align:right;">${m.label}</th>`).join('')}</tr>`;
+  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Sıra</th><th style="padding:8px 10px; text-align:left;">Personel</th><th style="padding:8px 10px; text-align:left;">Takım Lideri</th>${activeMetrics.map(m => `<th style="padding:8px 10px; text-align:center;">${m.label}</th>`).join('')}</tr>`;
   const tbodyHtml = sorted.map((r,i) => {
-    const cells = activeMetrics.map(m => `<td style="padding:8px 10px; text-align:right; color:var(--dim);">${m.key === 'tesekkur' ? (r.tesekkur ? 'Evet' : 'Hayır') : formatMetricValuePP(r[m.key], m)}</td>`).join('');
+    const cells = activeMetrics.map(m => `<td style="padding:8px 10px; text-align:center; color:var(--text);">${m.key === 'tesekkur' ? (r.tesekkur ? 'Evet' : 'Hayır') : formatMetricValuePP(r[m.key], m)}</td>`).join('');
     return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px 10px; color:var(--accent); font-weight:700;">${i+1}${i < 7 && !TOP7_EXCLUDED_SICILS.has(r.sicil) ? ' 🏅' : ''}</td><td style="padding:8px 10px; color:var(--text);">${r.personel}</td><td style="padding:8px 10px; color:var(--dim);">${r.takim}</td>${cells}</tr>`;
   }).join('');
 
@@ -5171,10 +5269,10 @@ function renderRankingViewHtml(){
     <div class="panel" style="margin-bottom:16px;">
       <div class="panel-head">Sıralama Ayı<div><select class="search" id="pp-rankMonthSelect" style="width:auto; padding:6px 10px;">${monthOptions}</select></div></div>
       <div class="panel-body" style="padding-top:0;">
-        <div class="hint" style="margin-bottom:12px;">Sıralama: Performans Puanı → KKO → Anket → Sınav Puanı (kademeli). 🏅 = İlk 7 (performans primi).</div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px; margin-bottom:16px;">${ppMetricHeroCard(heroLabel, overallAvg)}</div>
+        <div class="hint">Sıralama: Performans Puanı → KKO → Anket → Sınav Puanı (kademeli). 🏅 = İlk 7 (performans primi).</div>
       </div>
     </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px; margin-bottom:16px;">${ppMetricHeroCard(heroLabel, overallAvg)}</div>
     <div class="panel" style="margin-bottom:16px;">
       <div class="panel-head">Aylık Performans Sıralaması <span class="hint" style="font-weight:400;">${sorted.length} personel</span></div>
       <div class="panel-body" style="padding-top:0; overflow-x:auto;">
@@ -5182,8 +5280,11 @@ function renderRankingViewHtml(){
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head">Grafik — Performans Puanı</div>
-      <div class="panel-body" style="height:320px;"><canvas id="ppRankChartCanvas"></canvas></div>
+      <div class="panel-head">Grafik <span class="hint" style="font-weight:400;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div class="panel-body">
+        <div id="ppRankCh-selectors">${analizSlotSelectorsHtml('ppRankCh', ppRankSlots, PP_METRICS)}</div>
+        <div style="height:320px;"><canvas id="ppRankChartCanvas"></canvas></div>
+      </div>
     </div>
   `;
 }
@@ -5194,13 +5295,18 @@ function drawRankingChart(){
   if (!records.length) return;
   const sorted = computeRankedListWithTop7Rule(records);
   const chartTextColor = chartDimColor();
+  const labels = sorted.map(r => r.personel);
+  const { datasets, scales } = analizBuildSlotDatasets(ppRankSlots, PP_METRICS, (metric) =>
+    sorted.map(r => metric.key === 'tesekkur' ? (r.tesekkur ? 1 : 0) : r[metric.key])
+  );
+  scales.x = { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } };
+  if (!datasets.length) return;
   PP_CHART_INSTANCES.rank = new Chart(canvas, {
-    type: 'bar',
-    data: { labels: sorted.map(r => r.personel), datasets: [{ label: 'Performans Puanı', data: sorted.map(r => r.performans), backgroundColor: sorted.map((r,i) => i < 7 && !TOP7_EXCLUDED_SICILS.has(r.sicil) ? '#3ddc97' : '#5b9cf6') }] },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } }, y: { ticks: { color: chartTextColor }, grid: { color: 'rgba(143,163,201,0.12)' } } },
+      plugins: { legend: { display: datasets.length > 1, position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
+      scales,
     },
   });
 }
@@ -5225,21 +5331,21 @@ function renderComparisonViewHtml(){
   }
   personRows.sort((a,b) => (b.ortalama ?? -Infinity) - (a.ortalama ?? -Infinity));
 
-  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Personel</th><th style="padding:8px 10px; text-align:left;">Takım Lideri</th>${monthLabels.map(l => `<th style="padding:8px 10px; text-align:right;">${l}</th>`).join('')}<th style="padding:8px 10px; text-align:right;">Ortalama</th></tr>`;
+  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Personel</th><th style="padding:8px 10px; text-align:left;">Takım Lideri</th>${monthLabels.map(l => `<th style="padding:8px 10px; text-align:center;">${l}</th>`).join('')}<th style="padding:8px 10px; text-align:center;">Ortalama</th></tr>`;
   let bodyHtml = personRows.map(p => {
-    const cells = p.perMonth.map(v => `<td style="padding:8px 10px; text-align:right; color:var(--dim);">${v !== null ? v.toFixed(1) : '—'}</td>`).join('');
-    return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px 10px; color:var(--text);">${p.personel}</td><td style="padding:8px 10px; color:var(--dim);">${p.takim}</td>${cells}<td style="padding:8px 10px; text-align:right; font-weight:700; color:var(--accent);">${p.ortalama !== null ? p.ortalama.toFixed(1) : '—'}</td></tr>`;
+    const cells = p.perMonth.map(v => `<td style="padding:8px 10px; text-align:center; color:var(--text);">${v !== null ? v.toFixed(1) : '—'}</td>`).join('');
+    return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px 10px; color:var(--text);">${p.personel}</td><td style="padding:8px 10px; color:var(--dim);">${p.takim}</td>${cells}<td style="padding:8px 10px; text-align:center; font-weight:700; color:var(--accent);">${p.ortalama !== null ? p.ortalama.toFixed(1) : '—'}</td></tr>`;
   }).join('');
 
   const monthAverages = monthsSorted.map((mk,i) => { const vals = personRows.map(p => p.perMonth[i]).filter(v => v !== null); return vals.length ? avgOf(vals) : null; });
   const grandAvgVals = personRows.map(p => p.ortalama).filter(v => v !== null);
   const grandAvgVal = grandAvgVals.length ? avgOf(grandAvgVals) : null;
-  const totalCells = monthAverages.map(v => `<td style="padding:8px 10px; text-align:right; font-weight:700; color:var(--accent);">${v !== null ? v.toFixed(1) : '—'}</td>`).join('');
+  const totalCells = monthAverages.map(v => `<td style="padding:8px 10px; text-align:center; font-weight:700; color:var(--accent);">${v !== null ? v.toFixed(1) : '—'}</td>`).join('');
   const compareLabel = selectedTeamLeader === 'ALL' ? 'Lokasyon' : selectedTeamLeader;
-  bodyHtml += `<tr style="border-top:2px solid var(--line);"><td style="padding:8px 10px; font-weight:700; color:var(--text);">${compareLabel} Ortalaması</td><td></td>${totalCells}<td style="padding:8px 10px; text-align:right; font-weight:700; color:var(--accent);">${grandAvgVal !== null ? grandAvgVal.toFixed(1) : '—'}</td></tr>`;
+  bodyHtml += `<tr style="border-top:2px solid var(--line);"><td style="padding:8px 10px; font-weight:700; color:var(--text);">${compareLabel} Ortalaması</td><td></td>${totalCells}<td style="padding:8px 10px; text-align:center; font-weight:700; color:var(--accent);">${grandAvgVal !== null ? grandAvgVal.toFixed(1) : '—'}</td></tr>`;
 
   return `
-    <div class="panel-body" style="padding:0 0 16px 0;"><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px;">${ppMetricHeroCard(compareLabel + ' Genel Ortalama', grandAvgVal)}</div></div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px; margin-bottom:16px;">${ppMetricHeroCard(compareLabel + ' Genel Ortalama', grandAvgVal)}</div>
     <div class="panel">
       <div class="panel-head">Seçili Personellerin Aylık Performans Puanları <span class="hint" style="font-weight:400;">${personRows.length} personel</span></div>
       <div class="panel-body" style="padding-top:0; overflow-x:auto;">
@@ -5273,9 +5379,9 @@ function renderPersonCardHtml(){
   const personAvg = avgOf(personRecs.map(r => r.performans).filter(v => v !== null));
 
   const activeMetrics = PP_METRICS.filter(m => selectedMetricsPP.has(m.key));
-  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Ay</th>${activeMetrics.map(m => `<th style="padding:8px 10px; text-align:right;">${m.label}</th>`).join('')}</tr>`;
+  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Ay</th>${activeMetrics.map(m => `<th style="padding:8px 10px; text-align:center;">${m.label}</th>`).join('')}</tr>`;
   const tbodyHtml = personRecs.map(r => {
-    const cells = activeMetrics.map(m => `<td style="padding:8px 10px; text-align:right; color:var(--dim);">${m.key === 'tesekkur' ? (r.tesekkur ? 'Evet' : 'Hayır') : formatMetricValuePP(r[m.key], m)}</td>`).join('');
+    const cells = activeMetrics.map(m => `<td style="padding:8px 10px; text-align:center; color:var(--text);">${m.key === 'tesekkur' ? (r.tesekkur ? 'Evet' : 'Hayır') : formatMetricValuePP(r[m.key], m)}</td>`).join('');
     const monthInfo = AVAILABLE_MONTHS.find(x => x.key === r.ay);
     return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px 10px; color:var(--text);">${monthInfo ? monthInfo.label : r.ay}</td>${cells}</tr>`;
   }).join('');
@@ -5293,7 +5399,14 @@ function renderPersonCardHtml(){
       ${ppMetricHeroCard('Lokasyon Ortalaması', locAvg)}
     </div>
     ${personRecs.length === 1 ? `<div class="panel" style="margin-bottom:16px;"><div class="panel-body">${renderPersonCommentHtml(personRecs, personel, takim, locAvg, teamAvg, personAvg)}</div></div>` : ''}
-    ${personRecs.length >= 2 ? `<div class="panel"><div class="panel-head">Personel / Takım / Lokasyon Ortalaması — Aylar Arası Trend</div><div class="panel-body" style="height:320px;"><canvas id="ppCardTrendCanvas"></canvas></div></div>` : ''}
+    ${personRecs.length >= 2 ? `
+    <div class="panel">
+      <div class="panel-head">${personel} — Aylar Arası Trend <span class="hint" style="font-weight:400;">5 slotun her biri için ayrı metrik ve grafik tipi seçin</span></div>
+      <div class="panel-body">
+        <div id="ppCardCh-selectors">${analizSlotSelectorsHtml('ppCardCh', ppCardSlots, PP_METRICS)}</div>
+        <div style="height:320px;"><canvas id="ppCardTrendCanvas"></canvas></div>
+      </div>
+    </div>` : ''}
   `;
 }
 function drawCardTrendChart(){
@@ -5305,25 +5418,19 @@ function drawCardTrendChart(){
   const monthsSorted = [...selectedMonths].sort();
   const personRecs = PERF_RECORDS.filter(r => r.sicil === sicil && monthsSorted.includes(r.ay)).sort((a,b) => a.ay.localeCompare(b.ay));
   if (personRecs.length < 2) return;
-  const takim = personRecs[personRecs.length - 1].takim;
-  const labels = personRecs.map(r => { const m = AVAILABLE_MONTHS.find(x => x.key === r.ay); return m ? m.label : r.ay; });
-  const teamValues = personRecs.map(r => { const vals = PERF_RECORDS.filter(x => x.ay === r.ay && x.takim === takim).map(x => x.performans).filter(v => v !== null); return vals.length ? avgOf(vals) : null; });
-  const locValues = personRecs.map(r => { const vals = PERF_RECORDS.filter(x => x.ay === r.ay).map(x => x.performans).filter(v => v !== null); return vals.length ? avgOf(vals) : null; });
   const chartTextColor = chartDimColor();
+  const labels = personRecs.map(r => { const m = AVAILABLE_MONTHS.find(x => x.key === r.ay); return m ? m.label : r.ay; });
+  const { datasets, scales } = analizBuildSlotDatasets(ppCardSlots, PP_METRICS, (metric) =>
+    personRecs.map(r => metric.key === 'tesekkur' ? (r.tesekkur ? 1 : 0) : r[metric.key])
+  );
+  scales.x = { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } };
+  if (!datasets.length) return;
   PP_CHART_INSTANCES.cardTrend = new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: personRecs[0].personel, data: personRecs.map(r => r.performans), borderColor: '#e8a53d', backgroundColor: 'rgba(232,165,61,0.15)', tension: 0.3 },
-        { label: `Takım Ortalaması (${takim})`, data: teamValues, borderColor: '#5b9cf6', backgroundColor: 'transparent', borderDash: [5,4], tension: 0.3 },
-        { label: 'Lokasyon Ortalaması', data: locValues, borderColor: '#3ddc97', backgroundColor: 'transparent', borderDash: [2,3], tension: 0.3 },
-      ],
-    },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
-      scales: { x: { ticks: { color: chartTextColor }, grid: { display: false } }, y: { ticks: { color: chartTextColor }, grid: { color: 'rgba(143,163,201,0.12)' } } },
+      plugins: { legend: { display: datasets.length > 1, position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
+      scales,
     },
   });
 }
@@ -5514,16 +5621,19 @@ function renderPpSubTabContent(){
     el.innerHTML = renderRankingViewHtml();
     const sel = document.getElementById('pp-rankMonthSelect');
     if (sel) sel.addEventListener('change', (e) => { ppRankMonth = e.target.value; renderPpSubTabContent(); });
+    wireAnalizSlotSelectors('ppRankCh', ppRankSlots, () => renderPpSubTabContent());
     drawRankingChart();
   } else if (ppSubTab === 'kiyaslama'){
     el.innerHTML = renderComparisonViewHtml();
   } else if (ppSubTab === 'kart'){
     el.innerHTML = renderPersonCardHtml();
+    wireAnalizSlotSelectors('ppCardCh', ppCardSlots, () => renderPpSubTabContent());
     drawCardTrendChart();
   } else if (ppSubTab === 'islem'){
     el.innerHTML = renderPpIslemHtml();
     wirePpIslemTab();
   }
+  playCountAnimations(el); // hero kartlardaki sayaçlar (data-count-target) - unutulursa hep "0" görünür
 }
 function renderAllViewsPP(){
   renderPpSubTabContent();
@@ -5552,6 +5662,15 @@ function renderPerformansTab(){
         </div>
       </div>
       <div class="panel-body" id="pp-monthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-body" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'siralama' ? 'pp-subtab-active' : ''}" data-ppsubtab="siralama" style="${ppSubTab === 'siralama' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Aylık Sıralama</button>
+        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'kiyaslama' ? 'pp-subtab-active' : ''}" data-ppsubtab="kiyaslama" style="${ppSubTab === 'kiyaslama' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Aylar Arası Kıyaslama</button>
+        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'kart' ? 'pp-subtab-active' : ''}" data-ppsubtab="kart" style="${ppSubTab === 'kart' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Personel Kartı</button>
+        ${islemAuthorized ? `<button class="refresh-btn pp-subtab-btn" data-ppsubtab="islem" style="${ppSubTab === 'islem' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Güncelleme</button>` : ''}
+      </div>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px;">
@@ -5585,15 +5704,6 @@ function renderPerformansTab(){
           <input class="search" id="pp-metricSearch" placeholder="Metrik ara…" style="margin-bottom:10px;">
           <div id="pp-metricList" style="max-height:135px; overflow-y:auto; display:flex; flex-direction:column; gap:2px;"></div>
         </div>
-      </div>
-    </div>
-
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-body" style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'siralama' ? 'pp-subtab-active' : ''}" data-ppsubtab="siralama" style="${ppSubTab === 'siralama' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Aylık Sıralama</button>
-        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'kiyaslama' ? 'pp-subtab-active' : ''}" data-ppsubtab="kiyaslama" style="${ppSubTab === 'kiyaslama' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Aylar Arası Kıyaslama</button>
-        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'kart' ? 'pp-subtab-active' : ''}" data-ppsubtab="kart" style="${ppSubTab === 'kart' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Personel Kartı</button>
-        ${islemAuthorized ? `<button class="refresh-btn pp-subtab-btn" data-ppsubtab="islem" style="${ppSubTab === 'islem' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Güncelleme</button>` : ''}
       </div>
     </div>
 
@@ -5910,13 +6020,22 @@ function computeSaglikOzeti(a, year){
   const tutanakM = a.found.tutanakM;
 
   // --- 1) Takım Lideri bazlı kıyaslama ---
+  // ÖNEMLİ: kişi sayısı PERSONNEL'in TAMAMINDAN sayılır (gerçek takım büyüklüğü) - ortalama
+  // performans ise SADECE sıralamaya uygun (6+ ay kıdemli, bu dönem verisi olan) kişilerden
+  // hesaplanır. Önceki sürümde ikisi karıştırılmıştı: kişi sayısı da eligible listesinden
+  // sayılıyordu, bu da gerçek takım büyüklüğünden daha düşük (yanıltıcı) bir sayı veriyordu.
   const takimMap = new Map(); // takimLideri -> { perfToplam, perfSayi, rapor, tutanak, kisiSayisi }
+  PERSONNEL.forEach(p => {
+    const takim = p.takimLideri || 'Bilinmiyor';
+    if (!takimMap.has(takim)) takimMap.set(takim, { takim, perfToplam: 0, perfSayi: 0, rapor: 0, tutanak: 0, kisiSayisi: 0 });
+    takimMap.get(takim).kisiSayisi++;
+  });
   a.perfListEligible.forEach(x => {
     const p = PERSONNEL.find(pp => pp.sicil === x.sicil);
     const takim = (p && p.takimLideri) ? p.takimLideri : 'Bilinmiyor';
     if (!takimMap.has(takim)) takimMap.set(takim, { takim, perfToplam: 0, perfSayi: 0, rapor: 0, tutanak: 0, kisiSayisi: 0 });
     const t = takimMap.get(takim);
-    t.perfToplam += x.val; t.perfSayi++; t.kisiSayisi++;
+    t.perfToplam += x.val; t.perfSayi++;
     const rv = a.personPeriodValue(x.sicil, raporM); if (rv !== null) t.rapor += rv;
     const tv = a.personPeriodValue(x.sicil, tutanakM); if (tv !== null) t.tutanak += tv;
   });
@@ -6326,7 +6445,7 @@ function renderAnalizContentHtml(){
       <div class="analiz-card-title">🩺 Genel Sağlık Özeti</div>
       <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:20px; align-items:start; margin-bottom:16px;">
         <div>
-          <div style="font-size:12.5px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">Takım Lideri Kıyaslama</div>
+          <div style="font-size:12.5px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">Takım Lideri Kıyaslama <span class="hint" style="text-transform:none; font-weight:400;">(Kişi = toplam takım büyüklüğü, Ort. Performans sadece 6+ ay kıdemli ve bu dönem verisi olanlardan hesaplanır)</span></div>
           ${takimRowsHtml ? `<table style="width:100%; border-collapse:collapse;">
             <thead><tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;">
               <th style="padding:6px 10px; text-align:left;">Takım</th><th style="text-align:center;">Kişi</th><th style="text-align:right;">Ort. Performans</th><th style="text-align:right;">Rapor</th><th style="text-align:right;">Tutanak</th>
