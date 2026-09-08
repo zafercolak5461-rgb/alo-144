@@ -375,9 +375,15 @@
     <div class="modal-box">
       <div class="modal-head">Sunum Oluştur</div>
       <div class="modal-body">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
-          <label for="pptBgColorPicker" class="hint" style="font-size:12.5px;">Sunum Arkaplan Rengi</label>
-          <input type="color" id="pptBgColorPicker" value="#141A44" style="width:40px; height:32px; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; padding:2px;">
+        <div style="display:flex; align-items:center; gap:20px; margin-bottom:16px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <label for="pptBgColorPicker" class="hint" style="font-size:12.5px;">Arkaplan Rengi</label>
+            <input type="color" id="pptBgColorPicker" value="#141A44" style="width:40px; height:32px; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; padding:2px;">
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <label for="pptTextColorPicker" class="hint" style="font-size:12.5px;">Yazı Rengi</label>
+            <input type="color" id="pptTextColorPicker" value="#FFFFFF" style="width:40px; height:32px; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; padding:2px;">
+          </div>
         </div>
         <div style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--line); padding-bottom:14px;">
           <button class="refresh-btn" id="pptTabPersonelBtn" style="flex:1;">👤 Personel Sunum</button>
@@ -2811,6 +2817,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
   const btn = document.getElementById('openPptModalBtn');
   const originalText = btn.textContent;
   const bgColorHex = (document.getElementById('pptBgColorPicker').value || '#141A44').replace('#', '').toUpperCase();
+  const textColorHex = (document.getElementById('pptTextColorPicker').value || '#FFFFFF').replace('#', '').toUpperCase();
 
   if (pptActiveTab === 'personel'){
     if (!selectedSicil){ alert('Önce sağ üstten bir personel seçin.'); return; }
@@ -2820,7 +2827,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generatePresentation(years, pptFindingsMode, bgColorHex);
+      await generatePresentation(years, pptFindingsMode, bgColorHex, textColorHex);
     } catch (e) {
       console.error(e);
       alert("Sunum oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -2836,7 +2843,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generateAnalizPresentation(year, month, bgColorHex);
+      await generateAnalizPresentation(year, month, bgColorHex, textColorHex);
     } catch (e) {
       console.error(e);
       alert("Analiz sunumu oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -2945,11 +2952,11 @@ function personelFindings(sicil, years, mode){
   return findings;
 }
 
-async function generatePresentation(selectedYears, findingsMode, bgColorHex){
+async function generatePresentation(selectedYears, findingsMode, bgColorHex, textColorHex){
   const mode = findingsMode || 'kisiye';
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p) return;
-  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = 'FFFFFF', DIM = '5D6572', LINE = 'E3E6EF';
+  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = textColorHex || 'FFFFFF', DIM = '5D6572', LINE = 'E3E6EF';
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_WIDE';
   pres.author = 'ZAFER ÇOLAK';
@@ -2969,7 +2976,7 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex){
     }
     s.addText('ALO 144 · PERSONEL KARNESİ', { x: 0.6, y: 2.7, w: 10, h: 0.4, fontFace: 'Consolas', fontSize: 13, color: ACCENT, bold: true, charSpacing: 2 });
     s.addText(p.adSoyad, { x: 0.6, y: 3.15, w: 11.5, h: 0.9, fontFace: 'Georgia', fontSize: 32, color: WHITE, bold: true });
-    s.addText(`Sicil ${p.sicil}   ·   ${p.gorevi || '—'}`, { x: 0.6, y: 3.95, w: 10, h: 0.4, fontFace: 'Arial', fontSize: 14, color: 'CADCFC' });
+    s.addText(`Sicil ${p.sicil}   ·   ${p.gorevi || '—'}`, { x: 0.6, y: 3.95, w: 10, h: 0.4, fontFace: 'Arial', fontSize: 14, color: WHITE });
     s.addText(`Hazırlanma tarihi: ${new Date().toLocaleDateString('tr-TR')}`, { x: 0.6, y: 6.7, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 10, color: DIM });
   }
 
@@ -3020,7 +3027,7 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex){
         const v = r ? r[metric.key] : null;
         const cls = has ? monthlyCardColorClass(metric.category, v) : '';
         const boxColor = { pos:'1C2944', neg:'1C2944', warn:'1C2944', '':'2A3A5C' }[cls] || '1C2944';
-        const textColor = { pos:'3ddc97', neg:'e85d5d', warn:'F5C451', '':'8FA3C9' }[cls] || 'FFFFFF';
+        const textColor = { pos:'3ddc97', neg:'e85d5d', warn:'F5C451', '':'8FA3C9' }[cls] || WHITE;
         const x = 0.4 + mi * (cardW + cardGap);
         s.addShape('roundRect', { x, y, w: cardW, h: cardH, rectRadius: 0.05, fill: { color: boxColor }, line: { color: '2A3A5C', width: 0.5 } });
         s.addText(fmtKarneVal(v), { x, y: y + 0.06, w: cardW, h: 0.3, align: 'center', fontFace: 'Georgia', fontSize: 11, bold: true, color: textColor });
@@ -3040,7 +3047,7 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex){
       [{ text:'', options:{ fill:{color:'4FC3F7'} } }, ...allYears.map(yr => ({ text:String(yr), options:{ bold:true, fill:{color:'4FC3F7'}, color:NAVY, align:'center', fontSize:9 } }))],
       [{ text:'Kişi', options:{ bold:true, color:WHITE, fontSize:9 } }, ...kisiVals.map((v,i) => {
         const cls = yearlySummaryColorClass(metric.category, v, lokVals[i]);
-        const c = { pos:'3ddc97', neg:'e85d5d', '':'FFFFFF' }[cls] || 'FFFFFF';
+        const c = { pos:'3ddc97', neg:'e85d5d', '':WHITE }[cls] || WHITE;
         return { text: fmtKarneVal(v), options:{ align:'center', color:c, fontSize:9, bold: cls !== '' } };
       })],
       [{ text:'Lokasyon', options:{ bold:true, color:WHITE, fontSize:9 } }, ...lokVals.map(v => ({ text: fmtKarneVal(v), options:{ align:'center', color:'8FA3C9', fontSize:9 } }))],
@@ -3098,8 +3105,8 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex){
             { type: 'line', data: [{ name: 'Lokasyon Ort.', labels: allLabels, values: allLok }], options: { chartColors: ['5B9CF6'] } },
           ], {
             x: chartX, y: chartY, w: chartW, h: chartH,
-            showLegend: true, legendPos: 'b', legendFontSize: 8, legendColor: 'FFFFFF',
-            catAxisLabelFontSize: 7, valAxisLabelFontSize: 8, catAxisLabelColor: 'FFFFFF', valAxisLabelColor: 'FFFFFF',
+            showLegend: true, legendPos: 'b', legendFontSize: 8, legendColor: WHITE,
+            catAxisLabelFontSize: 7, valAxisLabelFontSize: 8, catAxisLabelColor: WHITE, valAxisLabelColor: WHITE,
           });
         } catch(e){}
       }
@@ -3132,8 +3139,8 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex){
 }
 
 // ===== Analiz Sunumu (Analiz sekmesindeki bulguları kapsayan detaylı PPT) =====
-async function generateAnalizPresentation(year, month, bgColorHex){
-  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = 'FFFFFF', DIM = '5D6572';
+async function generateAnalizPresentation(year, month, bgColorHex, textColorHex){
+  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = textColorHex || 'FFFFFF', DIM = '5D6572';
   const OK = '3ddc97', DANGER = 'e85d5d', BLUE = '5b9cf6', WARN = 'F5C451';
   const a = computeAnaliz(year, month);
   const periodLabel = month === null ? `${year} (Tüm Yıl)` : `${TR_MONTHS[month]} ${year}`;
@@ -3151,7 +3158,7 @@ async function generateAnalizPresentation(year, month, bgColorHex){
     s.background = { color: DARK };
     s.addText('ALO 144 · ANALİZ RAPORU', { x: 0.6, y: 2.7, w: 10, h: 0.4, fontFace: 'Consolas', fontSize: 13, color: ACCENT, bold: true, charSpacing: 2 });
     s.addText(periodLabel, { x: 0.6, y: 3.15, w: 11.5, h: 0.9, fontFace: 'Georgia', fontSize: 32, color: WHITE, bold: true });
-    s.addText(`${a.aktifPersonel} aktif personel üzerinden hesaplanmıştır`, { x: 0.6, y: 3.95, w: 10, h: 0.4, fontFace: 'Arial', fontSize: 14, color: 'CADCFC' });
+    s.addText(`${a.aktifPersonel} aktif personel üzerinden hesaplanmıştır`, { x: 0.6, y: 3.95, w: 10, h: 0.4, fontFace: 'Arial', fontSize: 14, color: WHITE });
     s.addText(`Hazırlanma tarihi: ${new Date().toLocaleDateString('tr-TR')}`, { x: 0.6, y: 6.7, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 10, color: DIM });
   }
 
@@ -3170,7 +3177,7 @@ async function generateAnalizPresentation(year, month, bgColorHex){
       ['Toplam İş Günü', fmtKarneVal(a.toplamIsGunu)],
     ].filter(r => r[1] !== '—');
     const tblRows = rows.map(r => [
-      { text: r[0], options: { bold: true, color: 'CADCFC' } },
+      { text: r[0], options: { bold: true, color: WHITE } },
       { text: r[1], options: { align: 'right', color: ACCENT, bold: true } },
     ]);
     s.addTable(tblRows, Object.assign({ x: 0.6, y: 1.3, w: 8, rowH: 0.4 }, tableOpts));
@@ -3191,10 +3198,10 @@ async function generateAnalizPresentation(year, month, bgColorHex){
        { text: 'Tutanak', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } }],
       ...saglik.takimKarsilastirma.map(t => [
         { text: t.takim, options: { color: WHITE } },
-        { text: String(t.kisiSayisi), options: { align: 'center', color: 'CADCFC' } },
+        { text: String(t.kisiSayisi), options: { align: 'center', color: WHITE } },
         { text: fmtKarneVal(t.ortPerf), options: { align: 'right', color: ACCENT, bold: true } },
-        { text: fmtKarneVal(t.rapor), options: { align: 'right', color: 'CADCFC' } },
-        { text: fmtKarneVal(t.tutanak), options: { align: 'right', color: 'CADCFC' } },
+        { text: fmtKarneVal(t.rapor), options: { align: 'right', color: WHITE } },
+        { text: fmtKarneVal(t.tutanak), options: { align: 'right', color: WHITE } },
       ]),
     ];
     s.addTable(tblRows, Object.assign({ x: 0.5, y: 1.3, w: 11.5, rowH: 0.36 }, tableOpts));
@@ -3236,7 +3243,7 @@ async function generateAnalizPresentation(year, month, bgColorHex){
        { text: 'Personel', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY } },
        { text: 'Skor', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } }],
       ...dusukSkorlular.map((sk,i) => [
-        { text: String(i+1), options: { align: 'center', color: 'CADCFC' } },
+        { text: String(i+1), options: { align: 'center', color: WHITE } },
         { text: sk.name, options: { color: WHITE } },
         { text: String(sk.skor), options: { align: 'right', bold: true, color: sk.skor < 60 ? DANGER : sk.skor < 75 ? WARN : ACCENT } },
       ]),
@@ -3258,7 +3265,7 @@ async function generateAnalizPresentation(year, month, bgColorHex){
     ].filter(r => r[1]);
     if (rows.length){
       const tblRows = rows.map(r => [
-        { text: r[0], options: { bold: true, color: 'CADCFC' } },
+        { text: r[0], options: { bold: true, color: WHITE } },
         { text: r[1].name, options: { color: WHITE } },
         { text: fmtKarneVal(r[1].val), options: { align: 'right', color: ACCENT, bold: true } },
       ]);
@@ -3391,7 +3398,7 @@ async function generateAnalizPresentation(year, month, bgColorHex){
               const { left, right } = pick(r[1]);
               const fark = (left !== null && right !== null) ? right - left : null;
               return [
-                { text: r[0], options: { bold: true, color: 'CADCFC' } },
+                { text: r[0], options: { bold: true, color: WHITE } },
                 { text: fmtKarneVal(left) + r[2], options: { align: 'center', color: WHITE } },
                 { text: fmtKarneVal(right) + r[2], options: { align: 'center', color: WHITE } },
                 { text: fark !== null ? ((fark >= 0 ? '+' : '') + fmtKarneVal(fark) + r[2]) : '—', options: { align: 'center', color: fark !== null && fark >= 0 ? OK : DANGER, bold: true } },
@@ -3429,7 +3436,7 @@ async function generateAnalizPresentation(year, month, bgColorHex){
        { text: 'Personel', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY } },
        { text: 'Performans', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } }],
       ...a.dusukList.slice(0, 15).map((x,i) => [
-        { text: String(i+1), options: { align: 'center', color: 'CADCFC' } },
+        { text: String(i+1), options: { align: 'center', color: WHITE } },
         { text: x.name, options: { color: WHITE } },
         { text: fmtKarneVal(x.val), options: { align: 'right', color: DANGER, bold: true } },
       ]),
@@ -3467,7 +3474,7 @@ async function generateAnalizPresentation(year, month, bgColorHex){
       rows.push(['Bir Önceki Aya Göre', (delta >= 0 ? '+' : '') + fmtKarneVal(delta)]);
     }
     const tblRows = rows.map(r => [
-      { text: r[0], options: { bold: true, color: 'CADCFC' } },
+      { text: r[0], options: { bold: true, color: WHITE } },
       { text: String(r[1]), options: { align: 'right', color: ACCENT, bold: true } },
     ]);
     s.addTable(tblRows, Object.assign({ x: 0.6, y: 1.3, w: 8, rowH: 0.4 }, tableOpts));
