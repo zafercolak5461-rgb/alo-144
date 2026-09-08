@@ -244,7 +244,7 @@
   .analiz-marquee-track span{ margin-right:64px; }
 
   .id-badge{ font-size:13px; background: var(--panel2); border:1px solid var(--line); padding:3px 9px; border-radius:20px; margin-left:6px; }
-.islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only, .formatpanel-only, .pageaccess-only{ display:none !important; }
+.islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only, .formatpanel-only, .pageaccess-only, .performans-only{ display:none !important; }
 </style>
 </head>
 <body>
@@ -266,6 +266,7 @@
     <button class="sidebar-nav-item pageaccess-only" data-lefttab="genel">Genel Değerlendirme</button>
     <button class="sidebar-nav-item pageaccess-only" data-lefttab="parametre">Parametre</button>
     <button class="sidebar-nav-item analiz-only" data-lefttab="analiz">Analiz</button>
+    <button class="sidebar-nav-item performans-only" data-lefttab="performans">Personel Performansı</button>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn">Güncelleme</button>
     <button class="sidebar-nav-item yetki-only" data-lefttab="yetki">Yetki Atama</button>
   </aside>
@@ -463,6 +464,7 @@ let yetkiAuthorized = false;
 let sunumAuthorized = false;
 let excelAuthorized = false;
 let analizAuthorized = false;
+let performansAuthorized = false; // "Personel Performansı" - ALO-144'ten taşınan ayrı sekme, ayrı yetki (M sütunu)
 let yoneticiDetayAuthorized = false; // "Yönetici Detayı" göz ikonu (örn. +1 Vardiya otomatik notu) - K sütunu
 let formatPanelAuthorized = false; // "Excel Biçimlendirme" paneli - Excel yetkisinden BAĞIMSIZ ayrı izin, L sütunu
 let showYoneticiDetay = false; // göz ikonuna tıklanınca bu oturumda açık/kapalı durumu (varsayılan: gizli)
@@ -510,7 +512,7 @@ const PAGE_COLS_LAST_LETTER = PAGE_COLS[PAGE_COLS.length - 1].letter;
 const PAGE_ACCESS_LEFTTABS = PAGE_COLS.filter(c => c.page !== 'analiz');
 
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1:L1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1:M1000')}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
@@ -531,6 +533,7 @@ async function loadAuthTable(token){
       excel: isTrueVal(r[5]),
       yoneticiDetay: isTrueVal(r[10]), // K sütunu - "+1 Vardiya otomatik" gibi personelin görmemesi gereken teknik notların göz ikonu
       excelBicimlendirme: isTrueVal(r[11]), // L sütunu - Excel export yetkisinden AYRI, sadece Biçimlendirme panelini açabilme izni
+      performans: isTrueVal(r[12]), // M sütunu - "Personel Performansı" (ALO-144'ten taşınan ayrı sekme, ayrı veri kaynağı)
     };
     // H sütunu (Personel Bilgileri) = 0-index 7'de başlıyor. Önceki "r[6+idx]" G sütunundan
     // (Analiz) başlayıp her PAGE_COLS alanını bir sütun SOLA kaydırıyordu - Personel
@@ -589,6 +592,7 @@ async function initIslemAccess(){
     sunumAuthorized = isFixedAdmin || !!(myRow && myRow.sunum);
     excelAuthorized = isFixedAdmin || !!(myRow && myRow.excel);
     analizAuthorized = isFixedAdmin || !!(myRow && myRow.analiz);
+    performansAuthorized = isFixedAdmin || !!(myRow && myRow.performans);
     yoneticiDetayAuthorized = isFixedAdmin || !!(myRow && myRow.yoneticiDetay);
     formatPanelAuthorized = isFixedAdmin || !!(myRow && myRow.excelBicimlendirme);
 
@@ -602,7 +606,7 @@ async function initIslemAccess(){
     // BAĞIMSIZ çalışır - hiçbiri TRUE olmasa bile kişi belirli sekmeleri görebilmeli.
     applyPageAccess(myRow, isFixedAdmin);
 
-    if (!islemAuthorized && !yetkiAuthorized && !sunumAuthorized && !excelAuthorized && !analizAuthorized && !formatPanelAuthorized) return;
+    if (!islemAuthorized && !yetkiAuthorized && !sunumAuthorized && !excelAuthorized && !analizAuthorized && !formatPanelAuthorized && !performansAuthorized) return;
 
     document.querySelectorAll('.islem-only').forEach(el => { if (islemAuthorized) el.classList.remove('islem-only'); });
     document.querySelectorAll('.yetki-only').forEach(el => { if (yetkiAuthorized) el.classList.remove('yetki-only'); });
@@ -610,6 +614,7 @@ async function initIslemAccess(){
     document.querySelectorAll('.excel-only').forEach(el => { if (excelAuthorized) el.classList.remove('excel-only'); });
     document.querySelectorAll('.formatpanel-only').forEach(el => { if (formatPanelAuthorized) el.classList.remove('formatpanel-only'); });
     document.querySelectorAll('.analiz-only').forEach(el => { if (analizAuthorized) el.classList.remove('analiz-only'); });
+    document.querySelectorAll('.performans-only').forEach(el => { if (performansAuthorized) el.classList.remove('performans-only'); });
 
     if (islemAuthorized || yetkiAuthorized || sunumAuthorized){
       writeTokenClient = google.accounts.oauth2.initTokenClient({
@@ -3517,7 +3522,7 @@ async function loadVardiyaIzinCounts(){
     const months = parseMonthTabTitlesKarne(titles).filter(m =>
       m.year > IZIN_OTOMATIK_BASLANGIC.year || (m.year === IZIN_OTOMATIK_BASLANGIC.year && m.month >= IZIN_OTOMATIK_BASLANGIC.month)
     );
-    const counts = new Map();
+    const izinCounts = new Map();
     await Promise.allSettled(months.map(async m => {
       const range = `${m.tabName}!A1:ZZ500`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${VARDIYA_SHEET_ID}/values/${encodeURIComponent(range)}`;
@@ -3531,12 +3536,13 @@ async function loadVardiyaIzinCounts(){
         if (!sicil) continue;
         let dayCount = 0;
         for (let c = 4; c < row.length; c++){ // E sütunundan itibaren günler
-          if (String(row[c] || '').trim() === 'Yıllık İzin') dayCount++;
+          const cell = String(row[c] || '').trim();
+          if (cell === 'Yıllık İzin') dayCount++;
         }
-        counts.set(sicil, (counts.get(sicil) || 0) + dayCount);
+        izinCounts.set(sicil, (izinCounts.get(sicil) || 0) + dayCount);
       }
     }));
-    VARDIYA_IZIN_MAP = counts;
+    VARDIYA_IZIN_MAP = izinCounts;
   } catch(e){
     VARDIYA_IZIN_MAP = new Map(); // başarısızsa boş - eski statik davranışa döner
   }
@@ -3802,7 +3808,7 @@ sidebarEl.addEventListener('click', (e) => {
   if (!btn) return;
   selectedLeftTab = btn.dataset.lefttab;
   sidebarEl.querySelectorAll('[data-lefttab]').forEach(b => b.classList.toggle('active', b === btn));
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz'){
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'performans'){
     identityStrip.innerHTML = '';
     document.getElementById('marqueeWrap').style.display = 'none';
   } else {
@@ -3812,7 +3818,7 @@ sidebarEl.addEventListener('click', (e) => {
     document.getElementById('analizMarqueeWrap').style.display = 'none';
   }
   const searchStackWrap = document.getElementById('searchStackWrap');
-  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz') ? 'none' : '';
+  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz' || selectedLeftTab === 'performans') ? 'none' : '';
   renderContentArea();
 });
 document.getElementById('hamburgerBtn').addEventListener('click', () => {
@@ -3858,7 +3864,7 @@ document.addEventListener('click', (e) => {
 });
 
 function renderIdentityStrip(){
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz'){ identityStrip.innerHTML = ''; return; }
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'performans'){ identityStrip.innerHTML = ''; return; }
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p){ identityStrip.innerHTML = ''; return; }
   const avatarHtml = p.fotoUrl
@@ -4176,6 +4182,12 @@ function renderContentArea(){
     Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
     contentArea.innerHTML = renderAnalizTab();
     wireAnalizTab();
+    return;
+  }
+  if (selectedLeftTab === 'performans'){
+    Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
+    contentArea.innerHTML = renderPerformansTab();
+    wirePerformansTab();
     return;
   }
 
@@ -4670,6 +4682,1022 @@ function analizMonthsBetween(startDate, refDate){
 // Sadece SIRALAMA/LİDERLİK listelerinde (Top10, en çok/en az vb.) kullanılır - kişinin kendi
 // karnesinde ya da genel ortalamalarda bu kısıtlama YOK. İşe girişten itibaren 6 aydan az
 // çalışan personel sıralamalara dahil edilmez (yapay yüksek/düşük performansı önlemek için).
+// ===== PERSONEL PERFORMANSI (ALO-144'ten taşındı) =====
+// ALO-144 Dashboard'daki "Personel Performans" sayfasıyla AYNI veri kaynağı (PERF_SHEET_ID),
+// AYNI mantık (KKO/Anket/Sınav/ACHT metrikleri, Top7 kuralı, otomatik yorum üretici) - Personel
+// Karnesi'nin kendi Karne verisiyle HİÇ karışmaz, tamamen bağımsız çalışır. Kod ALO-144'ten
+// birebir taşındı, sadece Personel Karnesi'nin dinamik sekme mimarisine (renderXTab/wireXTab)
+// uyacak şekilde sarmalandı - iş mantığında hiçbir değişiklik yapılmadı.
+// AŞAMA 1 (bu ekleme): iskelet + veri çekme + Takım/Kişi/Metrik/Ay filtreleri.
+// AŞAMA 2-5 (sırada): Sıralama+Top7, Aylar Arası Kıyaslama, Kişi Kartı+yorum üretici, Güncelleme.
+
+const PERF_SHEET_ID = "1X37_Dk7DAYIZCls-ZudA5U7LOznX9eMdxPEadNqzqys";
+const PERSONEL_LISTESI_SHEET_ID = SHEET_ID; // ALO-144 ile ORTAK Personel Listesi
+
+// Yorum metninde hangi parametrenin "sorunlu" sayılacağını belirleyen eşikler.
+const PP_THRESHOLDS = {
+  kko: { negIf: v => v !== null && v < 97, label: 'KKO' },
+  anket: { negIf: v => v !== null && v < 4.75, label: 'Anket Değerlendirmesi' },
+  sinav: { negIf: v => v !== null && v < 90, label: 'Sınav Puanı' },
+  acht: { negIf: v => v !== null && v > 160, label: 'ACHT' },
+  rapor: { negIf: v => v !== null && v > 0, label: 'Rapor/Ücretsiz İzin' },
+  gecLogin: { negIf: v => v !== null && v > 0, label: 'Geç Login/Eksik Staff' },
+  saatlikIzin: { negIf: v => v !== null && v > 0, label: 'Saatlik İzin' },
+  yaziliUyari: { negIf: v => v !== null && v > 0, label: 'Yazılı Uyarı' }
+};
+const PP_PARAM_ORDER = ['kko','anket','rapor','gecLogin','sinav','acht','saatlikIzin','yaziliUyari'];
+const PP_REASON_PHRASES = {
+  kko: 'KKO puanının düşük olması', anket: 'anket puanının düşük olması', sinav: 'sınav puanının düşük olması',
+  acht: 'ACH değerlerinin olması gerekenden yüksek olması', rapor: 'rapor kullanımı olması',
+  gecLogin: 'geç login sürelerinin varlığı', saatlikIzin: 'saatlik izin kullanımı olması',
+  yaziliUyari: 'yazılı uyarı süreçlerinin uygulanması'
+};
+const PP_ACTION_PHRASES = {
+  kko: 'Çağrı alırken daha dikkatli olman', anket: 'Vatandaş memnuniyetini sağlamak adına gereken aksiyonu alman',
+  sinav: 'mevzuat notlarını gözden geçirerek bir sonraki sınavda yüksek puan almayı hedeflemen',
+  acht: 'vatandaşlarımızla görüşme sağlarken etkin dinleme yaparak, ilk kontakta çözüm sunarak daha kısa sürede çağrıyı sonlandırman',
+  rapor: 'rapor alma süreçlerini gözden geçirmen', gecLogin: 'hatta zamanında girmek için gereken aksiyonu alman',
+  saatlikIzin: 'saatlik izin kullandığında tamamlamasını yaparak eksik staff oluşmasının önüne geçmen',
+  yaziliUyari: 'çağrı ve operasyon kurallarına uyum sağlayarak yazılı uyarı süreçlerinin uygulanmasının önüne geçmen'
+};
+const PP_METRICS = [
+  { key:'kko', label:'KKO', type:'pct', agg:'avg' },
+  { key:'anket', label:'Anket Değerlendirmesi', type:'pct', agg:'avg' },
+  { key:'rapor', label:'Rapor/Ücretsiz İzin', type:'num', agg:'sum' },
+  { key:'gecLogin', label:'Geç Login/Eksik Staff', type:'num', agg:'sum' },
+  { key:'molaUyum', label:'Mola Planı Uyumu', type:'num', agg:'sum' },
+  { key:'sinav', label:'Sınav Puanı', type:'pct', agg:'avg' },
+  { key:'acht', label:'ACHT', type:'num', agg:'avg' },
+  { key:'saatlikIzin', label:'Saatlik İzin', type:'num', agg:'sum' },
+  { key:'yaziliUyari', label:'Yazılı Uyarı', type:'num', agg:'sum' },
+  { key:'tesekkur', label:'Teşekkür Çağrısı', type:'num', agg:'sum' },
+  { key:'performans', label:'Performans Puanı', type:'pct', agg:'avg' }
+];
+
+let PERF_RECORDS = []; // { sicil, personel, takim, ay:'YYYY-MM', kko, anket, rapor, gecLogin, molaUyum, sinav, acht, saatlikIzin, yaziliUyari, tesekkur:bool, performans }
+let AVAILABLE_MONTHS = []; // [{year, month, key:'YYYY-MM', tabName, label}]
+let TAKIM_MAP = new Map(); // sicil -> {personel, takim} (Personel Listesi'nden)
+let TEAMS = [];
+let PERSONS = []; // [{sicil, personel, takim}]
+let selectedTeamLeader = 'ALL';
+let selectedPersons = new Set();
+let selectedMonths = new Set();
+let selectedMetricsPP = null; // null = henüz başlatılmadı
+let MONTHLY_DEFAULT_APPLIED_PP = false;
+let ppDataLoaded = false; // sekmeye ilk girişte otomatik "Yenile" tetiklemek için
+let ppSubTab = 'siralama'; // 'siralama' | 'kiyaslama' | 'kart' | 'islem' (Aşama 2-5'te doldurulacak)
+
+// ppParseNum: ALO-144'teki parseNum ile birebir aynı (Türkçe ondalık/binlik ayraç formatı).
+function ppParseNum(v){
+  if (v === '' || v === undefined || v === null) return null;
+  const n = parseFloat(String(v).replace(/\./g,'').replace(',','.'));
+  return isNaN(n) ? null : n;
+}
+
+function formatMetricValuePP(v, m){
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  if (m.type === 'pct'){
+    const rounded = Math.round(v * 10000) / 10000;
+    return String(rounded).replace('.', ',');
+  }
+  return Math.round(v).toLocaleString('tr-TR');
+}
+
+// Türkçe "X, Y ve Z" liste birleştirme - son öğeye istenirse bir ek (örn. "ndan") eklenir.
+function turkishList(items, lastSuffix){
+  if (!items.length) return '';
+  if (items.length === 1) return items[0] + (lastSuffix || '');
+  return items.slice(0, -1).join(', ') + ' ve ' + items[items.length - 1] + (lastSuffix || '');
+}
+
+// Kişinin performansını hem LOKASYON hem TAKIM ortalamasıyla AYRI AYRI kıyaslayan cümleyi üretir.
+function buildComparisonPhrase(personAvg, locAvg, teamAvg){
+  const locWord = (personAvg === null || locAvg === null) ? null : (personAvg >= locAvg ? 'üstünde' : 'altında');
+  const teamWord = (personAvg === null || teamAvg === null) ? null : (personAvg >= teamAvg ? 'üstünde' : 'altında');
+  if (locWord === null && teamWord === null) return 'performans puanının değerlendirildiği';
+  if (locWord === teamWord) return `lokasyon ve takım ortalama performans puanının ${locWord} bir performans sergilediği`;
+  if (locWord === null) return `takım ortalama performans puanının ${teamWord} bir performans sergilediği`;
+  if (teamWord === null) return `lokasyon ortalamasının ${locWord} bir performans sergilediği`;
+  return `lokasyon ortalamasının ${locWord} ancak takım ortalama performans puanının ${teamWord} bir performans sergilediği`;
+}
+
+// --- Personel Listesi'nden Sicil -> {personel, takim} eşlemesi (Karne'nin PERSONNEL'inden BAĞIMSIZ) ---
+async function fetchPersonelTakimMap(){
+  const range = "PERSONEL LİSTESİ!A1:C1000";
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERSONEL_LISTESI_SHEET_ID}/values/${encodeURIComponent(range)}`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error('Personel Listesi: ' + (data.error.message || 'Bilinmeyen API hatası'));
+  const values = data.values || [];
+  const map = new Map();
+  values.slice(1).forEach(row => {
+    if (!row[0]) return;
+    const sicil = String(row[0]).trim();
+    map.set(sicil, { personel: (row[1] || '').trim(), takim: (row[2] || '').trim() });
+  });
+  return map;
+}
+
+// --- Bir ay sekmesini çeker (OSMANİYE-PERFORMANS Sheet'i, A-O sabit 13 sütun) ---
+async function fetchPerformansMonth(monthInfo){
+  const range = `${monthInfo.tabName}!A1:O500`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${encodeURIComponent(range)}`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  if (data.error) {
+    const msg = data.error.message || '';
+    if (msg.includes('Unable to parse range')) {
+      const err = new Error('missing_tab');
+      err.isMissingTab = true;
+      throw err;
+    }
+    throw new Error(`${monthInfo.label}: ${msg || 'Bilinmeyen API hatası'}`);
+  }
+  const values = data.values || [];
+  if (values.length < 2) return [];
+  const records = [];
+  values.slice(1).forEach(row => {
+    if (!row[0]) return;
+    const sicil = String(row[0]).trim();
+    records.push({
+      sicil, personel: (row[1] || '').trim(), ay: monthInfo.key,
+      kko: ppParseNum(row[2]), anket: ppParseNum(row[3]), rapor: ppParseNum(row[4]),
+      gecLogin: ppParseNum(row[5]), molaUyum: ppParseNum(row[6]), sinav: ppParseNum(row[7]),
+      acht: ppParseNum(row[8]), saatlikIzin: ppParseNum(row[9]), yaziliUyari: ppParseNum(row[10]),
+      // L (index 11) = Yazılı Uyarı Çarpanı - KASITLI ATLANDI (ALO-144'te de gösterilmiyor)
+      tesekkur: (row[12] || '').trim() === 'Evet',
+      // N (index 13) = Teşekkür Çağrısı Çarpanı - KASITLI ATLANDI
+      performans: ppParseNum(row[14])
+    });
+  });
+  return records;
+}
+
+// --- Yenile: Personel Listesi + TÜM ay sekmelerini otomatik dener ---
+async function loadPersonelPerformans(){
+  const statusDot = document.getElementById('pp-statusDot');
+  const statusText = document.getElementById('pp-statusText');
+  const errorBox = document.getElementById('pp-errorBox');
+  const refreshBtn = document.getElementById('pp-refreshBtn');
+  refreshBtn.disabled = true;
+  refreshBtn.textContent = '⟳ Yenileniyor…';
+  statusDot.className = 'dot loading';
+  statusText.textContent = 'Personel Listesi ve performans ayları taranıyor…';
+  errorBox.style.display = 'none';
+
+  const errors = [];
+  try {
+    TAKIM_MAP = await fetchPersonelTakimMap();
+  } catch (e){
+    TAKIM_MAP = new Map();
+    errors.push(e.message);
+  }
+
+  try {
+    const titles = await fetchExistingMonthTabsKarne(PERF_SHEET_ID);
+    AVAILABLE_MONTHS = parseMonthTabTitlesKarne(titles).map(m => ({ ...m, key: `${m.year}-${String(m.month + 1).padStart(2, '0')}` }));
+  } catch (e){
+    errors.push('Sekme listesi: ' + e.message);
+    AVAILABLE_MONTHS = [];
+  }
+
+  const results = await Promise.allSettled(AVAILABLE_MONTHS.map(m => fetchPerformansMonth(m)));
+  let allRecords = [];
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled'){
+      allRecords = allRecords.concat(r.value);
+    } else if (!(r.reason && r.reason.isMissingTab)){
+      errors.push(AVAILABLE_MONTHS[i].label + ': ' + r.reason.message);
+    }
+  });
+
+  // Personel Listesi'nde ARTIK OLMAYAN (işten ayrılmış) sicillerin geçmiş kayıtları elenir.
+  allRecords = allRecords.filter(r => TAKIM_MAP.has(r.sicil));
+  allRecords.forEach(r => {
+    const info = TAKIM_MAP.get(r.sicil);
+    r.takim = (info && info.takim) || '(Bilinmiyor)';
+  });
+  PERF_RECORDS = allRecords;
+
+  if (errors.length){
+    errorBox.style.display = 'block';
+    errorBox.textContent = 'Bazı veriler çekilemedi: ' + errors.join(' | ');
+  } else {
+    errorBox.style.display = 'none';
+  }
+
+  const okCount = AVAILABLE_MONTHS.length;
+  statusDot.className = errors.length ? 'dot err' : 'dot';
+  statusText.textContent = `Bağlantı başarılı — ${PERF_RECORDS.length.toLocaleString('tr-TR')} kayıt (${okCount} ay bulundu)`;
+  refreshBtn.disabled = false;
+  refreshBtn.textContent = '⟳ Yenile';
+  ppDataLoaded = true;
+
+  rebuildTeamsAndPersonsPP();
+  initMonthChipsPP();
+  renderAllViewsPP();
+}
+
+// --- Takım ve personel listelerini Personel Listesi'nden (TAKIM_MAP) yeniden kurar ---
+function rebuildTeamsAndPersonsPP(){
+  const teamSet = new Set();
+  PERSONS = [...TAKIM_MAP.entries()]
+    .map(([sicil, v]) => ({ sicil, personel: v.personel, takim: v.takim || '(Bilinmiyor)' }))
+    .filter(p => p.personel)
+    .sort((a,b) => a.personel.localeCompare(b.personel, 'tr'));
+  PERSONS.forEach(p => { if (p.takim && p.takim !== '(Bilinmiyor)') teamSet.add(p.takim); });
+  TEAMS = [...teamSet].sort((a,b) => a.localeCompare(b, 'tr'));
+  if (!TEAMS.includes(selectedTeamLeader)) selectedTeamLeader = 'ALL';
+  renderTeamListPP();
+  refreshPersonnelForTeamPP();
+  initMetricsPP();
+}
+
+// --- Takım Lideri (tekli seçim, aranabilir) ---
+function renderTeamListPP(){
+  const el = document.getElementById('pp-teamList');
+  if (!el) return;
+  if (!TEAMS.length){ el.innerHTML = `<div class="empty-state">Önce Yenile'ye basın.</div>`; return; }
+  const q = document.getElementById('pp-teamSearch').value.trim().toLowerCase();
+  const filteredTeams = q ? TEAMS.filter(t => t.toLowerCase().includes(q)) : TEAMS;
+  const items = ['ALL', ...filteredTeams];
+  el.innerHTML = items.map(t => {
+    const label = t === 'ALL' ? 'Tümü' : t;
+    const active = selectedTeamLeader === t;
+    return `<div class="month-chip ${active ? 'active' : ''}" data-team="${t}" style="width:100%; text-align:left; cursor:pointer;">${label}</div>`;
+  }).join('');
+}
+function visiblePersonsForTeamPP(){
+  return selectedTeamLeader === 'ALL' ? PERSONS : PERSONS.filter(p => p.takim === selectedTeamLeader);
+}
+function refreshPersonnelForTeamPP(){
+  const visible = visiblePersonsForTeamPP();
+  selectedPersons = new Set(visible.map(p => p.sicil));
+  renderPersonListPP();
+  renderAllViewsPP();
+}
+
+// --- Personel (çoklu seçim, Takım Lideri'ne bağımlı, aranabilir) ---
+function renderPersonListPP(){
+  const el = document.getElementById('pp-personList');
+  if (!el) return;
+  const visible = visiblePersonsForTeamPP();
+  if (!visible.length){ el.innerHTML = `<div class="empty-state">${PERSONS.length ? 'Bu takımda personel yok.' : "Önce Yenile'ye basın."}</div>`; return; }
+  const q = document.getElementById('pp-personSearch').value.trim().toLowerCase();
+  const filtered = q ? visible.filter(p => p.personel.toLowerCase().includes(q)) : visible;
+  el.innerHTML = filtered.map(p => {
+    const checked = selectedPersons.has(p.sicil) ? 'checked' : '';
+    return `<label style="display:flex; align-items:center; gap:8px; padding:4px 6px; font-size:12.5px; color:var(--dim); cursor:pointer;">
+      <input type="checkbox" data-sicil="${p.sicil}" ${checked} style="cursor:pointer;">
+      ${p.personel} <span style="color:var(--dim2); font-family:'IBM Plex Mono',monospace; font-size:10px;">(${p.sicil})</span>
+    </label>`;
+  }).join('');
+}
+
+// --- Metrik Filtresi (çoklu seçim, sabit liste, aranabilir) ---
+function initMetricsPP(){
+  if (selectedMetricsPP === null) selectedMetricsPP = new Set(PP_METRICS.map(m => m.key));
+  renderMetricListPP();
+}
+function renderMetricListPP(){
+  const el = document.getElementById('pp-metricList');
+  if (!el) return;
+  const q = document.getElementById('pp-metricSearch').value.trim().toLowerCase();
+  const options = PP_METRICS.filter(m => !q || m.label.toLowerCase().includes(q));
+  if (!options.length){ el.innerHTML = `<div class="empty-state">Eşleşen metrik yok.</div>`; return; }
+  el.innerHTML = options.map(m => {
+    const checked = selectedMetricsPP.has(m.key) ? 'checked' : '';
+    return `<label style="display:flex; align-items:center; gap:8px; padding:4px 6px; font-size:12.5px; color:var(--dim); cursor:pointer;">
+      <input type="checkbox" data-metric="${m.key}" ${checked} style="cursor:pointer;"> ${m.label}
+    </label>`;
+  }).join('');
+}
+
+// --- Ay Seçimi (çoklu, global - tüm alt görünümler bunu kullanır) ---
+function initMonthChipsPP(){
+  renderMonthChipsPP();
+}
+function renderMonthChipsPP(){
+  const el = document.getElementById('pp-monthChips');
+  const yearFilterEl = document.getElementById('pp-yearFilter');
+  if (!el || !yearFilterEl) return;
+  if (!AVAILABLE_MONTHS.length){ el.innerHTML = `<div class="empty-state">Önce Yenile'ye basın.</div>`; return; }
+
+  const years = [...new Set(AVAILABLE_MONTHS.map(m => m.year))].sort((a,b) => b - a);
+  const isFirstRender = !MONTHLY_DEFAULT_APPLIED_PP;
+  const currentYear = new Date().getFullYear();
+  const prevYearFilter = isFirstRender
+    ? (years.includes(currentYear) ? String(currentYear) : 'all')
+    : (yearFilterEl.value || 'all');
+  yearFilterEl.innerHTML = '<option value="all">Tüm Yıllar</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if ([...yearFilterEl.options].some(o => o.value === prevYearFilter)) yearFilterEl.value = prevYearFilter;
+
+  if (isFirstRender){
+    MONTHLY_DEFAULT_APPLIED_PP = true;
+    const currentYearMonths = AVAILABLE_MONTHS.filter(m => m.year === currentYear);
+    (currentYearMonths.length ? currentYearMonths : AVAILABLE_MONTHS.slice(-3)).forEach(m => selectedMonths.add(m.key));
+  }
+
+  const activeYearFilter = yearFilterEl.value;
+  const visibleMonths = activeYearFilter === 'all' ? AVAILABLE_MONTHS : AVAILABLE_MONTHS.filter(m => String(m.year) === activeYearFilter);
+  el.innerHTML = visibleMonths.length ? visibleMonths.map(m => {
+    const active = selectedMonths.has(m.key) ? 'active' : '';
+    return `<button class="month-chip ${active}" data-month="${m.key}">${m.label}</button>`;
+  }).join('') : `<div class="empty-state">Bu yıl için veri yok.</div>`;
+}
+
+// AŞAMA 2-4'te dolduruluyor (Sıralama/Kıyaslama/Kart) - şimdilik sadece filtre alanlarının
+// (Takım/Kişi/Metrik/Ay) doğru çalıştığını göstermek için basit bir özet gösteriyor.
+// --- Top7 kuralı (ALO-144'ten birebir - belirli sicilller programdan hariç tutuluyor) ---
+const TOP7_EXCLUDED_SICILS = new Set(['10893', '10889', '10923', '10871', '10862']);
+function fourTierSort(records){
+  return [...records].sort((a,b) => {
+    const p = (b.performans ?? -Infinity) - (a.performans ?? -Infinity);
+    if (p !== 0) return p;
+    const k = (b.kko ?? -Infinity) - (a.kko ?? -Infinity);
+    if (k !== 0) return k;
+    const an = (b.anket ?? -Infinity) - (a.anket ?? -Infinity);
+    if (an !== 0) return an;
+    return (b.sinav ?? -Infinity) - (a.sinav ?? -Infinity);
+  });
+}
+function computeRankedListWithTop7Rule(records){
+  const sorted = fourTierSort(records);
+  const eligible = sorted.filter(r => !TOP7_EXCLUDED_SICILS.has(r.sicil));
+  const top7 = eligible.slice(0, 7);
+  const top7Sicils = new Set(top7.map(r => r.sicil));
+  const rest = sorted.filter(r => !top7Sicils.has(r.sicil));
+  return [...top7, ...rest];
+}
+function isPersonInTop7(sicil, monthKey){
+  const monthRecords = PERF_RECORDS.filter(r => r.ay === monthKey);
+  if (!monthRecords.length) return false;
+  const ranked = computeRankedListWithTop7Rule(monthRecords);
+  return ranked.slice(0, 7).some(r => r.sicil === sicil);
+}
+
+// Performans Puanı'na göre sabit (temadan bağımsız) renk - yeşil/turuncu/kırmızı her zaman gerçek renkler olmalı.
+function ppColorForScore(perf){
+  if (perf === null) return 'var(--text)';
+  if (perf >= 90) return '#3ddc97';
+  if (perf >= 80) return '#e8a53d';
+  return '#e85d5d';
+}
+
+// Tek ay için tam yorum metnini üretir (4 senaryo: ilk 7 / sorunsuz-ilk7-değil / sorunlu-yüksek / sorunlu-düşük).
+function buildSingleMonthComment(r, personel, takim, locAvg, teamAvg, personAvg, monthLabel, isTop7){
+  const perf = r.performans;
+  const negatives = PP_PARAM_ORDER.filter(key => PP_THRESHOLDS[key] && PP_THRESHOLDS[key].negIf(r[key]));
+  const hasIssues = negatives.length > 0;
+  const cmp = buildComparisonPhrase(personAvg, locAvg, teamAvg);
+  const p1 = `Osmaniye lokasyonunda görev yapan personelin ${monthLabel} ayına ait performans verileri olumlu ve olumsuz yönleriyle değerlendirilmiştir.`;
+
+  if (isTop7){
+    const p2 = `Yapılan değerlendirmede personelin lokasyon ve takım ortalama performans puanının üzerinde bir performans sergilediği, üstün başarı göstererek ilk 7'ye girdiği ve performans primi almaya hak kazandığı tespit edilmiştir.`;
+    const p3 = `Performansının yüksek çıkması için gereken özveriyle çalışmanı takdir ediyor, bundan sonraki süreçte de aynı özveriyle çalışarak lokasyon için örnek personel olma yolundaki çalışmalarının devamını diliyorum.`;
+    const p4 = `İhtiyaç duyduğun her konuda yanında olacağımı, iş disiplini ve özverili çalışma anlayışından ödün vermeyeceğine inancımın tam olduğunu bilmeni ister, başarılarının devamını dilerim.`;
+    return [p1, p2, p3, p4];
+  }
+  if (!hasIssues){
+    const p2 = `Yapılan değerlendirmede personelin ${cmp}, tüm parametrelerden tam puan aldığı ve herhangi bir eksik çalışma verisi olmadığı tespit edilmiştir.`;
+    let p3 = `Performansının yüksek çıkması için gereken özveriyle çalışmanı takdir ediyor, bundan sonraki aylarda da gereken çalışma disiplininden ödün vermeden elde ettiğin başarıları üst seviyeye taşımanı temenni ediyorum.`;
+    if (r.tesekkur) p3 = `Teşekkür talebi alman ve vatandaşımızın memnuniyeti sağlaman takdir edilen bir durumdur. ` + p3;
+    return [p1, p2, p3];
+  }
+  const reasonList = turkishList(negatives.map(k => PP_REASON_PHRASES[k]), 'ndan');
+  const p2 = `Yapılan değerlendirmede personelin ${cmp}, puan kesintilerinin ${reasonList} kaynaklandığı, diğer parametrelerde sorun olmadığı tespit edilmiştir.`;
+  const actionList = negatives.map(k => PP_ACTION_PHRASES[k]);
+  const p3 = `${actionList.join(', ')}, diğer parametrelerdeki başarılı durumunu koruman bundan sonraki süreçte performans puanının daha yüksek seyretmesini sağlayacaktır.`;
+  let p4;
+  if (perf !== null && perf >= 90) p4 = `Lokasyon ve takım performans ortalamasının üzerinde performans sergilemek adına özverili çalışman için teşekkür eder başarılarının devamını dilerim.`;
+  else if (perf !== null && perf >= 80) p4 = `Gereken aksiyonu en kısa sürede alman son derece önemlidir.`;
+  else p4 = `Gereken aksiyonun alınmaması bundan sonraki süreçte önüne geçilemeyecek olumsuzluklara sebep verebileceği için dikkatini işine vermen ve daha özverili davranman son derece önemlidir.`;
+  if (r.tesekkur) p4 = `Tüm bu olumsuzluklara rağmen teşekkür talebi alman ve vatandaşımızın memnuniyeti sağlaman takdir edilen bir durum olmakla birlikte, ${p4.charAt(0).toLowerCase()}${p4.slice(1)}`;
+  return [p1, p2, p3, p4];
+}
+
+// Yorum kartının HTML'ini üretir (renderPersonCommentHtml) - tek ay (buildSingleMonthComment)
+// ya da çoklu ay (durum geçişi özeti) moduna göre.
+function renderPersonCommentHtml(personRecs, personel, takim, locAvg, teamAvg, personAvg){
+  const isLoc = selectedTeamLeader === 'ALL';
+  const compareLabel = isLoc ? 'lokasyon' : 'takım';
+  const compareAvg = isLoc ? locAvg : teamAvg;
+  function cmpPhrase(){
+    if (personAvg === null || compareAvg === null) return '';
+    const diff = personAvg - compareAvg;
+    return diff >= 0 ? `${compareLabel} ortalamasının ${Math.abs(diff).toFixed(1)} puan üzerinde` : `${compareLabel} ortalamasının ${Math.abs(diff).toFixed(1)} puan altında`;
+  }
+  if (personRecs.length === 1){
+    const r = personRecs[0];
+    const monthInfo = AVAILABLE_MONTHS.find(x => x.key === r.ay);
+    const monthLabel = monthInfo ? monthInfo.label : r.ay;
+    const isTop7 = isPersonInTop7(r.sicil, r.ay);
+    const paragraphs = buildSingleMonthComment(r, personel, takim, locAvg, teamAvg, personAvg, monthLabel, isTop7);
+    const color = ppColorForScore(r.performans);
+    const header = `<div style="font-weight:700; font-size:16px; letter-spacing:0.02em; margin-bottom:14px; color:var(--text);">${personel.toUpperCase()} <span style="color:var(--dim); font-weight:600; font-size:13px;">(SİCİL: ${r.sicil})</span></div>`;
+    return `${header}<div style="font-family:'IBM Plex Mono', monospace; font-size:13px; line-height:1.8; color:${color};">${paragraphs.map(p => `<p style="margin-bottom:10px;">${p}</p>`).join('')}</div>`;
+  }
+  const first = personRecs[0], last = personRecs[personRecs.length - 1];
+  const firstMonth = AVAILABLE_MONTHS.find(x => x.key === first.ay);
+  const lastMonth = AVAILABLE_MONTHS.find(x => x.key === last.ay);
+  const firstLabel = firstMonth ? firstMonth.label : first.ay;
+  const lastLabel = lastMonth ? lastMonth.label : last.ay;
+  const transitions = [];
+  Object.keys(PP_THRESHOLDS).forEach(key => {
+    const wasNeg = PP_THRESHOLDS[key].negIf(first[key]);
+    const isNeg = PP_THRESHOLDS[key].negIf(last[key]);
+    if (!wasNeg && isNeg) transitions.push(`${PP_THRESHOLDS[key].label} konusunda ${firstLabel} ayında sorun görülmezken, ${lastLabel} ayında bu durumun ortaya çıktığı`);
+    else if (wasNeg && !isNeg) transitions.push(`${PP_THRESHOLDS[key].label} konusunda ${firstLabel} ayındaki sorunun ${lastLabel} ayında giderildiği`);
+  });
+  let text = `📌 <b>${personel}</b> (Sicil: ${first.sicil}) — Osmaniye lokasyonunda görev yapan personelin, seçili aylar (${firstLabel} — ${lastLabel}) dikkate alındığında performans ortalamasının (${personAvg !== null ? personAvg.toFixed(1) : '—'}) ${cmpPhrase()} olduğu görülmüştür.`;
+  if (transitions.length){
+    text += ` Aylar arasında dikkat çeken değişiklikler: ${transitions.join('; ')}.`;
+    text += ` Belirtilen konularda aksiyon alınması, önümüzdeki süreçte performans puanının daha yüksek seyretmesini sağlayacaktır.`;
+  } else {
+    text += ` Değerlendirilen kriterlerde aylar arasında eşik değerini değiştiren belirgin bir geçiş tespit edilmemiştir.`;
+  }
+  const header = `<div style="font-weight:700; font-size:16px; letter-spacing:0.02em; margin-bottom:14px; color:var(--text);">${personel.toUpperCase()} <span style="color:var(--dim); font-weight:600; font-size:13px;">(SİCİL: ${first.sicil})</span></div>`;
+  return `${header}<div style="font-family:'IBM Plex Mono', monospace; font-size:13px; line-height:1.75; color:var(--text);">${text}</div>`;
+}
+
+let PP_CHART_INSTANCES = {};
+function destroyPpCharts(){
+  Object.keys(PP_CHART_INSTANCES).forEach(k => { try { PP_CHART_INSTANCES[k].destroy(); } catch(e){} delete PP_CHART_INSTANCES[k]; });
+}
+
+function ppMetricHeroCard(label, val, sub){
+  return `<div class="analiz-hero"><div class="ah-label">${label}</div><div class="ah-val"><span data-count-target="${val === null || val === undefined ? '' : val}" data-count-decimals="1">0</span></div>${sub ? `<div class="ah-sub">${sub}</div>` : ''}</div>`;
+}
+
+// ===== SEKME: Aylık Sıralama (+ Top7 kuralı) =====
+let ppRankMonth = null;
+function renderRankingViewHtml(){
+  const monthsSorted = [...selectedMonths].sort();
+  if (!monthsSorted.includes(ppRankMonth)) ppRankMonth = monthsSorted[monthsSorted.length - 1] || null;
+  const monthOptions = monthsSorted.length
+    ? monthsSorted.map(mk => { const m = AVAILABLE_MONTHS.find(x => x.key === mk); return `<option value="${mk}" ${mk === ppRankMonth ? 'selected' : ''}>${m ? m.label : mk}</option>`; }).join('')
+    : `<option value="">Ay seçin</option>`;
+
+  if (!ppRankMonth){
+    return `
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-head">Sıralama Ayı<div><select class="search" id="pp-rankMonthSelect" style="width:auto; padding:6px 10px;">${monthOptions}</select></div></div>
+        <div class="panel-body"><div class="empty-state">Sıralama için Ay Seçimi'nden en az bir ay seçin.</div></div>
+      </div>`;
+  }
+
+  const records = PERF_RECORDS.filter(r => r.ay === ppRankMonth && selectedPersons.has(r.sicil));
+  const activeMetrics = PP_METRICS.filter(m => selectedMetricsPP.has(m.key));
+
+  if (!records.length){
+    return `
+      <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-head">Sıralama Ayı<div><select class="search" id="pp-rankMonthSelect" style="width:auto; padding:6px 10px;">${monthOptions}</select></div></div>
+        <div class="panel-body"><div class="empty-state">Seçili filtrelerde bu ay için veri yok.</div></div>
+      </div>`;
+  }
+
+  const sorted = computeRankedListWithTop7Rule(records);
+  const overallAvg = avgOf(records.map(r => r.performans).filter(v => v !== null));
+  const heroLabel = (selectedTeamLeader === 'ALL' ? 'Lokasyon' : selectedTeamLeader) + ' Performans Ortalaması';
+
+  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Sıra</th><th style="padding:8px 10px; text-align:left;">Personel</th><th style="padding:8px 10px; text-align:left;">Takım Lideri</th>${activeMetrics.map(m => `<th style="padding:8px 10px; text-align:right;">${m.label}</th>`).join('')}</tr>`;
+  const tbodyHtml = sorted.map((r,i) => {
+    const cells = activeMetrics.map(m => `<td style="padding:8px 10px; text-align:right; color:var(--dim);">${m.key === 'tesekkur' ? (r.tesekkur ? 'Evet' : 'Hayır') : formatMetricValuePP(r[m.key], m)}</td>`).join('');
+    return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px 10px; color:var(--accent); font-weight:700;">${i+1}${i < 7 && !TOP7_EXCLUDED_SICILS.has(r.sicil) ? ' 🏅' : ''}</td><td style="padding:8px 10px; color:var(--text);">${r.personel}</td><td style="padding:8px 10px; color:var(--dim);">${r.takim}</td>${cells}</tr>`;
+  }).join('');
+
+  return `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">Sıralama Ayı<div><select class="search" id="pp-rankMonthSelect" style="width:auto; padding:6px 10px;">${monthOptions}</select></div></div>
+      <div class="panel-body" style="padding-top:0;">
+        <div class="hint" style="margin-bottom:12px;">Sıralama: Performans Puanı → KKO → Anket → Sınav Puanı (kademeli). 🏅 = İlk 7 (performans primi).</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px; margin-bottom:16px;">${ppMetricHeroCard(heroLabel, overallAvg)}</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">Aylık Performans Sıralaması <span class="hint" style="font-weight:400;">${sorted.length} personel</span></div>
+      <div class="panel-body" style="padding-top:0; overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; min-width:600px;"><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">Grafik — Performans Puanı</div>
+      <div class="panel-body" style="height:320px;"><canvas id="ppRankChartCanvas"></canvas></div>
+    </div>
+  `;
+}
+function drawRankingChart(){
+  const canvas = document.getElementById('ppRankChartCanvas');
+  if (!canvas || !ppRankMonth) return;
+  const records = PERF_RECORDS.filter(r => r.ay === ppRankMonth && selectedPersons.has(r.sicil));
+  if (!records.length) return;
+  const sorted = computeRankedListWithTop7Rule(records);
+  const chartTextColor = chartDimColor();
+  PP_CHART_INSTANCES.rank = new Chart(canvas, {
+    type: 'bar',
+    data: { labels: sorted.map(r => r.personel), datasets: [{ label: 'Performans Puanı', data: sorted.map(r => r.performans), backgroundColor: sorted.map((r,i) => i < 7 && !TOP7_EXCLUDED_SICILS.has(r.sicil) ? '#3ddc97' : '#5b9cf6') }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: chartTextColor, font: { size: 10 } }, grid: { display: false } }, y: { ticks: { color: chartTextColor }, grid: { color: 'rgba(143,163,201,0.12)' } } },
+    },
+  });
+}
+
+// ===== SEKME: Aylar Arası Kıyaslama =====
+function renderComparisonViewHtml(){
+  const monthsSorted = [...selectedMonths].sort();
+  if (monthsSorted.length < 2){
+    return `<div class="panel"><div class="panel-body"><div class="empty-state">Kıyaslamak için Ay Seçimi'nden en az 2 ay seçin.</div></div></div>`;
+  }
+  const monthLabels = monthsSorted.map(mk => { const m = AVAILABLE_MONTHS.find(x => x.key === mk); return m ? m.label : mk; });
+  const personRows = [...selectedPersons].map(sicil => {
+    const personRecs = PERF_RECORDS.filter(r => r.sicil === sicil && monthsSorted.includes(r.ay));
+    if (!personRecs.length) return null;
+    const perMonth = monthsSorted.map(mk => { const rec = personRecs.find(r => r.ay === mk); return rec ? rec.performans : null; });
+    const valid = perMonth.filter(v => v !== null);
+    return { sicil, personel: personRecs[0].personel, takim: personRecs[personRecs.length - 1].takim, perMonth, ortalama: valid.length ? avgOf(valid) : null };
+  }).filter(Boolean);
+
+  if (!personRows.length){
+    return `<div class="panel"><div class="panel-body"><div class="empty-state">Seçili filtrelerde veri yok.</div></div></div>`;
+  }
+  personRows.sort((a,b) => (b.ortalama ?? -Infinity) - (a.ortalama ?? -Infinity));
+
+  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Personel</th><th style="padding:8px 10px; text-align:left;">Takım Lideri</th>${monthLabels.map(l => `<th style="padding:8px 10px; text-align:right;">${l}</th>`).join('')}<th style="padding:8px 10px; text-align:right;">Ortalama</th></tr>`;
+  let bodyHtml = personRows.map(p => {
+    const cells = p.perMonth.map(v => `<td style="padding:8px 10px; text-align:right; color:var(--dim);">${v !== null ? v.toFixed(1) : '—'}</td>`).join('');
+    return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px 10px; color:var(--text);">${p.personel}</td><td style="padding:8px 10px; color:var(--dim);">${p.takim}</td>${cells}<td style="padding:8px 10px; text-align:right; font-weight:700; color:var(--accent);">${p.ortalama !== null ? p.ortalama.toFixed(1) : '—'}</td></tr>`;
+  }).join('');
+
+  const monthAverages = monthsSorted.map((mk,i) => { const vals = personRows.map(p => p.perMonth[i]).filter(v => v !== null); return vals.length ? avgOf(vals) : null; });
+  const grandAvgVals = personRows.map(p => p.ortalama).filter(v => v !== null);
+  const grandAvgVal = grandAvgVals.length ? avgOf(grandAvgVals) : null;
+  const totalCells = monthAverages.map(v => `<td style="padding:8px 10px; text-align:right; font-weight:700; color:var(--accent);">${v !== null ? v.toFixed(1) : '—'}</td>`).join('');
+  const compareLabel = selectedTeamLeader === 'ALL' ? 'Lokasyon' : selectedTeamLeader;
+  bodyHtml += `<tr style="border-top:2px solid var(--line);"><td style="padding:8px 10px; font-weight:700; color:var(--text);">${compareLabel} Ortalaması</td><td></td>${totalCells}<td style="padding:8px 10px; text-align:right; font-weight:700; color:var(--accent);">${grandAvgVal !== null ? grandAvgVal.toFixed(1) : '—'}</td></tr>`;
+
+  return `
+    <div class="panel-body" style="padding:0 0 16px 0;"><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px;">${ppMetricHeroCard(compareLabel + ' Genel Ortalama', grandAvgVal)}</div></div>
+    <div class="panel">
+      <div class="panel-head">Seçili Personellerin Aylık Performans Puanları <span class="hint" style="font-weight:400;">${personRows.length} personel</span></div>
+      <div class="panel-body" style="padding-top:0; overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; min-width:600px;"><thead>${theadHtml}</thead><tbody>${bodyHtml}</tbody></table>
+      </div>
+    </div>
+  `;
+}
+
+// ===== SEKME: Personel Kartı (tek personel seçiliyken anlamlı) =====
+function renderPersonCardHtml(){
+  const selected = [...selectedPersons];
+  if (!PERF_RECORDS.length){
+    return `<div class="panel"><div class="panel-body"><div class="empty-state">Veriyi görüntülemek için "Yenile"ye basın.</div></div></div>`;
+  }
+  if (selected.length !== 1){
+    return `<div class="panel"><div class="panel-body"><div class="empty-state">Bu görünüm sadece TEK bir personel seçiliyken anlamlıdır. Şu an ${selected.length === 0 ? 'hiç personel' : selected.length + ' personel'} seçili — soldaki Personel listesinden tek bir kişi seçin.</div></div></div>`;
+  }
+  const sicil = selected[0];
+  const monthsSorted = [...selectedMonths].sort();
+  const personRecs = PERF_RECORDS.filter(r => r.sicil === sicil && monthsSorted.includes(r.ay)).sort((a,b) => a.ay.localeCompare(b.ay));
+  if (!personRecs.length){
+    return `<div class="panel"><div class="panel-body"><div class="empty-state">Seçili ay(lar) için bu personele ait veri yok.</div></div></div>`;
+  }
+  const personel = personRecs[0].personel;
+  const takim = personRecs[personRecs.length - 1].takim;
+  const locRecs = PERF_RECORDS.filter(r => monthsSorted.includes(r.ay));
+  const teamRecs = locRecs.filter(r => r.takim === takim);
+  const locAvg = avgOf(locRecs.map(r => r.performans).filter(v => v !== null));
+  const teamAvg = avgOf(teamRecs.map(r => r.performans).filter(v => v !== null));
+  const personAvg = avgOf(personRecs.map(r => r.performans).filter(v => v !== null));
+
+  const activeMetrics = PP_METRICS.filter(m => selectedMetricsPP.has(m.key));
+  const theadHtml = `<tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;"><th style="padding:8px 10px; text-align:left;">Ay</th>${activeMetrics.map(m => `<th style="padding:8px 10px; text-align:right;">${m.label}</th>`).join('')}</tr>`;
+  const tbodyHtml = personRecs.map(r => {
+    const cells = activeMetrics.map(m => `<td style="padding:8px 10px; text-align:right; color:var(--dim);">${m.key === 'tesekkur' ? (r.tesekkur ? 'Evet' : 'Hayır') : formatMetricValuePP(r[m.key], m)}</td>`).join('');
+    const monthInfo = AVAILABLE_MONTHS.find(x => x.key === r.ay);
+    return `<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px 10px; color:var(--text);">${monthInfo ? monthInfo.label : r.ay}</td>${cells}</tr>`;
+  }).join('');
+
+  return `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">${personel} — Aylık Detay</div>
+      <div class="panel-body" style="padding-top:0; overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; min-width:500px;"><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px; margin-bottom:16px;">
+      ${ppMetricHeroCard(personel + ' — Ortalama Performans', personAvg)}
+      ${ppMetricHeroCard('Takım (' + takim + ') Ortalaması', teamAvg)}
+      ${ppMetricHeroCard('Lokasyon Ortalaması', locAvg)}
+    </div>
+    ${personRecs.length === 1 ? `<div class="panel" style="margin-bottom:16px;"><div class="panel-body">${renderPersonCommentHtml(personRecs, personel, takim, locAvg, teamAvg, personAvg)}</div></div>` : ''}
+    ${personRecs.length >= 2 ? `<div class="panel"><div class="panel-head">Personel / Takım / Lokasyon Ortalaması — Aylar Arası Trend</div><div class="panel-body" style="height:320px;"><canvas id="ppCardTrendCanvas"></canvas></div></div>` : ''}
+  `;
+}
+function drawCardTrendChart(){
+  const canvas = document.getElementById('ppCardTrendCanvas');
+  if (!canvas) return;
+  const selected = [...selectedPersons];
+  if (selected.length !== 1) return;
+  const sicil = selected[0];
+  const monthsSorted = [...selectedMonths].sort();
+  const personRecs = PERF_RECORDS.filter(r => r.sicil === sicil && monthsSorted.includes(r.ay)).sort((a,b) => a.ay.localeCompare(b.ay));
+  if (personRecs.length < 2) return;
+  const takim = personRecs[personRecs.length - 1].takim;
+  const labels = personRecs.map(r => { const m = AVAILABLE_MONTHS.find(x => x.key === r.ay); return m ? m.label : r.ay; });
+  const teamValues = personRecs.map(r => { const vals = PERF_RECORDS.filter(x => x.ay === r.ay && x.takim === takim).map(x => x.performans).filter(v => v !== null); return vals.length ? avgOf(vals) : null; });
+  const locValues = personRecs.map(r => { const vals = PERF_RECORDS.filter(x => x.ay === r.ay).map(x => x.performans).filter(v => v !== null); return vals.length ? avgOf(vals) : null; });
+  const chartTextColor = chartDimColor();
+  PP_CHART_INSTANCES.cardTrend = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: personRecs[0].personel, data: personRecs.map(r => r.performans), borderColor: '#e8a53d', backgroundColor: 'rgba(232,165,61,0.15)', tension: 0.3 },
+        { label: `Takım Ortalaması (${takim})`, data: teamValues, borderColor: '#5b9cf6', backgroundColor: 'transparent', borderDash: [5,4], tension: 0.3 },
+        { label: 'Lokasyon Ortalaması', data: locValues, borderColor: '#3ddc97', backgroundColor: 'transparent', borderDash: [2,3], tension: 0.3 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: chartTextColor, font: { size: 11 } } } },
+      scales: { x: { ticks: { color: chartTextColor }, grid: { display: false } }, y: { ticks: { color: chartTextColor }, grid: { color: 'rgba(143,163,201,0.12)' } } },
+    },
+  });
+}
+
+// ===== SEKME: Güncelleme (veri girişi) - sadece "Güncelleme" (islemAuthorized) yetkisi olanlar =====
+const PP_EDIT_COLS = [
+  { letter:'C', label:'KKO' }, { letter:'D', label:'Anket Değerlendirmesi' }, { letter:'E', label:'Rapor/Ücretsiz İzin' },
+  { letter:'F', label:'Geç Login/Eksik Staff' }, { letter:'G', label:'Mola Planı Uyumu' }, { letter:'H', label:'Sınav Puanı' },
+  { letter:'I', label:'ACHT' }, { letter:'J', label:'Saatlik İzin' }, { letter:'K', label:'Yazılı Uyarı' },
+  { letter:'L', label:'Yazılı Uyarı Çarpanı' }, { letter:'M', label:'Teşekkür Çağrısı (Evet/Hayır)' },
+  { letter:'N', label:'Teşekkür Çağrısı Çarpanı' }, { letter:'O', label:'Performans Puanı' },
+];
+function ppColIndex(letter){ return letter.charCodeAt(0) - 65; }
+function ppCellRaw(row, i){ return row[i] !== undefined ? row[i] : ''; }
+
+let ppIslemYear = null;
+let ppIslemMonthInfo = null;
+let ppIslemSicil = null;
+let ppIslemRowInfo = null; // 'loading' | 'missing_tab' | {exists,rowIndex,rowValues} | null
+let ppIslemSaving = false;
+
+async function readPPRowRaw(tabName, sicil, token){
+  const range = `${tabName}!A1:O1000`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${encodeURIComponent(range)}`;
+  const res = await authFetch(url, token);
+  const data = await res.json();
+  if (data.error){
+    const msg = data.error.message || '';
+    if (msg.includes('Unable to parse range')) return 'missing_tab';
+    throw new Error(msg || 'Bilinmeyen API hatası');
+  }
+  const values = data.values || [];
+  if (values.length < 1) return 'missing_tab';
+  let rowIndex = -1;
+  for (let i = 1; i < values.length; i++){
+    if (String(ppCellRaw(values[i], 0) || '').trim() === sicil){ rowIndex = i; break; }
+  }
+  return { exists: rowIndex !== -1, rowIndex, rowValues: rowIndex !== -1 ? values[rowIndex] : null, totalRows: values.length };
+}
+async function loadPpIslemRow(){
+  ppIslemRowInfo = 'loading';
+  renderPpSubTabContent();
+  try {
+    ppIslemRowInfo = await readPPRowRaw(ppIslemMonthInfo.tabName, ppIslemSicil);
+  } catch(e){
+    ppIslemRowInfo = null;
+    renderPpSubTabContent();
+    const wrap = document.getElementById('ppIslemFieldsWrap');
+    if (wrap) wrap.innerHTML = `<div class="error-box" style="display:block;">Veri okunamadı: ${e.message}</div>`;
+    return;
+  }
+  renderPpSubTabContent();
+}
+function maybeLoadPpIslemRow(){
+  ppIslemRowInfo = null;
+  if (ppIslemSicil && ppIslemMonthInfo) loadPpIslemRow(); else renderPpSubTabContent();
+}
+async function performPpIslemSave(){
+  if (ppIslemSaving || !ppIslemSicil || !ppIslemMonthInfo) return;
+  const statusEl = document.getElementById('ppIslemStatusMsg');
+  const saveBtn = document.getElementById('ppIslemSaveBtn');
+  ppIslemSaving = true;
+  if (saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Kaydediliyor…'; }
+  if (statusEl) statusEl.textContent = 'Yazma yetkisi kontrol ediliyor…';
+  try {
+    const token = await ensureWriteToken();
+    if (statusEl) statusEl.textContent = 'Güncel veri kontrol ediliyor…';
+    const fresh = await readPPRowRaw(ppIslemMonthInfo.tabName, ppIslemSicil, token);
+    if (fresh === 'missing_tab'){ ppIslemRowInfo = 'missing_tab'; renderPpSubTabContent(); return; }
+
+    const enteredValues = {};
+    document.querySelectorAll('[data-ppislemfield]').forEach(inp => { enteredValues[inp.dataset.ppislemfield] = inp.value; });
+    const changedFields = PP_EDIT_COLS.filter(c => {
+      const oldVal = fresh.rowValues ? String(fresh.rowValues[ppColIndex(c.letter)] || '') : '';
+      const newVal = String(enteredValues[c.letter] || '');
+      return oldVal !== newVal;
+    }).map(c => c.label);
+
+    const person = PERSONS.find(p => p.sicil === ppIslemSicil);
+    let result;
+    if (fresh.exists){
+      const rowArr = [...fresh.rowValues];
+      while (rowArr.length < 15) rowArr.push('');
+      PP_EDIT_COLS.forEach(c => { rowArr[ppColIndex(c.letter)] = enteredValues[c.letter]; });
+      const rowNumber = fresh.rowIndex + 1;
+      const updateRange = `${ppIslemMonthInfo.tabName}!A${rowNumber}:O${rowNumber}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${encodeURIComponent(updateRange)}?valueInputOption=USER_ENTERED`;
+      const res = await fetch(url, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ range: updateRange, majorDimension: 'ROWS', values: [rowArr] }) });
+      const putData = await res.json();
+      if (putData.error) throw new Error(putData.error.message || 'Güncelleme başarısız oldu.');
+      result = 'updated';
+    } else {
+      const rowArr = new Array(15).fill('');
+      rowArr[0] = ppIslemSicil;
+      rowArr[1] = person ? person.personel : '';
+      PP_EDIT_COLS.forEach(c => { rowArr[ppColIndex(c.letter)] = enteredValues[c.letter]; });
+      const appendRange = `${ppIslemMonthInfo.tabName}!A1`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${encodeURIComponent(appendRange)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+      const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ range: appendRange, majorDimension: 'ROWS', values: [rowArr] }) });
+      const postData = await res.json();
+      if (postData.error) throw new Error(postData.error.message || 'Yeni satır eklenemedi.');
+      result = 'appended';
+    }
+    if (statusEl) statusEl.textContent = (result === 'updated' ? '✓ Kaydedildi (mevcut satır güncellendi) — ' : '✓ Kaydedildi (yeni satır oluşturuldu) — ') + new Date().toLocaleTimeString('tr-TR');
+    sendLog({ type: 'kaydet', dashboard: 'Personel Karnesi', page: 'Personel Performansı', target: (person ? person.personel : ppIslemSicil) + ' — ' + ppIslemMonthInfo.label, fields: changedFields.join(', '), action: result === 'updated' ? 'Güncelleme' : 'Yeni Kayıt' });
+    await loadPpIslemRow();
+  } catch(e){
+    if (statusEl) statusEl.textContent = '✗ Hata: ' + e.message;
+  } finally {
+    ppIslemSaving = false;
+    const btn = document.getElementById('ppIslemSaveBtn');
+    if (btn){ btn.disabled = false; btn.textContent = '💾 Kaydet'; }
+  }
+}
+function renderPpIslemHtml(){
+  const years = [...new Set(AVAILABLE_MONTHS.map(m => m.year))].sort((a,b) => b - a);
+  const yearOptions = `<option value="">— Yıl seçin —</option>` + years.map(y => `<option value="${y}" ${y === ppIslemYear ? 'selected' : ''}>${y}</option>`).join('');
+  const monthsForYear = ppIslemYear ? AVAILABLE_MONTHS.filter(m => m.year === ppIslemYear).sort((a,b) => a.month - b.month) : [];
+  const monthOptions = `<option value="">${ppIslemYear ? '— Ay seçin —' : 'Önce yıl seçin'}</option>` + monthsForYear.map(m => `<option value="${m.key}" ${ppIslemMonthInfo && ppIslemMonthInfo.key === m.key ? 'selected' : ''}>${TR_MONTHS[m.month]}</option>`).join('');
+  const sortedPersons = [...PERSONS].sort((a,b) => a.personel.localeCompare(b.personel, 'tr'));
+  const personOptions = `<option value="">— Personel seçin —</option>` + sortedPersons.map(p => `<option value="${p.sicil}" ${p.sicil === ppIslemSicil ? 'selected' : ''}>${p.personel} (${p.sicil})</option>`).join('');
+
+  let fieldsHtml;
+  if (!AVAILABLE_MONTHS.length){
+    fieldsHtml = `<div class="hint">Önce "Yenile"ye basarak ay sekmelerini yükleyin.</div>`;
+  } else if (!ppIslemSicil || !ppIslemMonthInfo){
+    fieldsHtml = `<div class="hint">Personel ve ay seçtiğinizde metrik alanları burada görünecek.</div>`;
+  } else if (ppIslemRowInfo === 'loading'){
+    fieldsHtml = `<div class="hint">Veri kontrol ediliyor…</div>`;
+  } else if (ppIslemRowInfo === 'missing_tab'){
+    fieldsHtml = `<div class="error-box" style="display:block;">"${ppIslemMonthInfo.tabName}" sekmesi bulunamadı.</div>`;
+  } else if (ppIslemRowInfo){
+    fieldsHtml = `
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:14px; margin-bottom:20px;">
+        ${PP_EDIT_COLS.map(c => {
+          const raw = ppIslemRowInfo.rowValues ? (ppIslemRowInfo.rowValues[ppColIndex(c.letter)] || '') : '';
+          return `<div><div class="hint" style="margin-bottom:6px;">${c.label}</div><input class="search" data-ppislemfield="${c.letter}" value="${String(raw).replace(/"/g,'&quot;')}" placeholder="—"></div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <button class="refresh-btn" id="ppIslemSaveBtn" style="background:var(--accent-soft); color:var(--accent); border-color:var(--accent);">${ppIslemSaving ? 'Kaydediliyor…' : '💾 Kaydet'}</button>
+        <span id="ppIslemStatusMsg" class="hint"></span>
+      </div>`;
+  } else {
+    fieldsHtml = '';
+  }
+
+  return `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">Personel ve Ay Seçin</div>
+      <div class="panel-body" style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="min-width:120px;"><div class="hint" style="margin-bottom:6px;">Yıl</div><select class="search" id="ppIslemYearSelect">${yearOptions}</select></div>
+        <div style="min-width:140px;"><div class="hint" style="margin-bottom:6px;">Ay</div><select class="search" id="ppIslemMonthSelect" ${!ppIslemYear ? 'disabled' : ''}>${monthOptions}</select></div>
+        <div style="min-width:260px; flex:1;"><div class="hint" style="margin-bottom:6px;">Personel</div><select class="search" id="ppIslemPersonSelect">${personOptions}</select></div>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-head" style="display:${ppIslemRowInfo && ppIslemRowInfo !== 'loading' && ppIslemRowInfo !== 'missing_tab' ? '' : 'none'};">Metrikler</div><div class="panel-body" id="ppIslemFieldsWrap">${fieldsHtml}</div></div>
+  `;
+}
+function wirePpIslemTab(){
+  document.getElementById('ppIslemYearSelect').addEventListener('change', (e) => {
+    ppIslemYear = e.target.value ? parseInt(e.target.value, 10) : null;
+    ppIslemMonthInfo = null;
+    maybeLoadPpIslemRow();
+  });
+  document.getElementById('ppIslemMonthSelect').addEventListener('change', (e) => {
+    ppIslemMonthInfo = AVAILABLE_MONTHS.find(m => m.key === e.target.value) || null;
+    maybeLoadPpIslemRow();
+  });
+  document.getElementById('ppIslemPersonSelect').addEventListener('change', (e) => {
+    ppIslemSicil = e.target.value || null;
+    maybeLoadPpIslemRow();
+  });
+  const saveBtn = document.getElementById('ppIslemSaveBtn');
+  if (saveBtn) saveBtn.addEventListener('click', performPpIslemSave);
+}
+
+// ===== Alt sekme dispatcher =====
+function renderPpSubTabContent(){
+  const el = document.getElementById('pp-subTabContent');
+  if (!el) return;
+  destroyPpCharts();
+  if (!ppDataLoaded){
+    el.innerHTML = `<div class="empty-state" style="padding:60px;">Yukarıdan "Yenile"ye basarak veriyi çekin.</div>`;
+    return;
+  }
+  if (ppSubTab === 'siralama'){
+    el.innerHTML = renderRankingViewHtml();
+    const sel = document.getElementById('pp-rankMonthSelect');
+    if (sel) sel.addEventListener('change', (e) => { ppRankMonth = e.target.value; renderPpSubTabContent(); });
+    drawRankingChart();
+  } else if (ppSubTab === 'kiyaslama'){
+    el.innerHTML = renderComparisonViewHtml();
+  } else if (ppSubTab === 'kart'){
+    el.innerHTML = renderPersonCardHtml();
+    drawCardTrendChart();
+  } else if (ppSubTab === 'islem'){
+    el.innerHTML = renderPpIslemHtml();
+    wirePpIslemTab();
+  }
+}
+function renderAllViewsPP(){
+  renderPpSubTabContent();
+}
+
+function renderPerformansTab(){
+
+  return `
+    <div class="topbar" style="margin-bottom:24px;">
+      <div class="topbar-left"><div><div class="eyebrow">ALO 144 · PERSONEL PERFORMANSI</div><h1>Personel Performansı</h1></div></div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="refresh-btn" id="pp-refreshBtn">⟳ Yenile</button>
+        <span class="dot" id="pp-statusDot"></span>
+        <span class="hint" id="pp-statusText" style="font-size:12px;">Veri çekilmedi — Yenile'ye basın</span>
+      </div>
+    </div>
+    <div id="pp-errorBox" style="display:none;" class="error-box"></div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">
+        Ay Seçimi <span class="hint" style="font-weight:400; margin-left:8px;">bu veri günlük değil, aylık anlık görüntüdür</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <select class="search" id="pp-yearFilter" style="width:auto; padding:6px 10px;"><option value="all">Tüm Yıllar</option></select>
+          <button class="refresh-btn" id="pp-monthSelectAllBtn">Tümünü Seç</button>
+          <button class="refresh-btn" id="pp-monthClearBtn">Temizle</button>
+        </div>
+      </div>
+      <div class="panel-body" id="pp-monthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px;">
+      <div class="panel">
+        <div class="panel-head">Takım Lideri</div>
+        <div class="panel-body">
+          <input class="search" id="pp-teamSearch" placeholder="Takım lideri ara…" style="margin-bottom:10px;">
+          <div id="pp-teamList" style="max-height:170px; overflow-y:auto; display:flex; flex-direction:column; gap:3px;"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Personel
+          <span class="hint" style="display:flex; gap:8px; font-weight:400;">
+            <button class="refresh-btn" id="pp-personSelectAllBtn">Tümünü Seç</button>
+            <button class="refresh-btn" id="pp-personClearBtn">Temizle</button>
+          </span>
+        </div>
+        <div class="panel-body">
+          <input class="search" id="pp-personSearch" placeholder="Personel ara…" style="margin-bottom:10px;">
+          <div id="pp-personList" style="max-height:135px; overflow-y:auto; display:flex; flex-direction:column; gap:2px;"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Metrik Filtresi
+          <span class="hint" style="display:flex; gap:8px; font-weight:400;">
+            <button class="refresh-btn" id="pp-metricSelectAllBtn">Tümünü Seç</button>
+            <button class="refresh-btn" id="pp-metricClearBtn">Temizle</button>
+          </span>
+        </div>
+        <div class="panel-body">
+          <input class="search" id="pp-metricSearch" placeholder="Metrik ara…" style="margin-bottom:10px;">
+          <div id="pp-metricList" style="max-height:135px; overflow-y:auto; display:flex; flex-direction:column; gap:2px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-body" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'siralama' ? 'pp-subtab-active' : ''}" data-ppsubtab="siralama" style="${ppSubTab === 'siralama' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Aylık Sıralama</button>
+        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'kiyaslama' ? 'pp-subtab-active' : ''}" data-ppsubtab="kiyaslama" style="${ppSubTab === 'kiyaslama' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Aylar Arası Kıyaslama</button>
+        <button class="refresh-btn pp-subtab-btn ${ppSubTab === 'kart' ? 'pp-subtab-active' : ''}" data-ppsubtab="kart" style="${ppSubTab === 'kart' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Personel Kartı</button>
+        ${islemAuthorized ? `<button class="refresh-btn pp-subtab-btn" data-ppsubtab="islem" style="${ppSubTab === 'islem' ? 'background:var(--accent-soft); color:var(--accent); border-color:var(--accent);' : ''}">Güncelleme</button>` : ''}
+      </div>
+    </div>
+
+    <div id="pp-subTabContent"></div>
+  `;
+}
+
+function wirePerformansTab(){
+  document.getElementById('pp-refreshBtn').addEventListener('click', () => loadPersonelPerformans());
+
+  document.getElementById('pp-teamSearch').addEventListener('input', () => renderTeamListPP());
+  document.getElementById('pp-teamList').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-team]');
+    if (!item) return;
+    selectedTeamLeader = item.dataset.team;
+    renderTeamListPP();
+    refreshPersonnelForTeamPP();
+  });
+
+  document.getElementById('pp-personSearch').addEventListener('input', () => renderPersonListPP());
+  document.getElementById('pp-personList').addEventListener('change', (e) => {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+    const sicil = cb.dataset.sicil;
+    if (cb.checked) selectedPersons.add(sicil); else selectedPersons.delete(sicil);
+    renderAllViewsPP();
+  });
+  document.getElementById('pp-personSelectAllBtn').addEventListener('click', () => {
+    visiblePersonsForTeamPP().forEach(p => selectedPersons.add(p.sicil));
+    renderPersonListPP();
+    renderAllViewsPP();
+  });
+  document.getElementById('pp-personClearBtn').addEventListener('click', () => {
+    visiblePersonsForTeamPP().forEach(p => selectedPersons.delete(p.sicil));
+    renderPersonListPP();
+    renderAllViewsPP();
+  });
+
+  document.getElementById('pp-metricSearch').addEventListener('input', () => renderMetricListPP());
+  document.getElementById('pp-metricList').addEventListener('change', (e) => {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+    const key = cb.dataset.metric;
+    if (cb.checked) selectedMetricsPP.add(key); else selectedMetricsPP.delete(key);
+    renderAllViewsPP();
+  });
+  document.getElementById('pp-metricSelectAllBtn').addEventListener('click', () => {
+    selectedMetricsPP = new Set(PP_METRICS.map(m => m.key));
+    renderMetricListPP();
+    renderAllViewsPP();
+  });
+  document.getElementById('pp-metricClearBtn').addEventListener('click', () => {
+    selectedMetricsPP.clear();
+    renderMetricListPP();
+    renderAllViewsPP();
+  });
+
+  document.getElementById('pp-yearFilter').addEventListener('change', () => {
+    const yearFilterEl = document.getElementById('pp-yearFilter');
+    selectedMonths.clear();
+    const target = yearFilterEl.value === 'all' ? AVAILABLE_MONTHS : AVAILABLE_MONTHS.filter(m => String(m.year) === yearFilterEl.value);
+    target.forEach(m => selectedMonths.add(m.key));
+    renderMonthChipsPP();
+    renderAllViewsPP();
+  });
+  document.getElementById('pp-monthChips').addEventListener('click', (e) => {
+    const btn = e.target.closest('.month-chip');
+    if (!btn) return;
+    const mk = btn.dataset.month;
+    if (selectedMonths.has(mk)) selectedMonths.delete(mk); else selectedMonths.add(mk);
+    renderMonthChipsPP();
+    renderAllViewsPP();
+  });
+  document.getElementById('pp-monthSelectAllBtn').addEventListener('click', () => {
+    AVAILABLE_MONTHS.forEach(m => selectedMonths.add(m.key));
+    renderMonthChipsPP();
+    renderAllViewsPP();
+  });
+  document.getElementById('pp-monthClearBtn').addEventListener('click', () => {
+    selectedMonths.clear();
+    renderMonthChipsPP();
+    renderAllViewsPP();
+  });
+
+  document.querySelectorAll('.pp-subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      ppSubTab = btn.dataset.ppsubtab;
+      renderContentArea(); // buton aktif stilini de güncellemek için tüm sekmeyi yeniden çizer
+    });
+  });
+
+  // Sekmeye ilk giriş - daha önce hiç yüklenmemişse otomatik Yenile
+  if (!ppDataLoaded){
+    renderAllViewsPP();
+    loadPersonelPerformans();
+  } else {
+    renderTeamListPP();
+    renderPersonListPP();
+    renderMetricListPP();
+    renderMonthChipsPP();
+    renderAllViewsPP();
+  }
+}
+
 function isEligibleForRanking(sicil, year, month){
   const p = PERSONNEL.find(x => x.sicil === sicil);
   if (!p || !p.iseGirisDate) return true;
@@ -4856,7 +5884,101 @@ function computeAnaliz(year, month){
     buckets, totalCount, monthlyTrend, dusukList, top10, dikkat, ozet, correlationNote,
     found: { perfM, raporM, tutanakM, gecLoginM, cagriM, isGunuM }, rankableMetrics,
     topNForMetric, sicilsInPeriod, eligibleSicils, recs,
+    perfListAll, perfListEligible, personPeriodValue,
   };
+}
+
+// ===== GENEL SAĞLIK ÖZETİ — Takım kıyaslama, bireysel trend uyarısı, kıdem bandı, birleşik
+// sağlık skoru. computeAnaliz()'in ürettiği veriyi (a) ve PERSONNEL'i kullanır - ayrı bir
+// Sheet okuması gerektirmez. =====
+
+// Bir personelin yılın tüm aylarındaki (seçili yıl içinde) performans değerlerini kronolojik
+// sırayla döndürür - trend uyarısı ve sağlık skoru hesaplamalarında ortak kullanılır.
+function personYearlyPerfSeries(sicil, year, perfM){
+  if (!perfM) return [];
+  return KARNE_MONTHS.filter(m => m.year === year).sort((a,b) => a.month - b.month)
+    .map(m => {
+      const rec = KARNE_RECORDS.find(r => r.sicil === sicil && r.yil === year && r.ayIndex === m.month);
+      return rec ? rec[perfM.key] : null;
+    })
+    .filter(v => v !== null && v !== undefined);
+}
+
+function computeSaglikOzeti(a, year){
+  const perfM = a.found.perfM;
+  const raporM = a.found.raporM;
+  const tutanakM = a.found.tutanakM;
+
+  // --- 1) Takım Lideri bazlı kıyaslama ---
+  const takimMap = new Map(); // takimLideri -> { perfToplam, perfSayi, rapor, tutanak, kisiSayisi }
+  a.perfListEligible.forEach(x => {
+    const p = PERSONNEL.find(pp => pp.sicil === x.sicil);
+    const takim = (p && p.takimLideri) ? p.takimLideri : 'Bilinmiyor';
+    if (!takimMap.has(takim)) takimMap.set(takim, { takim, perfToplam: 0, perfSayi: 0, rapor: 0, tutanak: 0, kisiSayisi: 0 });
+    const t = takimMap.get(takim);
+    t.perfToplam += x.val; t.perfSayi++; t.kisiSayisi++;
+    const rv = a.personPeriodValue(x.sicil, raporM); if (rv !== null) t.rapor += rv;
+    const tv = a.personPeriodValue(x.sicil, tutanakM); if (tv !== null) t.tutanak += tv;
+  });
+  const takimKarsilastirma = [...takimMap.values()]
+    .map(t => ({ ...t, ortPerf: t.perfSayi ? t.perfToplam / t.perfSayi : null }))
+    .filter(t => t.ortPerf !== null)
+    .sort((a,b) => b.ortPerf - a.ortPerf);
+
+  // --- 2) Kıdem bandına göre ortalama performans ---
+  const kidemBands = [
+    { label: '0-1 Yıl', min: 0, max: 1, toplam: 0, sayi: 0 },
+    { label: '1-3 Yıl', min: 1, max: 3, toplam: 0, sayi: 0 },
+    { label: '3+ Yıl', min: 3, max: Infinity, toplam: 0, sayi: 0 },
+  ];
+  a.perfListEligible.forEach(x => {
+    const p = PERSONNEL.find(pp => pp.sicil === x.sicil);
+    if (!p || !p.iseGirisDate) return;
+    const yil = kidemHesapla(p.iseGirisDate).totalMonths / 12;
+    const band = kidemBands.find(b => yil >= b.min && yil < b.max);
+    if (band){ band.toplam += x.val; band.sayi++; }
+  });
+  const kidemOzet = kidemBands.map(b => ({ label: b.label, ort: b.sayi ? b.toplam / b.sayi : null, sayi: b.sayi }));
+
+  // --- 3) Bireysel trend uyarısı - henüz <70'e düşmemiş ama son 3 ayı gerileyen kişiler ---
+  const trendUyarilari = [];
+  a.perfListEligible.forEach(x => {
+    if (x.val < 70) return; // zaten "Düşük Performans" listesinde, tekrar etmeyelim
+    const series = personYearlyPerfSeries(x.sicil, year, perfM);
+    if (series.length < 3) return;
+    const last3 = series.slice(-3);
+    const geriliyorMu = last3[0] > last3[1] && last3[1] > last3[2];
+    const toplamDusus = last3[0] - last3[2];
+    if (geriliyorMu && toplamDusus >= 5){
+      trendUyarilari.push({ sicil: x.sicil, name: x.name, dusus: toplamDusus, sonDeger: last3[2] });
+    }
+  });
+  trendUyarilari.sort((p1,p2) => p2.dusus - p1.dusus);
+
+  // --- 4) Birleşik Sağlık Skoru (0-100) - şeffaf, sabit ağırlıklı ---
+  // %50 Performans + %20 İzin Sağlığı + %15 Rapor/Tutanak Sıklığı (düşük=iyi) + %15 Kıdem
+  const raporTutanakDegerleri = a.perfListEligible.map(x => {
+    const rv = a.personPeriodValue(x.sicil, raporM) || 0;
+    const tv = a.personPeriodValue(x.sicil, tutanakM) || 0;
+    return rv + tv * 2; // tutanak, rapora göre 2 kat ağır sayılır
+  });
+  const raporTutanakMax = Math.max(1, ...raporTutanakDegerleri);
+  const saglikSkorlari = a.perfListEligible.map(x => {
+    const p = PERSONNEL.find(pp => pp.sicil === x.sicil);
+    const perfPuan = x.val;
+    const izin = personelIzinHesapla(p || {});
+    const izinPuan = izin.kalanIzin !== null ? Math.max(0, Math.min(100, 50 + izin.kalanIzin * 3)) : 50;
+    const rv = a.personPeriodValue(x.sicil, raporM) || 0;
+    const tv = a.personPeriodValue(x.sicil, tutanakM) || 0;
+    const raporYuku = rv + tv * 2;
+    const raporPuan = 100 - Math.min(100, (raporYuku / raporTutanakMax) * 100);
+    const kidemYil = (p && p.iseGirisDate) ? kidemHesapla(p.iseGirisDate).totalMonths / 12 : 0;
+    const kidemPuan = Math.min(100, kidemYil * 20);
+    const toplam = perfPuan * 0.5 + izinPuan * 0.2 + raporPuan * 0.15 + kidemPuan * 0.15;
+    return { sicil: x.sicil, name: x.name, skor: Math.round(toplam), perfPuan, izinPuan, raporPuan, kidemPuan };
+  }).sort((p1,p2) => p1.skor - p2.skor);
+
+  return { takimKarsilastirma, kidemOzet, trendUyarilari, saglikSkorlari };
 }
 
 function computeYearComparison(yearA, yearB){
@@ -4959,6 +6081,7 @@ function renderAnalizContentHtml(){
   if (!a.aktifPersonel){
     return `<div class="empty-state" style="padding:60px;">Seçili dönem için karne verisi bulunamadı.</div>`;
   }
+  const saglik = computeSaglikOzeti(a, analizYear);
   const periodLabel = analizMonth === null ? `${analizYear} (Tüm Yıl)` : `${TR_MONTHS[analizMonth]} ${analizYear}`;
 
   // --- Hero (üst özet) kartları - 0'dan sayan büyük rakamlar + trend oku ---
@@ -5169,7 +6292,68 @@ function renderAnalizContentHtml(){
         </div>`).join('') : `<div style="color:var(--dim); font-size:13px;">Veri bulunamadı.</div>`}
     </div>`;
 
+  // ===== 🩺 GENEL SAĞLIK ÖZETİ =====
+  const takimRowsHtml = saglik.takimKarsilastirma.length ? saglik.takimKarsilastirma.map((t,i) => `
+    <tr style="border-bottom:1px solid var(--line);">
+      <td style="padding:8px 10px; color:var(--text);">${i+1}. ${t.takim}</td>
+      <td style="padding:8px 10px; color:var(--dim); text-align:center;">${t.kisiSayisi}</td>
+      <td style="padding:8px 10px; color:var(--accent); font-weight:700; text-align:right;">${fmtKarneVal(t.ortPerf)}</td>
+      <td style="padding:8px 10px; color:var(--dim); text-align:right;">${fmtKarneVal(t.rapor)}</td>
+      <td style="padding:8px 10px; color:var(--dim); text-align:right;">${fmtKarneVal(t.tutanak)}</td>
+    </tr>`).join('') : '';
+
+  const kidemBoxesHtml = saglik.kidemOzet.map(k => `
+    <div style="flex:1; min-width:110px; background:var(--panel2); border-radius:10px; padding:14px; text-align:center;">
+      <div style="font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">${k.label}</div>
+      <div style="font-size:22px; font-weight:700; color:${k.ort === null ? 'var(--dim)' : 'var(--text)'};">${k.ort === null ? '—' : fmtKarneVal(k.ort)}</div>
+      <div style="font-size:11px; color:var(--dim); margin-top:4px;">${k.sayi} kişi</div>
+    </div>`).join('');
+
+  const trendUyariHtml = saglik.trendUyarilari.length ? `
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;">
+      ${saglik.trendUyarilari.map(t => analizBadge('warn', `${t.name}: son 3 ayda ${fmtKarneVal(t.dusus)} puan geriledi (şu an ${fmtKarneVal(t.sonDeger)})`)).join('')}
+    </div>` : `<div style="font-size:12.5px; color:var(--dim); margin-top:10px;">Henüz eşiğin altına düşmemiş ama gerileme eğiliminde olan personel bulunmuyor. ✓</div>`;
+
+  const dusukSkorlular = saglik.saglikSkorlari.slice(0, 10);
+  const skorRowsHtml = dusukSkorlular.length ? dusukSkorlular.map((s,i) => `
+    <tr style="border-bottom:1px solid var(--line);">
+      <td style="padding:8px 10px; color:var(--text);">${i+1}. ${s.name}</td>
+      <td style="padding:8px 10px; font-weight:700; text-align:right; color:${s.skor < 60 ? 'var(--danger)' : s.skor < 75 ? 'var(--warn)' : 'var(--accent)'};">${s.skor}</td>
+    </tr>`).join('') : '';
+
+  const saglikOzetiHtml = `
+    <div class="analiz-card">
+      <div class="analiz-card-title">🩺 Genel Sağlık Özeti</div>
+      <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:20px; align-items:start; margin-bottom:16px;">
+        <div>
+          <div style="font-size:12.5px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">Takım Lideri Kıyaslama</div>
+          ${takimRowsHtml ? `<table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="border-bottom:1px solid var(--line); font-size:11px; color:var(--dim); text-transform:uppercase;">
+              <th style="padding:6px 10px; text-align:left;">Takım</th><th style="text-align:center;">Kişi</th><th style="text-align:right;">Ort. Performans</th><th style="text-align:right;">Rapor</th><th style="text-align:right;">Tutanak</th>
+            </tr></thead>
+            <tbody>${takimRowsHtml}</tbody>
+          </table>` : `<div style="color:var(--dim); font-size:13px;">Veri bulunamadı.</div>`}
+        </div>
+        <div>
+          <div style="font-size:12.5px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">Kıdem Bandına Göre Ortalama Performans</div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">${kidemBoxesHtml}</div>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--line); padding-top:14px; margin-bottom:14px;">
+        <div style="font-size:12.5px; color:var(--dim); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.04em;">📉 Erken Uyarı — Henüz Düşmedi Ama Geriliyor</div>
+        ${trendUyariHtml}
+      </div>
+      <div style="border-top:1px solid var(--line); padding-top:14px;">
+        <div style="font-size:12.5px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">En Düşük Sağlık Skoru (10 kişi)</div>
+        <div class="hint" style="font-size:11.5px; margin-bottom:8px;">Skor = %50 Performans + %20 İzin Sağlığı + %15 Rapor/Tutanak Sıklığı (düşük=iyi) + %15 Kıdem. Tek bir sabit kural, dilersen ağırlıkları birlikte değiştirebiliriz.</div>
+        ${skorRowsHtml ? `<table style="width:100%; border-collapse:collapse;"><tbody>${skorRowsHtml}</tbody></table>` : `<div style="color:var(--dim); font-size:13px;">Veri bulunamadı.</div>`}
+      </div>
+    </div>
+  `;
+
   return `
+    ${saglikOzetiHtml}
+
     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); gap:12px; margin-bottom:20px;">${heroCards}</div>
 
     <div style="display:grid; grid-template-columns:1.1fr 1fr; gap:20px; margin-bottom:0; align-items:start;">
