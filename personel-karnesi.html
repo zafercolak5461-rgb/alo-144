@@ -334,19 +334,23 @@
         </div>
         <div id="exportIzinSection" style="display:none;">
           <p class="hint" style="font-size:13px; line-height:1.6; margin:0 0 14px 0;">Sicil, TC Kimlik No, Ad Soyad, Telefon, Takım Lideri, Üst Yönetici, Lokasyon, İşe Giriş Tarihi, Hak Edilen/Kullanılan/Kalan İzin — TÜM personel için tek bir Excel dosyasında üretilir. Kişi seçimi gerekmez.</p>
-          <div class="formatpanel-only" style="border-top:1px solid var(--line); padding-top:14px; display:flex; flex-direction:column; gap:8px;">
-            <div class="search-label">Biçimlendirme Şablonu (Sadece Süper Yetkili)</div>
-            <p class="hint" style="font-size:12px; line-height:1.5; margin:0;">Tamamen biçimlendirilmiş (hücre renkleri + koşullu biçimlendirme dahil) bir Excel dosyası yükle - dosyanın GÖRÜNÜMÜ aynen kaydedilir, her export'ta bu görünümle üretilir.</p>
+        </div>
+        <div id="exportCagriSection" style="display:none;">
+          <p class="hint" style="font-size:13px; line-height:1.6; margin:0 0 14px 0;">Sicil, Ad Soyad, Takım Lideri, İş Günü, Çağrı Sayısı (Karne'den), AHT (Personel Performansı'ndan), Günlük Ortalama Çağrı — seçtiğin HER ay, aynı Excel dosyasında AYRI bir sayfa (sekme) olarak üretilir.</p>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+            <select class="search" id="exportCagriYearFilter" style="width:auto; padding:6px 10px;"></select>
+            <button class="refresh-btn" id="exportCagriMonthSelectAllBtn">Tümünü Seç</button>
+            <button class="refresh-btn" id="exportCagriMonthClearBtn">Temizle</button>
+          </div>
+          <div id="exportCagriMonthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        </div>
+        <div id="exportSablonSection" style="display:none;" class="formatpanel-only">
+          <div class="search-label" style="border-top:1px solid var(--line); padding-top:14px;">Biçimlendirme Şablonu (Sadece Süper Yetkili) — <span id="exportSablonHedefAdi"></span></div>
+          <p class="hint" style="font-size:12px; line-height:1.5; margin:8px 0;">Tamamen biçimlendirilmiş (hücre renkleri + koşullu biçimlendirme dahil) bir Excel dosyası yükle - dosyanın GÖRÜNÜMÜ aynen kaydedilir, her export'ta bu görünümle üretilir.</p>
+          <div style="display:flex; flex-direction:column; gap:8px;">
             <input type="file" id="izinSablonFile" accept=".xlsx">
             <button class="refresh-btn" id="izinSablonSaveBtn" style="display:none; align-self:flex-start;">💾 Şablonu Kaydet</button>
             <span id="izinSablonStatus" class="hint" style="font-size:12.5px; color:var(--dim);"></span>
-          </div>
-        </div>
-        <div id="exportCagriSection" style="display:none;">
-          <p class="hint" style="font-size:13px; line-height:1.6; margin:0 0 14px 0;">Sicil, Ad Soyad, Takım Lideri, İş Günü, Çağrı Sayısı (Karne'den), AHT (Personel Performansı'ndan), Günlük Ortalama Çağrı — TÜM personel için, seçtiğin TEK ay için tek Excel dosyasında üretilir.</p>
-          <div style="display:flex; gap:16px; align-items:flex-end;">
-            <div style="min-width:120px;"><div class="hint" style="margin-bottom:6px;">Yıl</div><select class="search" id="exportCagriYearSelect"></select></div>
-            <div style="min-width:160px;"><div class="hint" style="margin-bottom:6px;">Ay</div><select class="search" id="exportCagriMonthSelect"></select></div>
           </div>
         </div>
       </div>
@@ -1658,7 +1662,6 @@ function exportYearsList(){
 // tint/indexed palet, RLE sıkıştırma, koşullu kuralların round-trip'te tip kaybı vb. - hepsi
 // orada çözülmüş sorunlar, burada aynen tekrar kullanılıyor).
 
-const IZIN_SABLON_TAB_NAME = 'İzin Şablonu';
 
 // --- Renk çözümleme (argb / tema+tint / indexed - Excel'in 3 farklı renk mekanizması) ---
 const EXCEL_INDEXED_COLORS = [
@@ -1874,24 +1877,29 @@ async function extractIzinTemplateFromFile(file){
 
 // --- Sheet'e kaydet/oku (chunk'lı - 45.000 karakter/hücre sınırı, Veri Hazırlama'daki
 // "Sablonlar" sekmesiyle aynı kalıp) ---
-async function ensureIzinSablonuTabExists(){
+// Genelleştirilmiş şablon sekmesi fonksiyonları - hem "İzin Şablonu" hem "Çağrı Şablonu"
+// (ve ileride eklenecek başka export türleri) AYNI mekanizmayı, sadece farklı sekme adıyla
+// kullanır - yeni bir sistem kurulmuyor, mevcut olan parametrik hale getirildi.
+const EXPORT_TEMPLATE_TABS = { izin: 'İzin Şablonu', cagri: 'Çağrı Şablonu' };
+
+async function ensureSablonTabExists(tabName){
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?fields=sheets.properties(sheetId,title)`;
   const res = await authFetch(url);
   const data = await res.json();
-  const found = (data.sheets || []).find(s => s.properties.title === IZIN_SABLON_TAB_NAME);
+  const found = (data.sheets || []).find(s => s.properties.title === tabName);
   if (found) return;
   const token = await ensureWriteToken();
   const addUrl = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}:batchUpdate`;
   const addRes = await fetch(addUrl, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: IZIN_SABLON_TAB_NAME } } }] }),
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tabName } } }] }),
   });
   const addData = await addRes.json();
-  if (addData.error) throw new Error(addData.error.message || 'İzin Şablonu sekmesi oluşturulamadı.');
+  if (addData.error) throw new Error(addData.error.message || `"${tabName}" sekmesi oluşturulamadı.`);
 }
-async function saveIzinTemplateToSheet(templateObj){
-  await ensureIzinSablonuTabExists();
+async function saveSablonToSheet(tabName, templateObj){
+  await ensureSablonTabExists(tabName);
   const token = await ensureWriteToken();
   const json = JSON.stringify(templateObj);
   const CHUNK = 45000;
@@ -1906,7 +1914,7 @@ async function saveIzinTemplateToSheet(templateObj){
   const FIXED_WIDTH = 50;
   while (row.length < FIXED_WIDTH) row.push('');
   const lastCol = colNumToLetter(FIXED_WIDTH);
-  const range = `${IZIN_SABLON_TAB_NAME}!A1:${lastCol}1`;
+  const range = `${tabName}!A1:${lastCol}1`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
   const res = await fetch(url, {
     method: 'PUT',
@@ -1916,9 +1924,9 @@ async function saveIzinTemplateToSheet(templateObj){
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'Şablon kaydedilemedi.');
 }
-async function loadIzinTemplateFromSheet(){
+async function loadSablonFromSheet(tabName){
   try {
-    const range = `${IZIN_SABLON_TAB_NAME}!A1:ZZ1`;
+    const range = `${tabName}!A1:ZZ1`;
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}/values/${encodeURIComponent(range)}`;
     const res = await authFetch(url);
     const data = await res.json();
@@ -1978,8 +1986,9 @@ const YILLIK_IZIN_FIELD_MAP = {
 // tabloda birleştirilir. TEK bir ay için, TÜM personel. İki farklı Sheet'ten geliyor ama
 // export sırasında sadece SEÇİLİ ayın Personel Performansı sekmesi tek seferlik çekilir -
 // tüm ayları yüklemeye (loadPersonelPerformans) gerek yok. =====
-async function exportAylikCagriPerformansiToExcel(year, month){
+async function exportAylikCagriPerformansiToExcel(monthsList){
   try {
+    if (!monthsList || !monthsList.length){ alert('En az bir ay seçin.'); return; }
     const cagriM = findAnalizMetric(['ÇAĞRI', 'CAGRI']);
     const isGunuM = findAnalizMetric(['İŞ GÜNÜ', 'IS GUNU', 'İŞGÜNÜ', 'ISGUNU']);
     if (!cagriM || !isGunuM){
@@ -1987,67 +1996,140 @@ async function exportAylikCagriPerformansiToExcel(year, month){
       return;
     }
 
-    // Personel Performansı'ndan (PERF_SHEET_ID) sadece SEÇİLİ ayı çek - AHT için.
-    const tabName = `${TR_MONTHS_UPPER[month]}-${year}`;
-    let achtBySicil = new Map();
-    try {
-      const ppRecords = await fetchPerformansMonth({ year, month, tabName, key: `${year}-${String(month+1).padStart(2,'0')}` });
-      ppRecords.forEach(r => achtBySicil.set(r.sicil, r.acht));
-    } catch(e){
-      if (!e.isMissingTab) throw e; // sekme yoksa AHT sütunu boş kalır, sessizce devam edilir
+    // Personel Performansı'ndan (PERF_SHEET_ID) SEÇİLİ HER ay için AHT çekilir - aynı anda en
+    // fazla 5 istek (fetchWithConcurrencyLimit), Google'ın istek kotasını zorlamamak için.
+    const achtByMonthKey = new Map(); // 'YYYY-M' -> Map(sicil -> aht)
+    await fetchWithConcurrencyLimit(monthsList, 5, async ({ year, month }) => {
+      const monthKey = `${year}-${month}`;
+      const tabName = `${TR_MONTHS_UPPER[month]}-${year}`;
+      const map = new Map();
+      try {
+        const ppRecords = await fetchPerformansMonth({ year, month, tabName, key: `${year}-${String(month+1).padStart(2,'0')}` });
+        ppRecords.forEach(r => map.set(r.sicil, r.acht));
+      } catch(e){
+        if (!e.isMissingTab) throw e; // sekme yoksa AHT sütunu boş kalır, sessizce devam edilir
+      }
+      achtByMonthKey.set(monthKey, map);
+    });
+
+    // Kişi + ay başına o ayın tüm değerlerini hesaplar - hem şablonlu hem şablonsuz yol bunu
+    // kullanır, tek bir yerde tutarlı kalır.
+    function hesapla(p, year, month){
+      const rec = KARNE_RECORDS.find(r => r.sicil === p.sicil && r.yil === year && r.ayIndex === month);
+      const isGunu = rec ? rec[isGunuM.key] : null;
+      const cagri = rec ? rec[cagriM.key] : null;
+      const achtMap = achtByMonthKey.get(`${year}-${month}`);
+      const aht = (achtMap && achtMap.has(p.sicil)) ? achtMap.get(p.sicil) : null;
+      const gunlukOrt = (cagri !== null && isGunu !== null && isGunu > 0) ? Math.round((cagri / isGunu) * 100) / 100 : null;
+      return { isGunu, cagri, aht, gunlukOrt };
+    }
+    function fieldMapFor(year, month){
+      return {
+        'SİCİL': p => izinAsNumberIfDigits(p.sicil),
+        'AD SOYAD': p => p.adSoyad,
+        'TAKIM LİDERİ': p => p.takimLideri || '',
+        'İŞ GÜNÜ': p => hesapla(p, year, month).isGunu,
+        'ÇAĞRI SAYISI': p => hesapla(p, year, month).cagri,
+        'AHT': p => hesapla(p, year, month).aht,
+        'GÜNLÜK ORTALAMA ÇAĞRI': p => hesapla(p, year, month).gunlukOrt,
+      };
     }
 
+    const template = await loadSablonFromSheet(EXPORT_TEMPLATE_TABS.cagri);
     const wb = new ExcelJS.Workbook();
     wb.creator = 'ALO 144 Osmaniye';
     wb.lastModifiedBy = 'ALO 144 Osmaniye';
     wb.created = new Date();
-    const ws = wb.addWorksheet('Sayfa1');
-
-    const cols = [
-      { header: 'Sicil', width: 10 },
-      { header: 'Ad Soyad', width: 24 },
-      { header: 'Takım Lideri', width: 18 },
-      { header: 'İş Günü', width: 12 },
-      { header: 'Çağrı Sayısı', width: 14 },
-      { header: 'AHT', width: 12 },
-      { header: 'Günlük Ortalama Çağrı', width: 20 },
-    ];
-    ws.columns = cols.map(c => ({ width: c.width }));
-
-    const headerRow = ws.getRow(1);
-    cols.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
-    headerRow.eachCell(cell => {
-      cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002060' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    });
-    headerRow.height = 20;
-
     const sorted = [...PERSONNEL].sort((a, b) => a.adSoyad.localeCompare(b.adSoyad, 'tr'));
-    sorted.forEach((p, idx) => {
-      const rec = KARNE_RECORDS.find(r => r.sicil === p.sicil && r.yil === year && r.ayIndex === month);
-      const isGunu = rec ? rec[isGunuM.key] : null;
-      const cagri = rec ? rec[cagriM.key] : null;
-      const aht = achtBySicil.has(p.sicil) ? achtBySicil.get(p.sicil) : null;
-      const gunlukOrt = (cagri !== null && isGunu !== null && isGunu > 0) ? cagri / isGunu : null;
+    const usedSheetNames = new Set();
 
-      const row = ws.getRow(idx + 2);
-      row.getCell(1).value = izinAsNumberIfDigits(p.sicil);
-      row.getCell(2).value = p.adSoyad;
-      row.getCell(3).value = p.takimLideri || '';
-      row.getCell(4).value = isGunu;
-      row.getCell(5).value = cagri;
-      row.getCell(6).value = aht;
-      row.getCell(7).value = gunlukOrt !== null ? Math.round(gunlukOrt * 100) / 100 : null;
-      row.eachCell(cell => { cell.font = { name: 'Calibri', size: 11 }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
-      row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+    monthsList.forEach(({ year, month }) => {
+      const CAGRI_FIELD_MAP = fieldMapFor(year, month);
+      // Excel sayfa adı en fazla 31 karakter + bazı özel karakterler yasak - "Ocak 2026" gibi
+      // kısa ve güvenli bir isim kullanılır, aynı isim tekrar ederse (olmamalı ama) numaralanır.
+      let sheetName = `${TR_MONTHS[month]} ${year}`;
+      if (usedSheetNames.has(sheetName)) sheetName = `${sheetName} (${usedSheetNames.size + 1})`;
+      usedSheetNames.add(sheetName);
+      const ws = wb.addWorksheet(sheetName);
+
+      if (template && template.header && template.header.length){
+        // ===== Şablon YÜKLENMİŞ - biçimlendirme + koşullu biçimlendirme AYNEN uygulanır =====
+        const headers = template.header;
+        const colCount = template.colCount || headers.length;
+        headers.forEach((h, i) => { ws.getColumn(i + 1).width = (template.colWidths && template.colWidths[i]) || 14; });
+
+        const headerRow = ws.getRow(1);
+        headers.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
+        (template.rowRuns[1] || []).forEach(([cs, ce, st]) => {
+          for (let c = cs; c <= Math.min(ce, colCount); c++) applyImportedCellStyle(headerRow.getCell(c), st);
+        });
+
+        const templateDataRowNums = Object.keys(template.rowRuns).map(Number).filter(n => n > 1).sort((a, b) => a - b);
+        const cycleLen = templateDataRowNums.length || 1;
+
+        sorted.forEach((p, idx) => {
+          const rowNum = idx + 2;
+          const row = ws.getRow(rowNum);
+          headers.forEach((h, i) => {
+            const key = h.trim().toLocaleUpperCase('tr');
+            const getter = CAGRI_FIELD_MAP[key];
+            const val = getter ? getter(p) : null;
+            const cell = row.getCell(i + 1);
+            cell.value = (val === undefined) ? null : val;
+          });
+          const templRowNum = templateDataRowNums.length ? templateDataRowNums[idx % cycleLen] : 2;
+          (template.rowRuns[templRowNum] || []).forEach(([cs, ce, st]) => {
+            for (let c = cs; c <= Math.min(ce, colCount); c++) applyImportedCellStyle(row.getCell(c), st);
+          });
+          headers.forEach((h, i) => {
+            const key = h.trim().toLocaleUpperCase('tr');
+            if (!template.condRules || !template.condRules[key]) return;
+            const cell = row.getCell(i + 1);
+            const color = resolveConditionalColor(template.condRules, h, cell.value);
+            if (color) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+          });
+        });
+      } else {
+        // ===== Şablon henüz yüklenmemiş - sabit (lacivert/beyaz) görünümle üretilir =====
+        const cols = [
+          { header: 'Sicil', width: 10 },
+          { header: 'Ad Soyad', width: 24 },
+          { header: 'Takım Lideri', width: 18 },
+          { header: 'İş Günü', width: 12 },
+          { header: 'Çağrı Sayısı', width: 14 },
+          { header: 'AHT', width: 12 },
+          { header: 'Günlük Ortalama Çağrı', width: 20 },
+        ];
+        ws.columns = cols.map(c => ({ width: c.width }));
+
+        const headerRow = ws.getRow(1);
+        cols.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+        headerRow.eachCell(cell => {
+          cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002060' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+        headerRow.height = 20;
+
+        sorted.forEach((p, idx) => {
+          const row = ws.getRow(idx + 2);
+          cols.forEach((c, i) => {
+            const key = c.header.trim().toLocaleUpperCase('tr');
+            const val = CAGRI_FIELD_MAP[key] ? CAGRI_FIELD_MAP[key](p) : null;
+            row.getCell(i + 1).value = (val === undefined) ? null : val;
+          });
+          row.eachCell(cell => { cell.font = { name: 'Calibri', size: 11 }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
+          row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
+        });
+      }
     });
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `aylik-cagri-performansi-${TR_MONTHS_UPPER[month]}-${year}.xlsx`;
+    const stamp = monthsList.length === 1 ? `${TR_MONTHS_UPPER[monthsList[0].month]}-${monthsList[0].year}` : `${monthsList.length}-ay`;
+    a.download = `aylik-cagri-performansi-${stamp}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -2059,7 +2141,7 @@ async function exportAylikCagriPerformansiToExcel(year, month){
 
 async function exportYillikIzinToExcel(){
   try {
-    const template = await loadIzinTemplateFromSheet();
+    const template = await loadSablonFromSheet(EXPORT_TEMPLATE_TABS.izin);
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'ALO 144 Osmaniye';
@@ -2378,16 +2460,61 @@ async function exportSelectedMetricsToExcel(selectedKeys){
 const exportModalOverlay = document.getElementById('exportModalOverlay');
 const exportMetricChecklist = document.getElementById('exportMetricChecklist');
 let exportMode = 'karne'; // 'karne' | 'izin' | 'cagri'
+let exportCagriSelectedMonths = new Set(); // 'YYYY-M' anahtarları (month 0-indeksli)
+let exportCagriMonthsInitDone = false;
 
+function exportCagriMonthChipsHtml(){
+  const yearFilterEl = document.getElementById('exportCagriYearFilter');
+  const activeYear = yearFilterEl.value;
+  const monthsInYear = KARNE_MONTHS.filter(m => String(m.year) === activeYear).sort((a,b) => a.month - b.month);
+  if (!monthsInYear.length) return `<div class="empty-state">Bu yıl için karne verisi yok.</div>`;
+  return monthsInYear.map(m => {
+    const key = `${m.year}-${m.month}`;
+    const active = exportCagriSelectedMonths.has(key) ? 'active' : '';
+    return `<button class="month-chip ${active}" data-cagrimonth="${key}">${TR_MONTHS[m.month]}</button>`;
+  }).join('');
+}
+function renderExportCagriMonthChips(){
+  const el = document.getElementById('exportCagriMonthChips');
+  if (el) el.innerHTML = exportCagriMonthChipsHtml();
+}
 function populateExportCagriSelectors(){
-  const yearSel = document.getElementById('exportCagriYearSelect');
-  const monthSel = document.getElementById('exportCagriMonthSelect');
-  if (!yearSel || yearSel.options.length) return; // sadece ilk açılışta doldur
+  const yearFilterEl = document.getElementById('exportCagriYearFilter');
+  if (!yearFilterEl) return;
   const years = [...new Set(KARNE_MONTHS.map(m => m.year))].sort((a,b) => b - a);
   const currentYear = new Date().getFullYear();
-  yearSel.innerHTML = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
-  monthSel.innerHTML = TR_MONTHS.map((m,i) => `<option value="${i}">${m}</option>`).join('');
+  const prevVal = yearFilterEl.value;
+  yearFilterEl.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  if ([...yearFilterEl.options].some(o => o.value === prevVal)) yearFilterEl.value = prevVal;
+  else if ([...yearFilterEl.options].some(o => o.value === String(currentYear))) yearFilterEl.value = String(currentYear);
+
+  if (!exportCagriMonthsInitDone){
+    exportCagriMonthsInitDone = true;
+    // Varsayılan: son (en güncel) ay tek başına seçili gelir
+    const sortedMonths = [...KARNE_MONTHS].sort((a,b) => a.year - b.year || a.month - b.month);
+    const last = sortedMonths[sortedMonths.length - 1];
+    if (last) exportCagriSelectedMonths.add(`${last.year}-${last.month}`);
+  }
+  renderExportCagriMonthChips();
 }
+document.getElementById('exportCagriYearFilter').addEventListener('change', () => renderExportCagriMonthChips());
+document.getElementById('exportCagriMonthChips').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-cagrimonth]');
+  if (!btn) return;
+  const key = btn.dataset.cagrimonth;
+  if (exportCagriSelectedMonths.has(key)) exportCagriSelectedMonths.delete(key); else exportCagriSelectedMonths.add(key);
+  renderExportCagriMonthChips();
+});
+document.getElementById('exportCagriMonthSelectAllBtn').addEventListener('click', () => {
+  const yearFilterEl = document.getElementById('exportCagriYearFilter');
+  KARNE_MONTHS.filter(m => String(m.year) === yearFilterEl.value).forEach(m => exportCagriSelectedMonths.add(`${m.year}-${m.month}`));
+  renderExportCagriMonthChips();
+});
+document.getElementById('exportCagriMonthClearBtn').addEventListener('click', () => {
+  const yearFilterEl = document.getElementById('exportCagriYearFilter');
+  KARNE_MONTHS.filter(m => String(m.year) === yearFilterEl.value).forEach(m => exportCagriSelectedMonths.delete(`${m.year}-${m.month}`));
+  renderExportCagriMonthChips();
+});
 
 function setExportMode(mode){
   exportMode = mode;
@@ -2401,6 +2528,17 @@ function setExportMode(mode){
   document.getElementById('exportKarneSection').style.display = mode === 'karne' ? '' : 'none';
   document.getElementById('exportIzinSection').style.display = mode === 'izin' ? '' : 'none';
   document.getElementById('exportCagriSection').style.display = mode === 'cagri' ? '' : 'none';
+  // Şablon yükleme kutusu - İzin ve Çağrı modlarının İKİSİ de aynı mekanizmayı, sadece farklı
+  // sekme hedefiyle kullanıyor. Mod değişince yükleme sıfırlanır (yanlış moda kaydetme riskini önler).
+  const sablonSection = document.getElementById('exportSablonSection');
+  const sablonHedefLabel = { izin: 'Personel Yıllık İzin', cagri: 'Aylık Çağrı Performansı' }[mode];
+  sablonSection.style.display = sablonHedefLabel ? '' : 'none';
+  if (sablonHedefLabel){
+    document.getElementById('exportSablonHedefAdi').textContent = sablonHedefLabel;
+    document.getElementById('izinSablonStatus').textContent = '';
+    document.getElementById('izinSablonSaveBtn').style.display = 'none';
+    pendingIzinTemplate = null;
+  }
   if (mode === 'cagri') populateExportCagriSelectors();
 }
 document.getElementById('exportModeKarneBtn').addEventListener('click', () => setExportMode('karne'));
@@ -2450,20 +2588,23 @@ document.getElementById('izinSablonSaveBtn').addEventListener('click', async () 
   const statusEl = document.getElementById('izinSablonStatus');
   const saveBtn = document.getElementById('izinSablonSaveBtn');
   if (!pendingIzinTemplate) return;
+  const hedefTab = EXPORT_TEMPLATE_TABS[exportMode]; // hangi mod aktifse (izin/cagri) o sekmeye kaydedilir
+  const hedefLabel = { izin: 'Personel Yıllık İzin', cagri: 'Aylık Çağrı Performansı' }[exportMode];
+  if (!hedefTab) return;
   saveBtn.disabled = true;
   try {
     statusEl.textContent = 'Yazma izni isteniyor (bir pop-up açılabilir, engellenmediğinden emin olun)…';
     await withTimeout(ensureWriteToken(), 20000, 'Yazma izni 20 saniyede tamamlanmadı (pop-up onaylanmış olsa bile). Sayfayı yenileyip tekrar deneyin; devam ederse F12 > Console\'daki hatayı paylaşın.');
     statusEl.textContent = 'Kaydediliyor…';
-    await withTimeout(saveIzinTemplateToSheet(pendingIzinTemplate), 20000, 'Kaydetme 20 saniyede tamamlanmadı. F12 > Console\'daki hatayı paylaşın.');
+    await withTimeout(saveSablonToSheet(hedefTab, pendingIzinTemplate), 20000, 'Kaydetme 20 saniyede tamamlanmadı. F12 > Console\'daki hatayı paylaşın.');
     const tpl = pendingIzinTemplate;
     const condCount = Object.values(tpl.condRules).reduce((s, list) => s + list.length, 0);
-    statusEl.textContent = `✓ Şablon kaydedildi (${tpl.header.length} sütun, ${condCount} koşullu kural). Bundan sonraki "Personel Yıllık İzin" export'ları bu görünümü kullanacak.`;
+    statusEl.textContent = `✓ Şablon kaydedildi (${tpl.header.length} sütun, ${condCount} koşullu kural). Bundan sonraki "${hedefLabel}" export'ları bu görünümü kullanacak.`;
     saveBtn.style.display = 'none';
     pendingIzinTemplate = null;
   } catch (err){
     statusEl.textContent = '✗ Hata: ' + err.message;
-    console.error('İzin şablonu kaydetme hatası:', err);
+    console.error('Şablon kaydetme hatası:', err);
   }
   saveBtn.disabled = false;
 });
@@ -2499,10 +2640,11 @@ document.getElementById('exportConfirmBtn').addEventListener('click', () => {
   }
   if (exportMode === 'cagri'){
     if (!PERSONNEL.length){ alert('Henüz personel verisi yok. Önce "Yenile"ye basın.'); return; }
-    const year = parseInt(document.getElementById('exportCagriYearSelect').value, 10);
-    const month = parseInt(document.getElementById('exportCagriMonthSelect').value, 10);
+    if (!exportCagriSelectedMonths.size){ alert('En az bir ay seçin.'); return; }
+    const months = [...exportCagriSelectedMonths].map(k => { const [y,m] = k.split('-').map(Number); return { year: y, month: m }; })
+      .sort((a,b) => a.year - b.year || a.month - b.month);
     exportModalOverlay.style.display = 'none';
-    exportAylikCagriPerformansiToExcel(year, month);
+    exportAylikCagriPerformansiToExcel(months);
     return;
   }
   if (!selectedSicil){ alert('Önce sağ üstten bir personel seçin.'); return; }
