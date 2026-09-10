@@ -349,6 +349,11 @@
           <p class="hint" style="font-size:13px; line-height:1.6; margin:0 0 14px 0;">İstediğin sütunları, istediğin kaynaktan (Personel Listesi / Karne / Personel Performansı) tek tek seç. Sicil her zaman otomatik ilk sütun olur. Ay bazlı bir kaynak seçersen ay seçici çıkar, seçtiğin her ay ayrı sayfa olur.</p>
           <div id="ozelColumnsList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
           <button class="refresh-btn" id="ozelAddColumnBtn" style="margin-bottom:16px;">+ Sütun Ekle</button>
+          <div style="border-top:1px solid var(--line); padding-top:14px; margin-bottom:16px;">
+            <div class="hint" style="margin-bottom:8px;">Hesaplanan Sütun (yukarıda seçtiğin iki sütun arasında + − × ÷)</div>
+            <div id="ozelHesapColumnsList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
+            <button class="refresh-btn" id="ozelAddHesapColumnBtn">+ Hesaplanan Sütun Ekle</button>
+          </div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
             <button class="refresh-btn" id="ozelKolonKaydetBtn" style="background:var(--accent-soft); color:var(--accent); border-color:var(--accent);">💾 Sütun Seçimini Kaydet</button>
             <span id="ozelKolonKaydetStatus" class="hint" style="font-size:12.5px; color:var(--dim);"></span>
@@ -2251,6 +2256,8 @@ const OZEL_KAYNAKLAR = {
 
 let ozelColumns = [{ id: 1, kaynak: null, headerKey: null }];
 let ozelColumnIdSeq = 2;
+let ozelHesapColumns = []; // [{ id, label, colA, operator, colB }] - colA/colB, ozelColumns'taki id'lere referans
+let ozelHesapColumnIdSeq = 1;
 let ozelSelectedMonths = new Set();
 let ozelMonthsInitDone = false;
 
@@ -2258,10 +2265,14 @@ function ozelAnyMonthlySelected(){
   return ozelColumns.some(c => c.kaynak && OZEL_KAYNAKLAR[c.kaynak].monthly);
 }
 function ozelResolvedHeaders(){
-  return ozelColumns
+  const regular = ozelColumns
     .filter(c => c.kaynak && c.headerKey)
     .map(c => OZEL_KAYNAKLAR[c.kaynak].headers().find(h => h.key === c.headerKey))
     .filter(Boolean);
+  const computed = ozelHesapColumns
+    .filter(hc => hc.label && hc.colA && hc.operator && hc.colB)
+    .map(hc => ({ key: 'hesap_' + hc.id, label: hc.label }));
+  return [...regular, ...computed];
 }
 function ozelColumnRowHtml(col){
   const kaynakOptions = Object.keys(OZEL_KAYNAKLAR).map(k => `<option value="${k}" ${col.kaynak===k?'selected':''}>${OZEL_KAYNAKLAR[k].label}</option>`).join('');
@@ -2279,12 +2290,44 @@ function ozelColumnRowHtml(col){
       <button class="refresh-btn ozel-remove-col" data-colid="${col.id}" style="padding:8px 12px;">✕</button>
     </div>`;
 }
+// Hesaplanan sütun sadece ŞU AN seçili (kaynak+başlık dolu) normal sütunlar arasından seçim
+// yapabiliyor - zincirleme (hesaplanan sütunun başka bir hesaplanan sütuna referans vermesi)
+// desteklenmiyor, "karmaşık olmasın" isteğine uygun basit tutuldu.
+function ozelPickableColumnsForHesap(){
+  return ozelColumns
+    .filter(c => c.kaynak && c.headerKey)
+    .map(c => ({ id: c.id, label: OZEL_KAYNAKLAR[c.kaynak].headers().find(h => h.key === c.headerKey).label }));
+}
+function ozelHesapColumnRowHtml(hc){
+  const pickable = ozelPickableColumnsForHesap();
+  const colOptions = (selected) => `<option value="">— Sütun —</option>` + pickable.map(p => `<option value="${p.id}" ${selected===p.id?'selected':''}>${p.label}</option>`).join('');
+  const opOptions = ['+','-','*','/'].map(op => `<option value="${op}" ${hc.operator===op?'selected':''}>${{'+':'Toplama (+)','-':'Çıkarma (−)','*':'Çarpma (×)','/':'Bölme (÷)'}[op]}</option>`).join('');
+  return `
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input class="search ozel-hesap-label" data-hesapid="${hc.id}" placeholder="Yeni sütun adı (örn. Günlük Ortalama)" value="${(hc.label||'').replace(/"/g,'&quot;')}" style="flex:1.4; min-width:160px;">
+      <select class="search ozel-hesap-colA" data-hesapid="${hc.id}" style="flex:1; min-width:120px;">${colOptions(hc.colA)}</select>
+      <select class="search ozel-hesap-op" data-hesapid="${hc.id}" style="width:auto;">${opOptions}</select>
+      <select class="search ozel-hesap-colB" data-hesapid="${hc.id}" style="flex:1; min-width:120px;">${colOptions(hc.colB)}</select>
+      <button class="refresh-btn ozel-remove-hesap" data-hesapid="${hc.id}" style="padding:8px 12px;">✕</button>
+    </div>`;
+}
+function renderOzelHesapColumnsList(){
+  const el = document.getElementById('ozelHesapColumnsList');
+  if (!el) return;
+  const pickable = ozelPickableColumnsForHesap();
+  if (!pickable.length){
+    el.innerHTML = `<div class="empty-state">Önce yukarıdan en az 2 sütun seçin.</div>`;
+    return;
+  }
+  el.innerHTML = ozelHesapColumns.map(ozelHesapColumnRowHtml).join('') || '';
+}
 function renderOzelColumnsList(){
   const el = document.getElementById('ozelColumnsList');
   if (!el) return;
   el.innerHTML = ozelColumns.map(ozelColumnRowHtml).join('');
   document.getElementById('ozelMonthWrap').style.display = ozelAnyMonthlySelected() ? '' : 'none';
   if (ozelAnyMonthlySelected()) populateExportOzelMonthSelectors();
+  renderOzelHesapColumnsList();
 }
 
 // --- Ay Seçimi (Çağrı export'undaki İLE AYNI çip kalıbı, sadece 'ozel' state'iyle) ---
@@ -2324,22 +2367,22 @@ function populateExportOzelMonthSelectors(){
 
 // --- Kişi + ay için, seçili sütunlara göre değer üreten harita (Sicil otomatik eklenir) ---
 function ozelFieldMapFor(year, month, perfMonthMap){
-  const map = { 'SİCİL': p => izinAsNumberIfDigits(p.sicil) };
+  // Önce sütun ID'sine göre erişilebilen ("byId") getter'lar kurulur - hesaplanan sütunların
+  // kaynak sütunlara ERİŞMESİ için gerekli (label metniyle değil, kararlı ID ile referans verir,
+  // iki sütun aynı başlık metnine sahip olsa bile karışmaz).
+  const byId = {};
   ozelColumns.forEach(col => {
     if (!col.kaynak || !col.headerKey) return;
-    const headerDef = OZEL_KAYNAKLAR[col.kaynak].headers().find(h => h.key === col.headerKey);
-    if (!headerDef) return;
-    const label = headerDef.label.trim().toLocaleUpperCase('tr');
     if (col.kaynak === 'personel'){
-      map[label] = p => { const v = p[col.headerKey]; return v === undefined ? null : v; };
+      byId[col.id] = p => { const v = p[col.headerKey]; return v === undefined ? null : v; };
     } else if (col.kaynak === 'karne'){
-      map[label] = p => {
+      byId[col.id] = p => {
         if (year == null) return null;
         const rec = KARNE_RECORDS.find(r => r.sicil === p.sicil && r.yil === year && r.ayIndex === month);
         return rec ? rec[col.headerKey] : null;
       };
     } else if (col.kaynak === 'performans'){
-      map[label] = p => {
+      byId[col.id] = p => {
         if (!perfMonthMap) return null;
         const rec = perfMonthMap.get(p.sicil);
         if (!rec) return null;
@@ -2349,6 +2392,31 @@ function ozelFieldMapFor(year, month, perfMonthMap){
       };
     }
   });
+
+  const map = { 'SİCİL': p => izinAsNumberIfDigits(p.sicil) };
+  ozelColumns.forEach(col => {
+    if (!col.kaynak || !col.headerKey || !byId[col.id]) return;
+    const headerDef = OZEL_KAYNAKLAR[col.kaynak].headers().find(h => h.key === col.headerKey);
+    if (!headerDef) return;
+    map[headerDef.label.trim().toLocaleUpperCase('tr')] = byId[col.id];
+  });
+
+  // Hesaplanan sütunlar - iki SAYISAL kaynak sütunu arasında +,-,*,÷. Sonuç sayısal değilse
+  // (biri boşsa, bölmede payda 0 ise) hücre boş (null) kalır - hata fırlatmaz.
+  ozelHesapColumns.forEach(hc => {
+    if (!hc.label || !hc.colA || !hc.operator || !hc.colB || !byId[hc.colA] || !byId[hc.colB]) return;
+    map[hc.label.trim().toLocaleUpperCase('tr')] = p => {
+      const a = byId[hc.colA](p);
+      const b = byId[hc.colB](p);
+      if (typeof a !== 'number' || typeof b !== 'number') return null;
+      let result;
+      if (hc.operator === '+') result = a + b;
+      else if (hc.operator === '-') result = a - b;
+      else if (hc.operator === '*') result = a * b;
+      else if (hc.operator === '/') result = b !== 0 ? a / b : null;
+      return result === null || result === undefined ? null : Math.round(result * 100) / 100;
+    };
+  });
   return map;
 }
 
@@ -2356,7 +2424,10 @@ function ozelFieldMapFor(year, month, perfMonthMap){
 // 2. satırına kaydeder/okur - biçimlendirme şablonuyla (1. satır) AYNI sekmede ama AYRI bir
 // satırda durur, birbirine karışmaz. Yeni kayıt eskisinin üzerine yazar (tek kayıt tutulur).
 async function saveOzelKolonSecimi(){
-  const validCols = ozelColumns.filter(c => c.kaynak && c.headerKey).map(c => ({ kaynak: c.kaynak, headerKey: c.headerKey }));
+  const validCols = ozelColumns.filter(c => c.kaynak && c.headerKey).map(c => ({ id: c.id, kaynak: c.kaynak, headerKey: c.headerKey }));
+  const validHesap = ozelHesapColumns.filter(hc => hc.label && hc.colA && hc.operator && hc.colB)
+    .map(hc => ({ id: hc.id, label: hc.label, colA: hc.colA, operator: hc.operator, colB: hc.colB }));
+  const payload = { columns: validCols, hesap: validHesap };
   await ensureSablonTabExists(EXPORT_TEMPLATE_TABS.ozel);
   const token = await ensureWriteToken();
   const range = `${EXPORT_TEMPLATE_TABS.ozel}!A2:B2`;
@@ -2364,11 +2435,13 @@ async function saveOzelKolonSecimi(){
   const res = await fetch(url, {
     method: 'PUT',
     headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [['kolonlar', JSON.stringify(validCols)]] }),
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values: [['kolonlar', JSON.stringify(payload)]] }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'Sütun seçimi kaydedilemedi.');
 }
+// Eski kayıt formatı (sadece [{kaynak,headerKey}] dizisi, id/hesap yoktu) İLE de uyumlu -
+// yeni format { columns, hesap } bir nesne. Hangisi geldiyse ona göre okunur.
 async function loadOzelKolonSecimi(){
   try {
     const range = `${EXPORT_TEMPLATE_TABS.ozel}!A2:B2`;
@@ -2379,7 +2452,9 @@ async function loadOzelKolonSecimi(){
     const row = (data.values && data.values[0]) || [];
     if (row[0] !== 'kolonlar' || !row[1]) return null;
     const parsed = JSON.parse(row[1]);
-    return Array.isArray(parsed) ? parsed : null;
+    if (Array.isArray(parsed)) return { columns: parsed, hesap: [] }; // eski format
+    if (parsed && Array.isArray(parsed.columns)) return { columns: parsed.columns, hesap: parsed.hesap || [] };
+    return null;
   } catch(e){ return null; }
 }
 let ozelKolonSecimiYuklendi = false; // sekmeye ilk girişte kayıtlı seçimi bir kez otomatik yükler
@@ -2404,6 +2479,14 @@ async function exportOzelBosSablonIndir(){
   a.click();
   a.remove();
   URL.revokeObjectURL(a.href);
+}
+
+// Hücre içeriğinin GÖRÜNÜR uzunluğunu tahmin eder - sütun genişliğini içeriğe göre otomatik
+// ayarlamak için kullanılır (tarih nesneleri "gg.aa.yyyy" formatında ~10 karakter sayılır).
+function ozelCellDisplayLength(val){
+  if (val === null || val === undefined) return 0;
+  if (val instanceof Date) return 10;
+  return String(val).length;
 }
 
 async function exportOzelRaporToExcel(monthsList){
@@ -2451,7 +2534,10 @@ async function exportOzelRaporToExcel(monthsList){
         // ===== Şablon YÜKLENMİŞ - biçimlendirme + koşullu biçimlendirme AYNEN uygulanır =====
         const tHeaders = template.header;
         const colCount = template.colCount || tHeaders.length;
-        tHeaders.forEach((h, i) => { ws.getColumn(i + 1).width = (template.colWidths && template.colWidths[i]) || 14; });
+        // Sütun genişliği: şablonda AYARLI genişlik İLE içeriğin gerektirdiği genişlikten
+        // BÜYÜK OLANI kullanılır - şablonda genişlik ayarlanmamış/dar kalmış olsa bile veri
+        // asla kırpılmaz; şablonun kasıtlı geniş bıraktığı bir sütun da küçültülmez.
+        const colMaxLen = tHeaders.map(h => h.length);
 
         const headerRow = ws.getRow(1);
         tHeaders.forEach((h, i) => { headerRow.getCell(i + 1).value = h; });
@@ -2471,6 +2557,7 @@ async function exportOzelRaporToExcel(monthsList){
             const val = getter ? getter(p) : null;
             const cell = row.getCell(i + 1);
             cell.value = (val === undefined) ? null : val;
+            colMaxLen[i] = Math.max(colMaxLen[i], ozelCellDisplayLength(val));
           });
           const templRowNum = templateDataRowNums.length ? templateDataRowNums[idx % cycleLen] : 2;
           (template.rowRuns[templRowNum] || []).forEach(([cs, ce, st]) => {
@@ -2484,10 +2571,15 @@ async function exportOzelRaporToExcel(monthsList){
             if (color) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
           });
         });
+
+        tHeaders.forEach((h, i) => {
+          const templateWidth = (template.colWidths && template.colWidths[i]) || 0;
+          ws.getColumn(i + 1).width = Math.max(templateWidth, Math.min(40, colMaxLen[i] + 3), 8);
+        });
       } else {
         // ===== Şablon henüz yüklenmemiş - sabit (lacivert/beyaz) görünümle üretilir =====
-        const cols = [{ header: 'Sicil', width: 10 }, ...headers.map(h => ({ header: h.label, width: 18 }))];
-        ws.columns = cols.map(c => ({ width: c.width }));
+        const cols = [{ header: 'Sicil' }, ...headers.map(h => ({ header: h.label }))];
+        const colMaxLen = cols.map(c => c.header.length);
 
         const headerRow = ws.getRow(1);
         cols.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
@@ -2506,10 +2598,13 @@ async function exportOzelRaporToExcel(monthsList){
             const cell = row.getCell(i + 1);
             cell.value = (val === undefined) ? null : val;
             if (val instanceof Date) cell.numFmt = 'dd.mm.yyyy';
+            colMaxLen[i] = Math.max(colMaxLen[i], ozelCellDisplayLength(val));
           });
           row.eachCell(cell => { cell.font = { name: 'Calibri', size: 11 }; cell.alignment = { horizontal: 'center', vertical: 'middle' }; });
           row.getCell(2).alignment = { horizontal: 'left', vertical: 'middle' };
         });
+
+        cols.forEach((c, i) => { ws.getColumn(i + 1).width = Math.max(Math.min(40, colMaxLen[i] + 3), 8); });
       }
     });
 
@@ -2936,8 +3031,13 @@ function setExportMode(mode){
     if (!ozelKolonSecimiYuklendi){
       ozelKolonSecimiYuklendi = true;
       loadOzelKolonSecimi().then(saved => {
-        if (saved && saved.length){
-          ozelColumns = saved.map(c => ({ id: ozelColumnIdSeq++, kaynak: c.kaynak, headerKey: c.headerKey }));
+        if (saved && saved.columns && saved.columns.length){
+          // Kararlı ID'ler AYNEN korunur (yeniden üretilmez) - hesaplanan sütunların colA/colB
+          // referansları bu ID'lere bağlı, ID'ler değişirse referanslar kopar.
+          ozelColumns = saved.columns.map(c => ({ id: c.id, kaynak: c.kaynak, headerKey: c.headerKey }));
+          ozelHesapColumns = (saved.hesap || []).map(hc => ({ id: hc.id, label: hc.label, colA: hc.colA, operator: hc.operator, colB: hc.colB }));
+          ozelColumnIdSeq = Math.max(0, ...ozelColumns.map(c => c.id)) + 1;
+          ozelHesapColumnIdSeq = Math.max(0, ...ozelHesapColumns.map(c => c.id)) + 1;
           renderOzelColumnsList();
         }
       });
@@ -2972,9 +3072,37 @@ document.getElementById('ozelColumnsList').addEventListener('change', (e) => {
 document.getElementById('ozelColumnsList').addEventListener('click', (e) => {
   const btn = e.target.closest('.ozel-remove-col');
   if (!btn) return;
-  ozelColumns = ozelColumns.filter(c => c.id !== Number(btn.dataset.colid));
+  const removedId = Number(btn.dataset.colid);
+  ozelColumns = ozelColumns.filter(c => c.id !== removedId);
   if (!ozelColumns.length) ozelColumns.push({ id: ozelColumnIdSeq++, kaynak: null, headerKey: null });
+  // Silinen sütuna referans veren hesaplanan sütunlar da (artık anlamsız kaldıkları için) silinir.
+  ozelHesapColumns = ozelHesapColumns.filter(hc => hc.colA !== removedId && hc.colB !== removedId);
   renderOzelColumnsList();
+});
+document.getElementById('ozelAddHesapColumnBtn').addEventListener('click', () => {
+  if (!ozelPickableColumnsForHesap().length){ alert('Önce yukarıdan en az bir sütun seçin.'); return; }
+  ozelHesapColumns.push({ id: ozelHesapColumnIdSeq++, label: '', colA: null, operator: '+', colB: null });
+  renderOzelHesapColumnsList();
+});
+document.getElementById('ozelHesapColumnsList').addEventListener('input', (e) => {
+  const labelInput = e.target.closest('.ozel-hesap-label');
+  if (!labelInput) return;
+  const hc = ozelHesapColumns.find(h => h.id === Number(labelInput.dataset.hesapid));
+  if (hc) hc.label = labelInput.value;
+});
+document.getElementById('ozelHesapColumnsList').addEventListener('change', (e) => {
+  const colA = e.target.closest('.ozel-hesap-colA');
+  if (colA){ const hc = ozelHesapColumns.find(h => h.id === Number(colA.dataset.hesapid)); if (hc) hc.colA = colA.value ? Number(colA.value) : null; return; }
+  const colB = e.target.closest('.ozel-hesap-colB');
+  if (colB){ const hc = ozelHesapColumns.find(h => h.id === Number(colB.dataset.hesapid)); if (hc) hc.colB = colB.value ? Number(colB.value) : null; return; }
+  const op = e.target.closest('.ozel-hesap-op');
+  if (op){ const hc = ozelHesapColumns.find(h => h.id === Number(op.dataset.hesapid)); if (hc) hc.operator = op.value; }
+});
+document.getElementById('ozelHesapColumnsList').addEventListener('click', (e) => {
+  const btn = e.target.closest('.ozel-remove-hesap');
+  if (!btn) return;
+  ozelHesapColumns = ozelHesapColumns.filter(hc => hc.id !== Number(btn.dataset.hesapid));
+  renderOzelHesapColumnsList();
 });
 document.getElementById('exportOzelYearFilter').addEventListener('change', () => renderExportOzelMonthChips());
 document.getElementById('exportOzelMonthChips').addEventListener('click', (e) => {
