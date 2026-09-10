@@ -2255,10 +2255,16 @@ const OZEL_KAYNAKLAR = {
 };
 
 let ozelColumns = [{ id: 1, kaynak: null, headerKey: null }];
-let ozelColumnIdSeq = 2;
 let ozelHesapColumns = []; // [{ id, label, colA, operator, colB }] - colA/colB, ozelColumns'taki id'lere referans
-let ozelHesapColumnIdSeq = 1;
 let ozelSelectedMonths = new Set();
+
+// ID'ler artık AYRI takip edilen bir sayaçtan DEĞİL, HER SEFERİNDE dizideki mevcut en yüksek
+// ID'den hesaplanıyor - bu, sayacın diziyle senkronizasyonunu kaybetmesi ihtimalini (örn. bir
+// yükleme sonrası) tamamen ortadan kaldırıyor. GERÇEK BİR HATA burada bulundu: iki farklı sütun
+// AYNI ID'yi paylaşınca, biri diğerinin verisini eziyor, tüm sütunlar aynı değeri gösteriyordu.
+function ozelNextId(arr){
+  return Math.max(0, ...arr.map(c => c.id)) + 1;
+}
 let ozelMonthsInitDone = false;
 
 function ozelAnyMonthlySelected(){
@@ -3041,11 +3047,18 @@ function setExportMode(mode){
       loadOzelKolonSecimi().then(saved => {
         if (saved && saved.columns && saved.columns.length){
           // Kararlı ID'ler AYNEN korunur (yeniden üretilmez) - hesaplanan sütunların colA/colB
-          // referansları bu ID'lere bağlı, ID'ler değişirse referanslar kopar.
-          ozelColumns = saved.columns.map(c => ({ id: c.id, kaynak: c.kaynak, headerKey: c.headerKey }));
+          // referansları bu ID'lere bağlı, ID'ler değişirse referanslar kopar. GÜVENLİK AĞI:
+          // önceki bir kayıtta (bu düzeltmeden önce) kazara ÇAKIŞAN ID'ler oluşmuşsa - ki bu
+          // TAM OLARAK "tüm sütunlar aynı değeri gösteriyor" hatasının sebebiydi - burada
+          // otomatik olarak ayrıştırılıp benzersizleştirilir, sessizce kendini onarır.
+          const seenIds = new Set();
+          ozelColumns = saved.columns.map(c => {
+            let id = c.id;
+            if (seenIds.has(id)) id = ozelNextId([...seenIds].map(x => ({ id: x })));
+            seenIds.add(id);
+            return { id, kaynak: c.kaynak, headerKey: c.headerKey };
+          });
           ozelHesapColumns = (saved.hesap || []).map(hc => ({ id: hc.id, label: hc.label, colA: hc.colA, operator: hc.operator, colB: hc.colB }));
-          ozelColumnIdSeq = Math.max(0, ...ozelColumns.map(c => c.id)) + 1;
-          ozelHesapColumnIdSeq = Math.max(0, ...ozelHesapColumns.map(c => c.id)) + 1;
           renderOzelColumnsList();
         }
       });
@@ -3059,7 +3072,7 @@ document.getElementById('exportModeCagriBtn').addEventListener('click', () => se
 document.getElementById('exportModeOzelBtn').addEventListener('click', () => setExportMode('ozel'));
 
 document.getElementById('ozelAddColumnBtn').addEventListener('click', () => {
-  ozelColumns.push({ id: ozelColumnIdSeq++, kaynak: null, headerKey: null });
+  ozelColumns.push({ id: ozelNextId(ozelColumns), kaynak: null, headerKey: null });
   renderOzelColumnsList();
 });
 document.getElementById('ozelColumnsList').addEventListener('change', (e) => {
@@ -3082,14 +3095,14 @@ document.getElementById('ozelColumnsList').addEventListener('click', (e) => {
   if (!btn) return;
   const removedId = Number(btn.dataset.colid);
   ozelColumns = ozelColumns.filter(c => c.id !== removedId);
-  if (!ozelColumns.length) ozelColumns.push({ id: ozelColumnIdSeq++, kaynak: null, headerKey: null });
+  if (!ozelColumns.length) ozelColumns.push({ id: ozelNextId(ozelColumns), kaynak: null, headerKey: null });
   // Silinen sütuna referans veren hesaplanan sütunlar da (artık anlamsız kaldıkları için) silinir.
   ozelHesapColumns = ozelHesapColumns.filter(hc => hc.colA !== removedId && hc.colB !== removedId);
   renderOzelColumnsList();
 });
 document.getElementById('ozelAddHesapColumnBtn').addEventListener('click', () => {
   if (!ozelPickableColumnsForHesap().length){ alert('Önce yukarıdan en az bir sütun seçin.'); return; }
-  ozelHesapColumns.push({ id: ozelHesapColumnIdSeq++, label: '', colA: null, operator: '+', colB: null });
+  ozelHesapColumns.push({ id: ozelNextId(ozelHesapColumns), label: '', colA: null, operator: '+', colB: null });
   renderOzelHesapColumnsList();
 });
 document.getElementById('ozelHesapColumnsList').addEventListener('input', (e) => {
