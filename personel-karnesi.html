@@ -2296,7 +2296,15 @@ function ozelColumnRowHtml(col){
 function ozelPickableColumnsForHesap(){
   return ozelColumns
     .filter(c => c.kaynak && c.headerKey)
-    .map(c => ({ id: c.id, label: OZEL_KAYNAKLAR[c.kaynak].headers().find(h => h.key === c.headerKey).label }));
+    .map(c => {
+      // Kayıtlı bir sütun, verinin henüz yüklenmemiş olması (örn. Karne "Yenile"
+      // edilmeden önce) ya da kaynak sheet'te o başlığın artık bulunmaması durumunda
+      // eşleşme BULUNAMAYABİLİR - bu durumda ÇÖKMEK yerine sessizce atlanır (null),
+      // önceden bu durumda tüm panel çöküyordu ("kayıtlarım gözükmüyor" gibi görünüyordu).
+      const headerDef = OZEL_KAYNAKLAR[c.kaynak].headers().find(h => h.key === c.headerKey);
+      return headerDef ? { id: c.id, label: headerDef.label } : null;
+    })
+    .filter(Boolean);
 }
 function ozelHesapColumnRowHtml(hc){
   const pickable = ozelPickableColumnsForHesap();
