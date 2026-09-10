@@ -371,6 +371,7 @@
         </div>
         <div id="exportSablonSection" style="display:none;" class="formatpanel-only">
           <div class="search-label" style="border-top:1px solid var(--line); padding-top:14px;">Biçimlendirme Şablonu (Sadece Süper Yetkili) — <span id="exportSablonHedefAdi"></span></div>
+          <div id="exportSablonMevcutDurum" class="hint" style="font-size:12.5px; margin:6px 0 10px 0;">⏳ Kontrol ediliyor…</div>
           <p class="hint" style="font-size:12px; line-height:1.5; margin:8px 0;">Tamamen biçimlendirilmiş (hücre renkleri + koşullu biçimlendirme dahil) bir Excel dosyası yükle - dosyanın GÖRÜNÜMÜ aynen kaydedilir, her export'ta bu görünümle üretilir.</p>
           <div style="display:flex; flex-direction:column; gap:8px;">
             <input type="file" id="izinSablonFile" accept=".xlsx">
@@ -3055,6 +3056,20 @@ function setExportMode(mode){
     document.getElementById('izinSablonStatus').textContent = '';
     document.getElementById('izinSablonSaveBtn').style.display = 'none';
     pendingIzinTemplate = null;
+    // O modun daha önceden kaydedilmiş bir şablonu var mı diye kontrol edip gösterir - eskiden
+    // panel açıldığında bu hiç belli olmuyordu, sen sorana kadar fark edilmiyordu.
+    const durumEl = document.getElementById('exportSablonMevcutDurum');
+    durumEl.textContent = '⏳ Kontrol ediliyor…';
+    loadSablonFromSheet(EXPORT_TEMPLATE_TABS[mode]).then(tpl => {
+      if (tpl && tpl.header && tpl.header.length){
+        const condCount = Object.values(tpl.condRules || {}).reduce((s, list) => s + list.length, 0);
+        durumEl.textContent = `✓ Kayıtlı bir şablon VAR (${tpl.header.length} sütun, ${condCount} koşullu kural) — export'lar bu görünümü kullanıyor.`;
+        durumEl.style.color = 'var(--accent)';
+      } else {
+        durumEl.textContent = '○ Bu mod için henüz şablon yüklenmedi — varsayılan (sabit) görünüm kullanılıyor.';
+        durumEl.style.color = 'var(--dim)';
+      }
+    });
   }
   if (mode === 'cagri') populateExportCagriSelectors();
   if (mode === 'ozel'){
