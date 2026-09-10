@@ -1717,12 +1717,56 @@ async function extractThemeColors(fileArrayBuffer){
     return THEME_INDEX_ORDER.map(key => scheme[key] || '000000');
   } catch(e){ return null; }
 }
+// Excel'in "tema rengi + tint (açma/koyultma)" hesaplaması, basit bir R/G/B doğrusal karışım
+// DEĞİL - OOXML standardı bunu HSL (parlaklık) uzayında yapıyor. Eskiden doğrusal RGB
+// kullanıyordum, bu da açık tonların gerçekte olduğundan SOLUK/GRİMSİ çıkmasına sebep
+// oluyordu (Zafer'in gerçek dosyasıyla doğrulandı: 1F497D + tint 0.4 → doğru sonuç 558ED5,
+// eski kod 7992B1 üretiyordu - gözle bile fark edilir derecede farklı).
+function rgbToHsl(r, g, b){
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h, s, l = (max+min)/2;
+  if (max === min){ h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch(max){
+      case r: h = (g-b)/d + (g < b ? 6 : 0); break;
+      case g: h = (b-r)/d + 2; break;
+      default: h = (r-g)/d + 4;
+    }
+    h /= 6;
+  }
+  return [h, s, l];
+}
+function hslToRgb(h, s, l){
+  let r, g, b;
+  if (s === 0){ r = g = b = l; }
+  else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q-p)*6*t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q-p)*(2/3-t)*6;
+      return p;
+    };
+    const q = l < 0.5 ? l*(1+s) : l+s-l*s;
+    const p = 2*l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
+}
 function applyImportedTint(hex, tint){
   if (!tint) return hex;
   const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
-  const adj = (c) => { const v = tint < 0 ? c*(1+tint) : c*(1-tint)+255*tint; return Math.max(0, Math.min(255, Math.round(v))); };
+  const [h, s, l] = rgbToHsl(r, g, b);
+  const newL = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint;
+  const [nr, ng, nb] = hslToRgb(h, s, Math.max(0, Math.min(1, newL)));
   const toHex = (n) => n.toString(16).padStart(2,'0');
-  return toHex(adj(r)) + toHex(adj(g)) + toHex(adj(b));
+  return toHex(nr) + toHex(ng) + toHex(nb);
 }
 function resolveImportedColor(colorObj, themeColors){
   if (!colorObj) return null;
@@ -1741,7 +1785,7 @@ function resolveImportedColor(colorObj, themeColors){
 
 // --- Hücre stili okuma/uygulama ---
 function readImportedCellStyle(cell, themeColors){
-  const st = { kalin: false, yaziRengi: null, argPlan: null, hizalama: null, kenarlik: false, sayiFormat: null, kaydir: false, yaziBoyutu: null };
+  const st = { kalin: false, yaziRengi: null, argPlan: null, hizalama: null, kenarlik: null, sayiFormat: null, kaydir: false, yaziBoyutu: null };
   if (cell.font){
     st.kalin = !!cell.font.bold;
     if (cell.font.color) st.yaziRengi = resolveImportedColor(cell.font.color, themeColors);
@@ -1755,7 +1799,14 @@ function readImportedCellStyle(cell, themeColors){
     if (cell.alignment.horizontal) st.hizalama = cell.alignment.horizontal;
     if (cell.alignment.wrapText) st.kaydir = true;
   }
-  if (cell.border && (cell.border.top || cell.border.bottom || cell.border.left || cell.border.right)) st.kenarlik = true;
+  // Kenarlık - ESKİDEN sadece "var/yok" (boolean) yakalanıyordu, bu yüzden HANGİ kenar,
+  // NE KALINLIKTA (ince/orta/kalın/çift) ve NE RENKTE olduğu kayboluyor, her zaman sabit ince
+  // gri kutu çiziliyordu. Şimdi her kenar AYRI AYRI (stil+renk) saklanıyor.
+  if (cell.border){
+    const side = (s) => (s && s.style) ? { style: s.style, color: s.color ? resolveImportedColor(s.color, themeColors) : '#000000' } : null;
+    const top = side(cell.border.top), bottom = side(cell.border.bottom), left = side(cell.border.left), right = side(cell.border.right);
+    if (top || bottom || left || right) st.kenarlik = { top, bottom, left, right };
+  }
   // "@" (Metin) biçimi kasıtlı bir görsel tercih değil, genelde kaynağın kazara öyle
   // kaydedilmesinden kaynaklanır ve gerçek tarih/sayı değerlerinin üzerine yazılıp onları
   // bozar - bu yüzden asla kopyalanmaz (General ile aynı muameleyi görür).
@@ -1801,8 +1852,13 @@ function applyImportedCellStyle(cell, st){
   if (st.kaydir) alignment.wrapText = true;
   if (Object.keys(alignment).length) cell.alignment = alignment;
   if (st.kenarlik){
-    const thin = { style: 'thin', color: { argb: 'FFB0B0B0' } };
-    cell.border = { top: thin, bottom: thin, left: thin, right: thin };
+    const toBorder = (side) => side ? { style: side.style, color: { argb: 'FF' + (side.color || '#000000').replace('#','').toUpperCase() } } : undefined;
+    const border = {};
+    if (st.kenarlik.top) border.top = toBorder(st.kenarlik.top);
+    if (st.kenarlik.bottom) border.bottom = toBorder(st.kenarlik.bottom);
+    if (st.kenarlik.left) border.left = toBorder(st.kenarlik.left);
+    if (st.kenarlik.right) border.right = toBorder(st.kenarlik.right);
+    cell.border = border;
   }
   if (st.sayiFormat) cell.numFmt = st.sayiFormat;
 }
