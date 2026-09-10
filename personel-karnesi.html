@@ -2336,6 +2336,7 @@ function renderOzelHesapColumnsList(){
   el.innerHTML = ozelHesapColumns.map(ozelHesapColumnRowHtml).join('') || '';
 }
 function renderOzelColumnsList(){
+  ozelDedupeColumnsInPlace(); // panel her çizildiğinde de kendini onarır, sadece kayıtta değil
   const el = document.getElementById('ozelColumnsList');
   if (!el) return;
   el.innerHTML = ozelColumns.map(ozelColumnRowHtml).join('');
@@ -2437,9 +2438,22 @@ function ozelFieldMapFor(year, month, perfMonthMap){
 // Sütun seçimlerini (hangi tablo + hangi başlık, sırasıyla) "Özel Rapor Şablonu" sekmesinin
 // 2. satırına kaydeder/okur - biçimlendirme şablonuyla (1. satır) AYNI sekmede ama AYRI bir
 // satırda durur, birbirine karışmaz. Yeni kayıt eskisinin üzerine yazar (tek kayıt tutulur).
+// Kaydetmeden ÖNCE (tarayıcı belleğinde hâlâ eski/bozuk bir durum kalmış olsa bile) ID
+// çakışmalarını temizler - "her yerde aynı değer" hatasının artık Sheets'e YAZILMASINI da
+// engeller, sadece sayfa yeniden yüklendiğinde değil, HER kayıtta kendini onarır.
+function ozelDedupeColumnsInPlace(){
+  const seenIds = new Set();
+  ozelColumns.forEach(c => {
+    if (seenIds.has(c.id)) c.id = ozelNextId([...seenIds].map(id => ({ id })));
+    seenIds.add(c.id);
+  });
+}
+
 async function saveOzelKolonSecimi(){
+  ozelDedupeColumnsInPlace();
   const validCols = ozelColumns.filter(c => c.kaynak && c.headerKey).map(c => ({ id: c.id, kaynak: c.kaynak, headerKey: c.headerKey }));
-  const validHesap = ozelHesapColumns.filter(hc => hc.label && hc.colA && hc.operator && hc.colB)
+  const validCarIds = new Set(validCols.map(c => c.id));
+  const validHesap = ozelHesapColumns.filter(hc => hc.label && hc.colA && hc.operator && hc.colB && validCarIds.has(hc.colA) && validCarIds.has(hc.colB))
     .map(hc => ({ id: hc.id, label: hc.label, colA: hc.colA, operator: hc.operator, colB: hc.colB }));
   const payload = { columns: validCols, hesap: validHesap };
   await ensureSablonTabExists(EXPORT_TEMPLATE_TABS.ozel);
@@ -2474,6 +2488,7 @@ async function loadOzelKolonSecimi(){
 let ozelKolonSecimiYuklendi = false; // sekmeye ilk girişte kayıtlı seçimi bir kez otomatik yükler
 
 async function exportOzelBosSablonIndir(){
+  ozelDedupeColumnsInPlace();
   const headers = ozelResolvedHeaders();
   if (!headers.length){ alert('Önce en az bir sütun seçin.'); return; }
   const wb = new ExcelJS.Workbook();
@@ -2505,6 +2520,7 @@ function ozelCellDisplayLength(val){
 
 async function exportOzelRaporToExcel(monthsList){
   try {
+    ozelDedupeColumnsInPlace();
     const headers = ozelResolvedHeaders();
     if (!headers.length){ alert('Önce en az bir sütun seçin.'); return; }
     const needsMonthly = ozelAnyMonthlySelected();
@@ -3046,19 +3062,27 @@ function setExportMode(mode){
       ozelKolonSecimiYuklendi = true;
       loadOzelKolonSecimi().then(saved => {
         if (saved && saved.columns && saved.columns.length){
-          // Kararlı ID'ler AYNEN korunur (yeniden üretilmez) - hesaplanan sütunların colA/colB
-          // referansları bu ID'lere bağlı, ID'ler değişirse referanslar kopar. GÜVENLİK AĞI:
-          // önceki bir kayıtta (bu düzeltmeden önce) kazara ÇAKIŞAN ID'ler oluşmuşsa - ki bu
-          // TAM OLARAK "tüm sütunlar aynı değeri gösteriyor" hatasının sebebiydi - burada
-          // otomatik olarak ayrıştırılıp benzersizleştirilir, sessizce kendini onarır.
+          // ID'ler GEÇERLİ, BENZERSİZ bir POZİTİF SAYI değilse (null/undefined/NaN/tekrar
+          // eden - ki JS'te null/undefined anahtarlı TÜM kayıtlar birbirini ezip AYNI KUTUYA
+          // düşüyor, "tüm sütunlar aynı değeri gösteriyor" hatasının TAM SEBEBİ buydu) her
+          // birine burada YENİ, benzersiz bir ID atanır. Bu durumda eski Hesaplanan Sütunların
+          // colA/colB referansları artık GEÇERSİZ sayılır ve GÖSTERİLMEZ (yanlış eşleşme
+          // göstermektense hiç göstermemek daha güvenli) - kullanıcı bir kez daha kurup
+          // kaydettikten sonra kalıcı ve sağlam kalır.
           const seenIds = new Set();
+          let idsWereInvalid = false;
+          let nextFreshId = 1;
           ozelColumns = saved.columns.map(c => {
-            let id = c.id;
-            if (seenIds.has(id)) id = ozelNextId([...seenIds].map(x => ({ id: x })));
+            let id = (typeof c.id === 'number' && Number.isFinite(c.id) && !seenIds.has(c.id)) ? c.id : null;
+            if (id === null){
+              idsWereInvalid = true;
+              while (seenIds.has(nextFreshId)) nextFreshId++;
+              id = nextFreshId;
+            }
             seenIds.add(id);
             return { id, kaynak: c.kaynak, headerKey: c.headerKey };
           });
-          ozelHesapColumns = (saved.hesap || []).map(hc => ({ id: hc.id, label: hc.label, colA: hc.colA, operator: hc.operator, colB: hc.colB }));
+          ozelHesapColumns = idsWereInvalid ? [] : (saved.hesap || []).map(hc => ({ id: hc.id, label: hc.label, colA: hc.colA, operator: hc.operator, colB: hc.colB }));
           renderOzelColumnsList();
         }
       });
