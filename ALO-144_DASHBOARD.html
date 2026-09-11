@@ -9648,8 +9648,13 @@ function dataCoverageHtml(sources, from, to){
     const covMinMid = toMid(cov.min), covMaxMid = toMid(cov.max);
     const insufficient = !!(fromMid && toMidVal && (covMinMid > fromMid || covMaxMid < toMidVal));
     const color = insufficient ? 'var(--danger)' : 'var(--text-dim)';
-    const warnText = insufficient ? ` ⚠ seçili aralığın tamamını kapsamıyor` : '';
-    return `<span style="color:${color};">${s.label}: ${fromLabel}–${toLabel}${warnText}</span>`;
+    // 29.08.2026: "...kapsamıyor" (negatif) yerine "...sadece X kısmını kapsıyor" (pozitif) -
+    // kullanıcı "veri eksik mi yoksa aralık mı yanlış" diye kafası karışıyordu, pozitif ifade
+    // doğrudan "elimde şu kadarı var" diyerek daha net anlaşılıyor.
+    if (insufficient){
+      return `<span style="color:${color};">${s.label}: ⚠ seçili aralığın sadece ${fromLabel}–${toLabel} kısmını kapsıyor</span>`;
+    }
+    return `<span style="color:${color};">${s.label}: ${fromLabel}–${toLabel}</span>`;
   });
   return `<div style="font-size:10.5px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:6px 16px;"><span style="color:var(--text-dim-2); font-weight:700;">VERİ KAPSAMI:</span>${parts.join('')}</div>`;
 }
