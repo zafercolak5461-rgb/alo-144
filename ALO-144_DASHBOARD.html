@@ -9631,6 +9631,13 @@ function computeDataCoverage(dates){
 }
 
 function dataCoverageHtml(sources, from, to){
+  // Saat bileşenini (00:00 vs 23:59:59) atıp SADECE takvim günü bazında karşılaştırılır -
+  // eski haliyle, kaynağın en güncel verisi TAM OLARAK seçili bitiş günüyle aynı takvim
+  // günü olsa bile (örn. ikisi de 10.09.2026), cov.max saat bileşeni 00:00:00 ve seçili
+  // "to" 23:59:59 olduğu için yanlışlıkla "kapsamıyor" uyarısı veriyordu (10.09.2026'da
+  // bulunup düzeltilen, getPrevRange'deki 12.08.2026 tarihli hatayla aynı kök sebep). (29.08.2026)
+  const toMid = (d) => d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null;
+  const fromMid = toMid(from), toMidVal = toMid(to);
   const parts = sources.map(s => {
     const cov = computeDataCoverage(s.dates);
     if (!cov){
@@ -9638,7 +9645,8 @@ function dataCoverageHtml(sources, from, to){
     }
     const fromLabel = cov.min.toLocaleDateString('tr-TR');
     const toLabel = cov.max.toLocaleDateString('tr-TR');
-    const insufficient = !!(from && to && (cov.min > from || cov.max < to));
+    const covMinMid = toMid(cov.min), covMaxMid = toMid(cov.max);
+    const insufficient = !!(fromMid && toMidVal && (covMinMid > fromMid || covMaxMid < toMidVal));
     const color = insufficient ? 'var(--danger)' : 'var(--text-dim)';
     const warnText = insufficient ? ` ⚠ seçili aralığın tamamını kapsamıyor` : '';
     return `<span style="color:${color};">${s.label}: ${fromLabel}–${toLabel}${warnText}</span>`;
