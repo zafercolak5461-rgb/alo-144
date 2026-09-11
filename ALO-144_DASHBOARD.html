@@ -2010,11 +2010,11 @@ body{
   <!-- SEKME 4: Günlük Detay (takvim/matris) -->
   <div class="tab-content" id="vd-tab-gunlukdetay">
     <div class="note" style="margin-bottom:16px;">
-      Sadece Metrik/Durum Filtresi'nde seçili durumlar (Rapor, Yıllık İzin vb.) gösterilir. Sütunlar, sadece seçili durumlardan en az birinin görüldüğü günlerdir - boş hücreler ("—") o gün için seçili bir durum olmadığı anlamına gelir.
+      Sadece Metrik/Durum Filtresi'nde seçili durumlar (Rapor, Yıllık İzin vb.) gösterilir. Her satır bir personelin bir AYINA aittir, sütunlar 1-31 gün numarasıdır. Ayın gerçek gün sayısını aşan sütunlar (örn. Şubat'ta 30/31) boş bırakılır; "—" ise o gün için seçili bir durum olmadığı anlamına gelir.
     </div>
     <div class="panel">
       <div class="panel-head">
-        Personel × Gün Matrisi
+        Personel × Ay × Gün Matrisi
         <span class="count" id="vd-gunlukRowCount"></span>
       </div>
       <div class="table-scroll">
@@ -6068,12 +6068,18 @@ const vdCovChart = createSlotChartPanel({
   ]
 });
 
-// ===== SEKME 4: Günlük Detay — Personel × Gün matrisi =====
+// ===== SEKME 4: Günlük Detay — Personel × Ay × Gün matrisi =====
+// 29.08.2026: ÖNCEDEN satır=personel, sütun=SEÇİLİ ARALIKTAKİ HER GÜN (aralık genişledikçe
+// yüzlerce sütuna kadar yatay uzuyordu, okunması zorlaşıyordu). ARTIK satır=personel+AY (her
+// ay ayrı satır, "Haziran 2025" gibi ay+yıl etiketli), sütun=SABİT 1-31 gün numarası - tablo
+// dikeye uzuyor (ay arttıkça), yatay genişliği sabit kalıyor. Birden fazla personel seçiliyse,
+// personel adı bir kez kalın başlık satırı olarak gösterilir, altına o personelin ay satırları
+// gelir. Bir ayın gerçek gün sayısını aşan sütunlar (örn. Şubat'ta 30/31) tamamen boş bırakılır
+// (diğer "veri yok" hücrelerindeki "—" ile karışmasın diye, o gün zaten yok).
 // Sadece Metrik/Durum Filtresi'nde SEÇİLİ olan durumlar (Rapor, Yıllık İzin vb.) GÖSTERİLİR
 // - "Çalışma Gün Sayısı" da bu filtreye dahil: seçiliyse, çalışılan günlerde hücrede durum
 // etiketi değil GERÇEK VARDİYA SAATİ (örn. "08:00-18:00") görünür - ham veride zaten bu
-// formatta duruyor (bkz. classifyVardiyaCell 'calisti' tipi). Önceden bu filtre hiç işlemiyordu
-// (12.08.2026'da düzeltildi).
+// formatta duruyor (bkz. classifyVardiyaCell 'calisti' tipi).
 function renderGunlukDetay(){
   const head = document.getElementById('vd-gunlukTableHead');
   const body = document.getElementById('vd-gunlukTableBody');
@@ -6104,28 +6110,44 @@ function renderGunlukDetay(){
     return;
   }
 
-  const personMap = new Map(); // sicil -> personel adı
-  relevantRecords.forEach(r => { if (!personMap.has(r.sicil)) personMap.set(r.sicil, r.personel); });
-  const persons = [...personMap.entries()].sort((a,b) => a[1].localeCompare(b[1], 'tr'));
+  const personOrder = new Map();     // sicil -> personel adı
+  const personMonthMap = new Map();  // sicil -> Map("YYYY-MM" -> { year, month, days: Map(gün -> durum) })
+  relevantRecords.forEach(r => {
+    if (!personOrder.has(r.sicil)) personOrder.set(r.sicil, r.personel);
+    const y = r.tarih.getFullYear(), m = r.tarih.getMonth(), d = r.tarih.getDate();
+    const monthKey = `${y}-${String(m).padStart(2, '0')}`;
+    if (!personMonthMap.has(r.sicil)) personMonthMap.set(r.sicil, new Map());
+    const monthsForPerson = personMonthMap.get(r.sicil);
+    if (!monthsForPerson.has(monthKey)) monthsForPerson.set(monthKey, { year: y, month: m, days: new Map() });
+    monthsForPerson.get(monthKey).days.set(d, r.durum);
+  });
 
-  const dateKeys = [...new Set(relevantRecords.map(r => r.tarih.getTime()))].sort((a,b) => a - b);
+  const persons = [...personOrder.entries()].sort((a, b) => a[1].localeCompare(b[1], 'tr'));
 
-  const cellMap = new Map(); // "sicil|tarih" -> durum etiketi YA DA "08:00-18:00" gibi vardiya saati
-  relevantRecords.forEach(r => { cellMap.set(`${r.sicil}|${r.tarih.getTime()}`, r.durum); });
+  head.innerHTML = `<th>Personel / Ay</th>` + Array.from({ length: 31 }, (_, i) => `<th>${i + 1}</th>`).join('');
 
-  head.innerHTML = `<th>Personel</th>` + dateKeys.map(t =>
-    `<th>${new Date(t).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}</th>`
-  ).join('');
-
+  let totalMonthRows = 0;
   body.innerHTML = persons.map(([sicil, personel]) => {
-    const cells = dateKeys.map(t => {
-      const durum = cellMap.get(`${sicil}|${t}`);
-      return `<td>${durum || '—'}</td>`;
+    const months = [...personMonthMap.get(sicil).values()].sort((a, b) => (a.year - b.year) || (a.month - b.month));
+    totalMonthRows += months.length;
+    const headerRow = persons.length > 1
+      ? `<tr><td colspan="32" style="font-weight:700; color:var(--accent); background:var(--bg-panel-2);">${personel}</td></tr>`
+      : '';
+    const monthRows = months.map(mo => {
+      const daysInMonth = new Date(mo.year, mo.month + 1, 0).getDate();
+      const ayLabel = new Date(mo.year, mo.month, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+      const cells = Array.from({ length: 31 }, (_, i) => {
+        const dayNum = i + 1;
+        if (dayNum > daysInMonth) return `<td></td>`;
+        const durum = mo.days.get(dayNum);
+        return `<td>${durum || '—'}</td>`;
+      }).join('');
+      return `<tr><td class="date">${persons.length > 1 ? '　' : ''}${ayLabel}</td>${cells}</tr>`;
     }).join('');
-    return `<tr><td class="date">${personel}</td>${cells}</tr>`;
+    return headerRow + monthRows;
   }).join('');
 
-  countEl.textContent = `${persons.length} personel × ${dateKeys.length} gün`;
+  countEl.textContent = `${persons.length} personel × ${totalMonthRows} ay`;
 }
 
 // ============================================================================
