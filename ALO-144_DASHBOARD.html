@@ -891,7 +891,7 @@ body{
     <div class="status" id="status">
       <button id="refreshBtn" class="refresh-btn" title="Veriyi yeniden çek">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-gelen-arama-dagilimi', 'gelen-arama-dagilimi')">⇩ Excel'e Aktar</button>
-      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel('page-gelen-arama-dagilimi')">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <button class="refresh-btn sunum-only" id="openPresModalBtn">🎞 Sunum Oluştur</button>
       <span class="dot" id="statusDot"></span>
@@ -1048,7 +1048,7 @@ body{
     <div class="status" id="gtdStatusWrap">
       <button id="gtdRefreshBtn" class="refresh-btn" title="Veriyi yeniden çek">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-genel-talep-dagilimi', 'genel-talep-dagilimi')">⇩ Excel'e Aktar</button>
-      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel('page-genel-talep-dagilimi')">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="gtdStatusDot"></span>
       <span id="gtdStatusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -1465,7 +1465,7 @@ body{
     <div class="status" id="kt-status">
       <button id="kt-refreshBtn" class="refresh-btn">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-kopuk-talep-dagilimi', 'kopuk-talep-dagilimi')">⇩ Excel'e Aktar</button>
-      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel('page-kopuk-talep-dagilimi')">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="kt-statusDot"></span>
       <span id="kt-statusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -1859,7 +1859,7 @@ body{
     <div class="status" id="vd-status">
       <button id="vd-refreshBtn" class="refresh-btn">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-vardiya', 'vardiya')">⇩ Excel'e Aktar</button>
-      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel('page-vardiya')">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="vd-statusDot"></span>
       <span id="vd-statusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -2083,7 +2083,7 @@ body{
     <div class="status" id="pp-status">
       <button id="pp-refreshBtn" class="refresh-btn">⟳ Yenile</button>
       <button class="refresh-btn excel-only" onclick="exportActiveTableToExcel('page-personel-performans', 'personel-performans')">⇩ Excel'e Aktar</button>
-      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel()">🎨 Excel Biçimlendirme</button>
+      <button class="refresh-btn excel-only" onclick="openExcelFormatPanel('page-personel-performans')">🎨 Excel Biçimlendirme</button>
       <button class="refresh-btn" onclick="window.print()" title="Bu sayfayı yazdır ya da PDF olarak kaydet">🖨 Yazdır / PDF</button>
       <span class="dot" id="pp-statusDot"></span>
       <span id="pp-statusText">Veri çekilmedi — Yenile'ye basın</span>
@@ -6130,9 +6130,7 @@ function renderGunlukDetay(){
   body.innerHTML = persons.map(([sicil, personel]) => {
     const months = [...personMonthMap.get(sicil).values()].sort((a, b) => (a.year - b.year) || (a.month - b.month));
     totalMonthRows += months.length;
-    const headerRow = persons.length > 1
-      ? `<tr><td colspan="32" style="font-weight:700; color:var(--accent); background:var(--bg-panel-2);">${personel}</td></tr>`
-      : '';
+    const headerRow = `<tr><td colspan="32" style="font-weight:700; color:var(--accent); background:var(--bg-panel-2);">${personel}</td></tr>`;
     const monthRows = months.map(mo => {
       const daysInMonth = new Date(mo.year, mo.month + 1, 0).getDate();
       const ayLabel = new Date(mo.year, mo.month, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
@@ -6142,7 +6140,7 @@ function renderGunlukDetay(){
         const durum = mo.days.get(dayNum);
         return `<td>${durum || '—'}</td>`;
       }).join('');
-      return `<tr><td class="date">${persons.length > 1 ? '　' : ''}${ayLabel}</td>${cells}</tr>`;
+      return `<tr><td class="date">　${ayLabel}</td>${cells}</tr>`;
     }).join('');
     return headerRow + monthRows;
   }).join('');
@@ -10939,7 +10937,12 @@ function efDefaultFormatState(){
 }
 
 let efFormatState = efDefaultFormatState();
-let efKosulluBicimlendirme = []; // [{ id, metrik, operator, deger1, deger2, renk, oncelik }]
+let efKosulluBicimlendirme = []; // [{ id, metrik, operator, deger1, deger2, renk, oncelik }] - metrik bir sütun
+// adı OLABİLİR ya da özel değer EF_ALL_COLUMNS_VALUE ("(Tüm Sütunlar)") olabilir - bu durumda
+// kural TEK bir sütuna değil, export edilen tablonun TÜM veri sütunlarına uygulanır. 29.08.2026:
+// Vardiya'nın Günlük Detay gibi "durum metni HANGİ SÜTUNDA olursa olsun" senaryoları için eklendi
+// (örn. "Yıllık İzin" günün 1-31 arası hangi sütununda çıkarsa çıksın kırmızı olsun).
+const EF_ALL_COLUMNS_VALUE = '__ALL__';
 let efCondIdSeq = 1;
 
 function efHexToArgb(hex){
@@ -11025,11 +11028,21 @@ function efApplyKosulluBicimlendirme(ws, result, rowCount){
   const sortedRules = efKosulluBicimlendirme.filter(r => r.metrik).slice().sort((a, b) => (a.oncelik || 1) - (b.oncelik || 1));
   let priorityCounter = 1;
   sortedRules.forEach(rule => {
-    const col = efFindColByLabel(result, rule.metrik);
-    if (col === null) return;
-    const colLetter = efColNumToA1(col);
-    const ref = `${colLetter}2:${colLetter}${rowCount + 1}`;
-    const topLeftCellRef = `${colLetter}2`;
+    let ref, topLeftCellRef;
+    if (rule.metrik === EF_ALL_COLUMNS_VALUE){
+      // 29.08.2026: kural TEK bir sütuna değil, tüm veri sütunlarına (A'dan son sütuna kadar)
+      // uygulanır - "Yıllık İzin" gibi bir metnin hangi sütunda (Vardiya'da hangi GÜN
+      // sütununda) çıkarsa çıksın aynı renkle işaretlenmesini istediğimiz senaryolar için.
+      const lastColLetter = efColNumToA1(result.columns.length - 1);
+      ref = `A2:${lastColLetter}${rowCount + 1}`;
+      topLeftCellRef = 'A2';
+    } else {
+      const col = efFindColByLabel(result, rule.metrik);
+      if (col === null) return;
+      const colLetter = efColNumToA1(col);
+      ref = `${colLetter}2:${colLetter}${rowCount + 1}`;
+      topLeftCellRef = `${colLetter}2`;
+    }
     const argb = efHexToArgb(rule.renk) || 'FFFFFF00';
     const style = { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } };
     const priority = priorityCounter++;
@@ -11045,6 +11058,22 @@ function efApplyKosulluBicimlendirme(ws, result, rowCount){
 }
 
 // ----- Panel: Biçim Ayarları tablosu (5 hedef, manuel) -----
+// 29.08.2026: "Sayı Formatı" alanı önceden Excel format kodunu (#,##0.00 gibi) EZBERDEN elle
+// yazmayı gerektiriyordu. Artık anlaşılır Türkçe seçeneklerden birini seçiyorsun, arkada
+// gerçek Excel kodu otomatik yazılıyor. "Özel (elle yaz)" seçilirse eski elle-yazma kutusu
+// açılır - listede olmayan bir kod lazımsa hâlâ kullanılabilir.
+const EF_NUMBER_FORMAT_PRESETS = [
+  { value: '0', label: 'Sayı (Tam Sayı)' },
+  { value: '#,##0', label: 'Sayı (Ayraçlı)' },
+  { value: '#,##0.00', label: 'Sayı (Ondalıklı, 2 Basamak)' },
+  { value: '0%', label: 'Yüzde (Tam)' },
+  { value: '0.00%', label: 'Yüzde (Ondalıklı)' },
+  { value: '#,##0.00 "₺"', label: 'Para (₺)' },
+  { value: 'dd.mm.yyyy', label: 'Tarih (GG.AA.YYYY)' },
+  { value: 'hh:mm', label: 'Saat (SS:DD)' },
+  { value: 'dd.mm.yyyy hh:mm', label: 'Tarih + Saat' },
+  { value: '@', label: 'Metin' },
+];
 const EF_FORMAT_COLS = [
   { key: 'uygula', label: 'Uygula', type: 'bool' },
   { key: 'kalin', label: 'Kalın', type: 'bool' },
@@ -11077,6 +11106,18 @@ function efRenderFormatTable(){
         return `<td><select data-target="${t.key}" data-field="${c.key}">${opts}</select></td>`;
       }
       if (c.type === 'number') return `<td><input type="number" data-target="${t.key}" data-field="${c.key}" value="${val != null ? val : ''}" style="width:60px;"></td>`;
+      if (c.key === 'sayiFormat'){
+        const presetMatch = EF_NUMBER_FORMAT_PRESETS.find(p => p.value === val);
+        const isCustom = !!val && !presetMatch;
+        const opts = [`<option value="" ${!val ? 'selected' : ''}>(Biçim Yok)</option>`,
+          ...EF_NUMBER_FORMAT_PRESETS.map(p => `<option value="${p.value}" ${val === p.value ? 'selected' : ''}>${p.label}</option>`),
+          `<option value="__custom__" ${isCustom ? 'selected' : ''}>Özel (elle yaz)…</option>`
+        ].join('');
+        return `<td>
+          <select data-target="${t.key}" data-field="sayiFormatPreset" style="width:100%;">${opts}</select>
+          <input type="text" data-target="${t.key}" data-field="sayiFormat" value="${val || ''}" placeholder="#,##0.00" style="width:100px; margin-top:4px; ${isCustom ? '' : 'display:none;'}">
+        </td>`;
+      }
       return `<td><input type="text" data-target="${t.key}" data-field="${c.key}" value="${val || ''}" placeholder="${c.placeholder || ''}" style="width:100px;"></td>`;
     }).join('');
     return `<tr><td style="font-weight:600;">${t.label}</td>${cells}</tr>`;
@@ -11088,6 +11129,21 @@ document.getElementById('efFormatTableWrap').addEventListener('change', (e) => {
   const target = el.getAttribute('data-target');
   const field = el.getAttribute('data-field');
   if (!target || !field) return;
+  if (field === 'sayiFormatPreset'){
+    // Önayarlı bir kod seçildiyse doğrudan gerçek alana (sayiFormat) yazılır ve elle-yazma
+    // kutusu gizlenir. "Özel" seçildiyse gerçek alana dokunulmaz (kullanıcı kendi yazacak),
+    // kutu görünür hale getirilip odaklanılır.
+    const customInput = el.parentElement.querySelector('input[data-field="sayiFormat"]');
+    if (el.value === '__custom__'){
+      customInput.style.display = '';
+      customInput.focus();
+    } else {
+      customInput.style.display = 'none';
+      customInput.value = el.value;
+      efFormatState[target].sayiFormat = el.value;
+    }
+    return;
+  }
   let val;
   if (el.type === 'checkbox') val = el.checked;
   else if (el.type === 'number') val = el.value === '' ? null : parseFloat(el.value);
@@ -11100,8 +11156,21 @@ function efRenderCondTable(){
   const wrap = document.getElementById('efCondTableWrap');
   if (!efKosulluBicimlendirme.length){ wrap.innerHTML = '<div style="color:var(--dim); font-size:12.5px;">Henüz kural eklenmedi.</div>'; return; }
   const opOpts = EF_COND_OPERATOR_OPTIONS.map(o => `<option value="${o}">${o}</option>`).join('');
+  const activeHeaders = efGetActiveTableHeaders(efActivePageId);
+  const metrikOptionsHtml = (selected) => {
+    // Kaydedilmiş eski bir şablonda, o an aktif tabloda ARTIK olmayan bir sütun adı gelmiş
+    // olabilir (örn. farklı bir sayfadan kaydedilmiş şablon) - kaybolmasın diye listeye
+    // "(mevcut değil)" notuyla yine eklenir, kullanıcı fark edip düzeltebilsin.
+    const opts = [`<option value="" ${!selected ? 'selected' : ''}>Seç…</option>`,
+      `<option value="${EF_ALL_COLUMNS_VALUE}" ${selected === EF_ALL_COLUMNS_VALUE ? 'selected' : ''}>(Tüm Sütunlar)</option>`];
+    activeHeaders.forEach(h => opts.push(`<option value="${h}" ${selected === h ? 'selected' : ''}>${h}</option>`));
+    if (selected && selected !== EF_ALL_COLUMNS_VALUE && !activeHeaders.includes(selected)){
+      opts.push(`<option value="${selected}" selected>${selected} (mevcut değil)</option>`);
+    }
+    return opts.join('');
+  };
   const rows = efKosulluBicimlendirme.map(r => `<tr data-rownum="${r.id}">
-    <td><input type="text" data-id="${r.id}" data-field="metrik" value="${r.metrik || ''}" placeholder="Sütun adı" style="width:110px;"></td>
+    <td><select data-id="${r.id}" data-field="metrik" style="width:150px;">${metrikOptionsHtml(r.metrik)}</select></td>
     <td><select data-id="${r.id}" data-field="operator">${EF_COND_OPERATOR_OPTIONS.map(o => `<option value="${o}" ${r.operator === o ? 'selected' : ''}>${o}</option>`).join('')}</select></td>
     <td><input type="text" data-id="${r.id}" data-field="deger1" value="${r.deger1 != null ? r.deger1 : ''}" style="width:70px;"></td>
     <td><input type="text" data-id="${r.id}" data-field="deger2" value="${r.deger2 != null ? r.deger2 : ''}" placeholder="-" style="width:70px;"></td>
@@ -11278,7 +11347,29 @@ function efUpdateCurrentSummary(){
   el.textContent = `${activeTargets}/5 hedef aktif, ${ruleCount} koşullu biçimlendirme kuralı tanımlı.`;
 }
 
-function openExcelFormatPanel(){
+let efActivePageId = null;
+// 29.08.2026: exportActiveTableToExcel ile AYNI seçim mantığı (aktif .tab-content, yoksa
+// sayfanın kendisi) - Koşullu Biçimlendirme'nin Metrik dropdown'ı, export edildiğinde
+// GERÇEKTE görünecek tablo(lar)ın başlıklarını göstersin diye.
+function efGetActiveTableHeaders(pageId){
+  const pageEl = pageId ? document.getElementById(pageId) : null;
+  if (!pageEl) return [];
+  const activeTab = pageEl.querySelector('.tab-content.active') || pageEl;
+  const tables = [...activeTab.querySelectorAll('table')];
+  const seen = new Set();
+  const headers = [];
+  tables.forEach(t => {
+    const firstRow = t.querySelector('tr');
+    if (!firstRow) return;
+    [...firstRow.querySelectorAll('th,td')].forEach(cell => {
+      const label = efNormalizeKey(cell.textContent);
+      if (label && !seen.has(label)){ seen.add(label); headers.push(label); }
+    });
+  });
+  return headers;
+}
+function openExcelFormatPanel(pageId){
+  efActivePageId = pageId || null;
   document.getElementById('excelFormatModalOverlay').style.display = 'flex';
   efRenderFormatTable();
   efRenderCondTable();
