@@ -10440,11 +10440,11 @@ function renderKacanCulprits(){
       bodyHtml = `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
           <div>
-            <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Çok Artan Kategoriler</div>
+            <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Çok Artan Kategoriler <span style="text-transform:none; font-weight:400; letter-spacing:normal;">(önceki aya göre)</span></div>
             ${deltaRowHtml(rc.topKat)}
           </div>
           <div>
-            <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Çok Artan İller</div>
+            <div style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim-2); margin-bottom:6px;">En Çok Artan İller <span style="text-transform:none; font-weight:400; letter-spacing:normal;">(önceki aya göre)</span></div>
             ${deltaRowHtml(rc.topIl)}
           </div>
         </div>`;
@@ -10645,8 +10645,8 @@ async function presAnalizGenerate(from, to){
         return;
       }
 
-      const katLabel = rc.status === 'no-prev-data' ? 'EN YÜKSEK KATEGORİLER' : 'EN ÇOK ARTAN KATEGORİLER';
-      const ilLabel = rc.status === 'no-prev-data' ? 'EN YÜKSEK İLLER' : 'EN ÇOK ARTAN İLLER';
+      const katLabel = rc.status === 'no-prev-data' ? 'EN YÜKSEK KATEGORİLER' : 'EN ÇOK ARTAN KATEGORİLER (ÖNCEKİ AYA GÖRE)';
+      const ilLabel = rc.status === 'no-prev-data' ? 'EN YÜKSEK İLLER' : 'EN ÇOK ARTAN İLLER (ÖNCEKİ AYA GÖRE)';
       let bodyStartY = 1.9;
       if (rc.status === 'no-prev-data'){
         s.addText('Önceki ay verisi eksik olduğu için artış hesaplanamadı — bu ayın en yüksek talep gösteren kalemleri (ham değer) gösteriliyor.', { x: 0.5, y: 1.68, w: 11.5, h: 0.35, fontFace: 'Arial', fontSize: 10, italic: true, color: DIM });
