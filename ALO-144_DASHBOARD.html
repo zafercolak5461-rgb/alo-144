@@ -9643,8 +9643,8 @@ function dataCoverageHtml(sources, from, to){
     if (!cov){
       return `<span style="color:var(--text-dim-2);">${s.label}: veri yok</span>`;
     }
-    const fromLabel = cov.min.toLocaleDateString('tr-TR');
-    const toLabel = cov.max.toLocaleDateString('tr-TR');
+    const fromLabel = s.monthly ? cov.min.toLocaleDateString('tr-TR', { month:'long', year:'numeric' }) : cov.min.toLocaleDateString('tr-TR');
+    const toLabel = s.monthly ? cov.max.toLocaleDateString('tr-TR', { month:'long', year:'numeric' }) : cov.max.toLocaleDateString('tr-TR');
     const covMinMid = toMid(cov.min), covMaxMid = toMid(cov.max);
     const insufficient = !!(fromMid && toMidVal && (covMinMid > fromMid || covMaxMid < toMidVal));
     const color = insufficient ? 'var(--danger)' : 'var(--text-dim)';
@@ -9663,7 +9663,7 @@ function dataCoverageHtml(sources, from, to){
 function anCoverageSources(){
   return [
     { label: 'Çağrı', dates: CALLS_ROWS.map(r => r.date) },
-    { label: gtdLabel(), dates: GTD_ROWS.map(r => r.date) },
+    { label: gtdLabel(), dates: GTD_ROWS.map(r => r.date), monthly: true },
     { label: 'Köpük Talep', dates: KOPUK_ROWS.map(r => r.date) },
   ];
 }
@@ -10074,7 +10074,7 @@ function renderRankTables(from, to){
   document.getElementById('anKatRankBody').innerHTML = katRows.length ? katRows.map((r,i) => `<tr><td>${i+1}</td><td class="date">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.curr).toLocaleString('tr-TR')}</td><td>${deltaCellHtml(pctChange(r.curr, r.prev))}</td></tr>`).join('') : '<tr><td class="empty-state" colspan="4">Veri yok.</td></tr>';
 
   const covKatEl = document.getElementById('anCoverageKatRank');
-  if (covKatEl) covKatEl.innerHTML = dataCoverageHtml([{ label: gtdLabel(), dates: GTD_ROWS.map(r => r.date) }], from, to);
+  if (covKatEl) covKatEl.innerHTML = dataCoverageHtml([{ label: gtdLabel(), dates: GTD_ROWS.map(r => r.date), monthly: true }], from, to);
 
   const { activeCats, headCols, entries } = computeIlRanking(from, to, 15);
   const headExtra = activeCats ? '<th>Toplam</th>' : '';
@@ -10473,7 +10473,7 @@ function renderAll(){
   renderHeatmap(gtdSeries, 'anHeatmapGtdWrap');
   renderHeatmap(kopukSeries, 'anHeatmapKopukWrap');
   const covGtdEl = document.getElementById('anCoverageHeatmapGtd');
-  if (covGtdEl) covGtdEl.innerHTML = dataCoverageHtml([{ label: gtdLabel(), dates: GTD_ROWS.map(r => r.date) }], null, null);
+  if (covGtdEl) covGtdEl.innerHTML = dataCoverageHtml([{ label: gtdLabel(), dates: GTD_ROWS.map(r => r.date), monthly: true }], null, null);
   const covKopukEl = document.getElementById('anCoverageHeatmapKopuk');
   if (covKopukEl) covKopukEl.innerHTML = dataCoverageHtml([{ label: 'Köpük Talep', dates: KOPUK_ROWS.map(r => r.date) }], null, null);
   renderKacanCulprits();
