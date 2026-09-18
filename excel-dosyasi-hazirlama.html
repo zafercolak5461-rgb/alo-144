@@ -82,6 +82,47 @@ body{ background:var(--shell-bg); color:var(--shell-text); font-family:'Inter', 
 }
 .status-banner{ font-size:12.5px; padding:9px 14px; border-radius:8px; margin-bottom:16px; display:none; }
 .status-banner.error{ display:block; background:rgba(232,93,93,0.1); color:#e85d5d; border:1px solid rgba(232,93,93,0.25); }
+
+/* ===== Rapor Oluştur sayfası ===== */
+.col-row{
+  display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--shell-line);
+  border-radius:10px; margin-bottom:8px; background:rgba(255,255,255,0.015);
+}
+.col-row-badge{
+  flex-shrink:0; font-family:'IBM Plex Mono', monospace; font-size:10.5px; font-weight:600;
+  color:var(--shell-accent); background:rgba(232,165,61,0.12); border:1px solid rgba(232,165,61,0.3);
+  border-radius:6px; padding:3px 8px; text-transform:uppercase; letter-spacing:0.04em;
+}
+.col-row-main{ flex:1; min-width:0; }
+.col-row-source{ font-size:11px; color:var(--shell-text-dim-2); font-family:'IBM Plex Mono', monospace; }
+.col-row-header{ font-size:14px; font-weight:600; margin-top:1px; }
+.col-row-remove{
+  flex-shrink:0; background:none; border:1px solid var(--shell-line); color:var(--shell-text-dim);
+  border-radius:6px; width:28px; height:28px; cursor:pointer; font-size:13px;
+}
+.col-row-remove:hover{ color:#e85d5d; border-color:#e85d5d; }
+
+select.field, input.field{
+  background:var(--shell-bg); color:var(--shell-text); border:1px solid var(--shell-line);
+  border-radius:8px; padding:8px 11px; font-size:13px; font-family:'Inter', sans-serif; width:100%;
+}
+select.field:focus, input.field:focus{ outline:none; border-color:var(--shell-accent); }
+.field-label{ font-size:11px; color:var(--shell-text-dim-2); margin-bottom:5px; display:block; font-family:'IBM Plex Mono', monospace; text-transform:uppercase; letter-spacing:0.04em; }
+.field-group{ margin-bottom:12px; }
+
+.primary-btn{
+  background:var(--shell-accent); color:#08090b; border:none; font-weight:700; font-size:13.5px;
+  padding:10px 18px; border-radius:9px; cursor:pointer; font-family:'Inter', sans-serif;
+}
+.primary-btn:hover{ filter:brightness(1.07); }
+.primary-btn:disabled{ opacity:0.5; cursor:not-allowed; filter:none; }
+
+.month-chip{
+  background:none; border:1px solid var(--shell-line); color:var(--shell-text-dim); border-radius:999px;
+  padding:6px 13px; font-size:12.5px; cursor:pointer; font-family:'Inter', sans-serif;
+}
+.month-chip.active{ background:rgba(232,165,61,0.12); color:var(--shell-accent); border-color:var(--shell-accent); }
+.month-chip-wrap{ display:flex; flex-wrap:wrap; gap:7px; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -109,13 +150,59 @@ body{ background:var(--shell-bg); color:var(--shell-text); font-family:'Inter', 
       </div>
     </div>
     <div class="nav-group">
+      <div class="nav-group-title">Rapor</div>
+      <button class="nav-item active" data-page="rapor">Rapor Oluştur</button>
+    </div>
+    <div class="nav-group">
       <div class="nav-group-title">Sistem</div>
-      <button class="nav-item active" data-page="kaynaklar">Kaynaklar</button>
+      <button class="nav-item" data-page="kaynaklar">Kaynaklar</button>
     </div>
   </aside>
 
   <main class="main">
-    <div id="page-kaynaklar">
+    <div id="page-rapor">
+      <h1 class="page-title">Rapor Oluştur</h1>
+      <p class="page-sub">İlk eklediğiniz sütun raporun referansı olur — sonraki her sütun, hangi kaynaktan olursa olsun, o referansa göre eşleştirilerek çekilir.</p>
+
+      <div id="raporStatus" class="status-banner error"></div>
+
+      <div class="card">
+        <div id="raporColumnsList">
+          <div class="empty-state">Henüz sütun eklenmedi. Aşağıdan ilk sütunu ekleyin — bu, raporun referansı olacak.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field-group">
+          <label class="field-label">Kaynak</label>
+          <select class="field" id="newColKaynak">
+            <option value="">— Kaynak seçin —</option>
+          </select>
+        </div>
+        <div class="field-group" id="newColTabWrap" style="display:none;">
+          <label class="field-label">Sekme</label>
+          <select class="field" id="newColTab"></select>
+        </div>
+        <div class="field-group" id="newColKeyWrap" style="display:none;">
+          <label class="field-label">Bu kaynakta referansı taşıyan başlık (eşleştirme anahtarı)</label>
+          <select class="field" id="newColKeyHeader"></select>
+        </div>
+        <div class="field-group" id="newColHeaderWrap" style="display:none;">
+          <label class="field-label">Eklenecek başlık</label>
+          <select class="field" id="newColHeader"></select>
+        </div>
+        <button class="primary-btn" id="newColAddBtn" disabled>+ Sütun Ekle</button>
+      </div>
+
+      <div class="card" id="raporMonthCard" style="display:none;">
+        <label class="field-label">Ay Seçimi (ay bazlı kaynak kullanıldığı için gerekli — her ay ayrı sayfa olur)</label>
+        <div class="month-chip-wrap" id="raporMonthChips"></div>
+      </div>
+
+      <button class="primary-btn" id="generateReportBtn" style="margin-top:6px;">📥 Rapor Oluştur (Excel İndir)</button>
+    </div>
+
+    <div id="page-kaynaklar" style="display:none;">
       <h1 class="page-title">Kaynaklar</h1>
       <p class="page-sub">Rapor oluştururken kullanılabilecek Google Sheets kaynakları — CONFIG sheet'teki "<span id="kaynaklarTabNameLabel"></span>" sekmesinden okunur.</p>
       <div id="kaynaklarStatus" class="status-banner error"></div>
@@ -221,6 +308,8 @@ async function initAccess(){
 
     await loadKaynaklar();
     renderKaynaklarList();
+    initReportPage();
+    initNav();
   } catch(e){
     document.getElementById('kaynaklarStatus').textContent = 'Yetki kontrolü sırasında hata oluştu: ' + e.message;
     document.getElementById('kaynaklarStatus').style.display = 'block';
@@ -340,6 +429,373 @@ document.addEventListener('click', async (e) => {
     btn.disabled = false;
   }
 });
+
+// ===== Sol menü sayfa geçişi =====
+function initNav(){
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('main.main > div[id^="page-"]').forEach(p => p.style.display = 'none');
+      const page = document.getElementById(`page-${btn.dataset.page}`);
+      if (page) page.style.display = '';
+    });
+  });
+}
+
+// ===== Rapor Oluştur: kurallar =====
+// 1) İlk eklenen sütun = raporun REFERANSI (hem çıktının ilk sütunu, hem de o kaynağın
+//    kendi anahtarı - keyHeaderBySheet otomatik atanır).
+// 2) Sonraki her sütun aynı ya da farklı bir kaynaktan seçilebilir. O kaynak bu raporda
+//    İLK KEZ kullanılıyorsa, kullanıcıya bir kere "bu kaynakta referansı taşıyan başlık
+//    hangisi?" sorulur (keyHeaderBySheet[sheetId]) - sonra hatırlanır, tekrar sorulmaz.
+// 3) Değerler DÜŞEYARA mantığıyla (anahtar değere göre bulunur) çekilir - kaynak satır
+//    sırası önemsiz. Eşleşme yoksa hücre boş kalır, hata verilmez.
+// 4) Ay bazlı bir kaynak (sekmeleri AY-YIL desenine uyan) kullanılırsa, global bir ay
+//    seçimi devreye girer - her seçili ay ayrı bir Excel sayfası olur.
+const TR_MONTHS_UPPER = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+const TR_MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+
+function parseMonthTabs(titles){
+  const list = [];
+  titles.forEach(title => {
+    const parts = String(title).trim().split('-');
+    if (parts.length !== 2) return;
+    const monthIdx = TR_MONTHS_UPPER.indexOf(parts[0].trim().toLocaleUpperCase('tr'));
+    const year = parseInt(parts[1], 10);
+    if (monthIdx === -1 || isNaN(year)) return;
+    list.push({ year, month: monthIdx, tabName: title, label: `${TR_MONTHS[monthIdx]} ${year}` });
+  });
+  list.sort((a,b) => (a.year - b.year) || (a.month - b.month));
+  return list;
+}
+
+const SOURCE_META_CACHE = {}; // sheetId -> { titles, monthTabs, isMonthly }
+const HEADERS_CACHE = {};     // `${sheetId}::${tabName}` -> [headers]
+const DATA_CACHE = {};        // `${sheetId}::${tabName}` -> { headers, rows }
+
+async function getSourceMeta(sheetId){
+  if (SOURCE_META_CACHE[sheetId]) return SOURCE_META_CACHE[sheetId];
+  const titles = await fetchAllTabTitles(sheetId);
+  const monthTabs = parseMonthTabs(titles);
+  // Sekmelerin YARISINDAN FAZLASI ay deseni ile eşleşiyorsa bu kaynak "ay bazlı" sayılır -
+  // tek tük ay-benzeri isimli sekme (yanlışlıkla) tüm kaynağı ay-bazlı yapmasın diye.
+  const isMonthly = titles.length > 0 && monthTabs.length >= titles.length * 0.5;
+  const meta = { titles, monthTabs, isMonthly };
+  SOURCE_META_CACHE[sheetId] = meta;
+  return meta;
+}
+
+// Ay bazlı bir kaynakta başlıkları keşfetmek için EN GÜNCEL ay sekmesini, değilse tek/ilk
+// sekmeyi temsilci olarak kullanır.
+function representativeTab(meta){
+  if (meta.isMonthly && meta.monthTabs.length) return meta.monthTabs[meta.monthTabs.length - 1].tabName;
+  return meta.titles[0] || null;
+}
+
+async function getHeaders(sheetId, tabName){
+  const cacheKey = `${sheetId}::${tabName}`;
+  if (HEADERS_CACHE[cacheKey]) return HEADERS_CACHE[cacheKey];
+  const range = `${tabName}!A1:ZZ1`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Başlıklar okunamadı.');
+  const headers = ((data.values && data.values[0]) || []).map(h => String(h || '').trim()).filter(Boolean);
+  HEADERS_CACHE[cacheKey] = headers;
+  return headers;
+}
+
+async function getSheetData(sheetId, tabName){
+  const cacheKey = `${sheetId}::${tabName}`;
+  if (DATA_CACHE[cacheKey]) return DATA_CACHE[cacheKey];
+  const range = `${tabName}!A1:ZZ5000`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+  const res = await authFetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Veri okunamadı.');
+  const values = data.values || [];
+  const headers = (values[0] || []).map(h => String(h || '').trim());
+  const rows = values.slice(1);
+  const result = { headers, rows };
+  DATA_CACHE[cacheKey] = result;
+  return result;
+}
+
+function normalizeKey(v){ return String(v == null ? '' : v).trim(); }
+
+let reportColumns = [];      // [{ id, sheetId, ad, header }]  - reportColumns[0] = referans
+let keyHeaderBySheet = {};   // sheetId -> o kaynaktaki referans-eşleşme başlığı
+let selectedReportMonths = new Set(); // "year-month" anahtarları
+
+function initReportPage(){
+  const sel = document.getElementById('newColKaynak');
+  sel.innerHTML = `<option value="">— Kaynak seçin —</option>` +
+    KAYNAKLAR.map(k => `<option value="${escapeHtml(k.sheetId)}">${escapeHtml(k.ad)}</option>`).join('');
+  sel.addEventListener('change', onNewColKaynakChange);
+  document.getElementById('newColTab').addEventListener('change', onNewColTabChange);
+  document.getElementById('newColAddBtn').addEventListener('click', addReportColumn);
+  document.getElementById('generateReportBtn').addEventListener('click', generateReport);
+  renderReportColumnsList();
+}
+
+function reportStatus(msg, isError){
+  const el = document.getElementById('raporStatus');
+  if (!msg){ el.style.display = 'none'; return; }
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.color = isError === false ? 'var(--shell-text-dim)' : '#e85d5d';
+}
+
+async function onNewColKaynakChange(){
+  const sheetId = document.getElementById('newColKaynak').value;
+  const tabWrap = document.getElementById('newColTabWrap');
+  const keyWrap = document.getElementById('newColKeyWrap');
+  const headerWrap = document.getElementById('newColHeaderWrap');
+  const addBtn = document.getElementById('newColAddBtn');
+  tabWrap.style.display = 'none';
+  keyWrap.style.display = 'none';
+  headerWrap.style.display = 'none';
+  addBtn.disabled = true;
+  reportStatus('');
+  if (!sheetId) return;
+
+  try {
+    const meta = await getSourceMeta(sheetId);
+    // Ay bazlı DEĞİL ve birden fazla sekmesi varsa, hangi sekmeden okunacağını sor.
+    if (!meta.isMonthly && meta.titles.length > 1){
+      const tabSel = document.getElementById('newColTab');
+      tabSel.innerHTML = meta.titles.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+      tabWrap.style.display = '';
+      await loadHeaderDependentFields(sheetId, tabSel.value);
+    } else {
+      await loadHeaderDependentFields(sheetId, representativeTab(meta));
+    }
+  } catch(err){
+    reportStatus('Kaynak okunamadı: ' + err.message);
+  }
+}
+
+async function onNewColTabChange(){
+  const sheetId = document.getElementById('newColKaynak').value;
+  const tabName = document.getElementById('newColTab').value;
+  if (!sheetId || !tabName) return;
+  try { await loadHeaderDependentFields(sheetId, tabName); }
+  catch(err){ reportStatus('Başlıklar okunamadı: ' + err.message); }
+}
+
+async function loadHeaderDependentFields(sheetId, tabName){
+  const addBtn = document.getElementById('newColAddBtn');
+  addBtn.disabled = true;
+  if (!tabName) return;
+  const headers = await getHeaders(sheetId, tabName);
+  if (!headers.length){ reportStatus('Bu sekmede başlık satırı bulunamadı.'); return; }
+
+  const isRefColumn = reportColumns.length === 0; // henüz hiç sütun yoksa, bu ilk (referans) sütun olacak
+  const isKnownKeySource = Object.prototype.hasOwnProperty.call(keyHeaderBySheet, sheetId);
+  const keyWrap = document.getElementById('newColKeyWrap');
+  const headerWrap = document.getElementById('newColHeaderWrap');
+
+  if (!isRefColumn && !isKnownKeySource){
+    const keySel = document.getElementById('newColKeyHeader');
+    keySel.innerHTML = headers.map(h => `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`).join('');
+    keyWrap.style.display = '';
+  } else {
+    keyWrap.style.display = 'none';
+  }
+
+  const headerSel = document.getElementById('newColHeader');
+  headerSel.innerHTML = headers.map(h => `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`).join('');
+  headerWrap.style.display = '';
+  addBtn.disabled = false;
+}
+
+let reportColIdSeq = 1;
+
+async function addReportColumn(){
+  const sheetId = document.getElementById('newColKaynak').value;
+  const kaynak = KAYNAKLAR.find(k => k.sheetId === sheetId);
+  const header = document.getElementById('newColHeader').value;
+  if (!sheetId || !kaynak || !header) return;
+
+  const isRefColumn = reportColumns.length === 0;
+  const keyWrap = document.getElementById('newColKeyWrap');
+
+  if (isRefColumn){
+    keyHeaderBySheet[sheetId] = header; // referans sütunun kendi başlığı, aynı zamanda o kaynağın anahtarı
+  } else if (keyWrap.style.display !== 'none'){
+    const keyHeader = document.getElementById('newColKeyHeader').value;
+    if (!keyHeader){ reportStatus('Önce bu kaynak için referans-eşleşme başlığını seçin.'); return; }
+    keyHeaderBySheet[sheetId] = keyHeader;
+  }
+
+  reportColumns.push({ id: reportColIdSeq++, sheetId, ad: kaynak.ad, header });
+  renderReportColumnsList();
+  await refreshMonthSelector();
+
+  // Formu sıfırla
+  document.getElementById('newColKaynak').value = '';
+  document.getElementById('newColTabWrap').style.display = 'none';
+  document.getElementById('newColKeyWrap').style.display = 'none';
+  document.getElementById('newColHeaderWrap').style.display = 'none';
+  document.getElementById('newColAddBtn').disabled = true;
+  reportStatus('');
+}
+
+function removeReportColumn(id){
+  reportColumns = reportColumns.filter(c => c.id !== id);
+  if (!reportColumns.length) keyHeaderBySheet = {}; // liste boşaldıysa anahtar eşleşmeleri de sıfırlanır
+  renderReportColumnsList();
+  refreshMonthSelector();
+}
+
+function renderReportColumnsList(){
+  const el = document.getElementById('raporColumnsList');
+  if (!reportColumns.length){
+    el.innerHTML = `<div class="empty-state">Henüz sütun eklenmedi. Aşağıdan ilk sütunu ekleyin — bu, raporun referansı olacak.</div>`;
+    return;
+  }
+  el.innerHTML = reportColumns.map((c, idx) => `
+    <div class="col-row">
+      <span class="col-row-badge">${idx === 0 ? 'Referans' : idx + 1}</span>
+      <div class="col-row-main">
+        <div class="col-row-source">${escapeHtml(c.ad)}${keyHeaderBySheet[c.sheetId] ? ' · anahtar: ' + escapeHtml(keyHeaderBySheet[c.sheetId]) : ''}</div>
+        <div class="col-row-header">${escapeHtml(c.header)}</div>
+      </div>
+      <button class="col-row-remove" data-colid="${c.id}" title="Kaldır">✕</button>
+    </div>`).join('');
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.col-row-remove');
+  if (!btn) return;
+  removeReportColumn(Number(btn.dataset.colid));
+});
+
+async function refreshMonthSelector(){
+  const card = document.getElementById('raporMonthCard');
+  const chipsEl = document.getElementById('raporMonthChips');
+  const usedSheetIds = [...new Set(reportColumns.map(c => c.sheetId))];
+  let anyMonthly = false;
+  let unionMonths = [];
+  for (const sid of usedSheetIds){
+    const meta = SOURCE_META_CACHE[sid];
+    if (meta && meta.isMonthly){
+      anyMonthly = true;
+      meta.monthTabs.forEach(m => {
+        const key = `${m.year}-${m.month}`;
+        if (!unionMonths.some(x => x.key === key)) unionMonths.push({ key, ...m });
+      });
+    }
+  }
+  if (!anyMonthly){
+    card.style.display = 'none';
+    return;
+  }
+  unionMonths.sort((a,b) => (a.year - b.year) || (a.month - b.month));
+  card.style.display = '';
+  chipsEl.innerHTML = unionMonths.map(m =>
+    `<button class="month-chip ${selectedReportMonths.has(m.key) ? 'active' : ''}" data-monthkey="${m.key}">${escapeHtml(m.label)}</button>`
+  ).join('');
+}
+
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('#raporMonthChips .month-chip');
+  if (!chip) return;
+  const key = chip.dataset.monthkey;
+  if (selectedReportMonths.has(key)) selectedReportMonths.delete(key); else selectedReportMonths.add(key);
+  chip.classList.toggle('active');
+});
+
+// Bir kaynaktan, seçili ay (varsa) için doğru sekmeyi ve o sekmenin verisini getirir.
+async function resolveSourceDataForPass(sheetId, monthInfo){
+  const meta = await getSourceMeta(sheetId);
+  let tabName;
+  if (meta.isMonthly){
+    const match = monthInfo && meta.monthTabs.find(m => m.year === monthInfo.year && m.month === monthInfo.month);
+    tabName = match ? match.tabName : null;
+  } else {
+    tabName = representativeTab(meta);
+  }
+  if (!tabName) return null; // bu kaynakta bu ay için sekme yok - sessizce atlanır
+  return await getSheetData(sheetId, tabName);
+}
+
+async function generateReport(){
+  reportStatus('');
+  if (!reportColumns.length){ reportStatus('Önce en az bir sütun (referans) ekleyin.'); return; }
+
+  const anyMonthly = document.getElementById('raporMonthCard').style.display !== 'none';
+  if (anyMonthly && !selectedReportMonths.size){ reportStatus('Ay bazlı bir kaynak kullandınız, en az bir ay seçin.'); return; }
+
+  const passes = anyMonthly
+    ? [...selectedReportMonths].map(key => {
+        const [year, month] = key.split('-').map(Number);
+        return { year, month, label: `${TR_MONTHS[month]} ${year}` };
+      }).sort((a,b) => (a.year - b.year) || (a.month - b.month))
+    : [null];
+
+  const btn = document.getElementById('generateReportBtn');
+  btn.disabled = true;
+  btn.textContent = 'Oluşturuluyor...';
+  try {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ALO 144 Osmaniye';
+    wb.created = new Date();
+
+    const refCol = reportColumns[0];
+
+    for (const pass of passes){
+      const refData = await resolveSourceDataForPass(refCol.sheetId, pass);
+      if (!refData){ continue; } // bu ay için referans kaynakta veri yok, bu sayfa atlanır
+      const refKeyIdx = refData.headers.indexOf(refCol.header);
+      if (refKeyIdx === -1) continue;
+      const refValues = refData.rows.map(r => normalizeKey(r[refKeyIdx])).filter(v => v !== '');
+
+      // Bu pass'te ihtiyaç duyulan her (sheetId) için veri + anahtar sütun indeksini bir kez hazırla.
+      const sourceLookups = {}; // sheetId -> { headers, rows, keyIdx }
+      for (const sid of [...new Set(reportColumns.map(c => c.sheetId))]){
+        const data = await resolveSourceDataForPass(sid, pass);
+        if (!data){ sourceLookups[sid] = null; continue; }
+        const keyIdx = data.headers.indexOf(keyHeaderBySheet[sid]);
+        sourceLookups[sid] = { ...data, keyIdx };
+      }
+
+      const ws = wb.addWorksheet(pass ? pass.label.replace(/[\\/*?:[\]]/g, ' ') : 'Sayfa1');
+      ws.getRow(1).values = reportColumns.map(c => c.header);
+      ws.columns = reportColumns.map(() => ({ width: 20 }));
+
+      refValues.forEach(refVal => {
+        const rowValues = reportColumns.map(c => {
+          const src = sourceLookups[c.sheetId];
+          if (!src || src.keyIdx === -1) return null;
+          const headerIdx = src.headers.indexOf(c.header);
+          if (headerIdx === -1) return null;
+          const match = src.rows.find(r => normalizeKey(r[src.keyIdx]) === refVal);
+          return match ? (match[headerIdx] ?? null) : null;
+        });
+        ws.addRow(rowValues);
+      });
+    }
+
+    if (!wb.worksheets.length){ reportStatus('Seçilen aylar için hiçbir kaynakta veri bulunamadı.'); return; }
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `excel-dosyasi-hazirlama-${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch(err){
+    reportStatus('Rapor oluşturulurken hata oluştu: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📥 Rapor Oluştur (Excel İndir)';
+  }
+}
 </script>
 </body>
 </html>
