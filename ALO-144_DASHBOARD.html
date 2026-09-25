@@ -184,6 +184,16 @@ body{
 .page{ display:none; }
 .page.active{ display:block; }
 
+/* Yetki Atama sayfası diğer sayfalar gibi ".dashboard-page" sarmalayıcısı KULLANMIYOR
+   (kendi içindeki alanlar bilinçli olarak --shell-* değişkenleriyle, kabuğun görünümüyle
+   tasarlanmış). Ama bu yüzden kendi arkaplanı yoktu - .topbar, paneller arası boşluklar gibi
+   yerler body'nin (--shell-bg) rengini gösteriyordu. Varsayılanda --shell-bg ile --bg AYNI
+   olduğu için (#10182B) bu fark edilmiyordu; ama Renk/Tema Paneli'nden "Sol Menü Teması" farklı
+   bir renge çekilince, Yetki Atama'nın boş alanları da (aslında sidebar'la hiçbir ilgisi
+   olmadan) o rengi almış gibi görünüyordu. Düzeltme: sayfaya kendi --bg/--text arkaplanını
+   veriyoruz, böylece "Sol Menü Teması" SADECE gerçek sol menüyü etkiler. (25.09.2026) */
+#page-yetki-atama{ background:var(--bg); color:var(--text); min-height:100vh; }
+
 /* Henüz veri kaynağı bağlanmamış bölümler için */
 .placeholder-page{
   display:flex; align-items:center; justify-content:center;
