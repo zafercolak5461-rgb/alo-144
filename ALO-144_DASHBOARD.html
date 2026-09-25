@@ -1073,15 +1073,23 @@ body{
       </div>
       <div class="divider"></div>
       <div class="date-input-group">
-        <label>Yıl</label>
-        <select id="gtd-yearSelect"><option value="all">Tüm Yıllar</option></select>
+        <label>Başlangıç</label>
+        <div style="display:flex; gap:6px;">
+          <select id="gtd-yearFromSelect"></select>
+          <select id="gtd-monthFromSelect"></select>
+        </div>
       </div>
       <div class="date-input-group">
-        <label>Ay</label>
-        <select id="gtd-monthSelect"><option value="all">Tüm Aylar</option></select>
+        <label>Bitiş</label>
+        <div style="display:flex; gap:6px;">
+          <select id="gtd-yearToSelect"></select>
+          <select id="gtd-monthToSelect"></select>
+        </div>
       </div>
       <!-- Veri artık AYLIK (her satır bir ayı temsil ediyor) - gün seçen özel tarih aralığı
-           14.08.2026'da kaldırıldı, Yıl+Ay seçiciler tek/yeterli filtre haline geldi. -->
+           14.08.2026'da kaldırıldı. 24.09.2026'da Yıl+Ay tekli seçiciler, yıl aşan aralık
+           seçimine izin veren Başlangıç/Bitiş Yıl+Ay çiftine dönüştürüldü (örn. Aralık 2025 –
+           Temmuz 2026). Bkz. gtdPopulateRangeSelects / gtdApplyRangeSelects. -->
       <input type="hidden" id="gtd-dateFrom">
       <input type="hidden" id="gtd-dateTo">
     </div>
@@ -2280,6 +2288,34 @@ body{
     </div>
     <div style="padding:14px 18px;"><span id="ya-statusMsg" class="hint"></span></div>
   </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <div class="panel-body" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:16px 18px;">
+      <div>
+        <div style="font-family:'Fraunces', serif; font-weight:600; font-size:16px; color:var(--shell-text);">🎨 Renk / Tema Paneli</div>
+        <div class="hint" style="margin-top:4px;">Dashboard'ın renklerini buradan değiştirebilirsiniz — değişiklikler herkese, her girişte otomatik uygulanır.</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="refresh-btn" id="theme-resetBtn">↺ Varsayılan</button>
+        <button class="refresh-btn" id="theme-saveBtn">💾 Kaydet</button>
+      </div>
+    </div>
+    <div class="panel-body" style="display:flex; border-top:1px solid var(--shell-line); flex-direction:column; gap:20px; padding:16px 18px;">
+      <div>
+        <div style="font-size:13px; font-weight:700; color:var(--shell-text); margin-bottom:10px;">Ana İçerik Teması</div>
+        <div id="theme-mainGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr)); gap:14px;"></div>
+      </div>
+      <div>
+        <div style="font-size:13px; font-weight:700; color:var(--shell-text); margin-bottom:10px;">Sol Menü Teması</div>
+        <div id="theme-shellGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr)); gap:14px;"></div>
+      </div>
+      <div>
+        <div style="font-size:13px; font-weight:700; color:var(--shell-text); margin-bottom:10px;">Grafik Renk Paleti</div>
+        <div id="theme-slotGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px,1fr)); gap:14px;"></div>
+      </div>
+      <div><span id="theme-statusMsg" class="hint"></span></div>
+    </div>
+  </div>
 </div>
   </main>
 </div>
@@ -2616,6 +2652,7 @@ function initGoogleSignIn(){
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appShell').style.display = '';
       initIslemAccess();
+      applyThemeFromSheet(); // Tema sekmesindeki (varsa) özel renkleri herkese uygular
     },
     error_callback: () => {
       showLoginError('Giriş penceresi açılamadı ya da iptal edildi. Tekrar deneyin.');
@@ -2762,9 +2799,16 @@ function isRateHeader(name){
   return ['oran','yüzde','yuzde','%','puan','skor','sla','asa','wait','bekleme','maxwait','abdmaxwait','ansmaxwait'].some(k => n.includes(k));
 }
 
+// Renk/Tema Paneli'nden CSS değişkenleri güncellendiğinde grafiklerin de otomatik uyum
+// sağlaması için, sabit hex yerine canlı :root değerleri okunur (24.09.2026).
 function chartTheme(){
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, fallback) => (cs.getPropertyValue(name) || '').trim() || fallback;
   return {
-    grid:'#2A3A5C', text:'#8FA3C9', accent:'#E8A53D', blue:'#5b9cf6', warn:'#e8a53d', danger:'#e85d5d'
+    grid: v('--line', '#2A3A5C'),
+    text: v('--text-dim', '#8FA3C9'),
+    accent: v('--accent', '#E8A53D'),
+    blue: '#5b9cf6', warn: v('--accent', '#e8a53d'), danger: '#e85d5d'
   };
 }
 
@@ -3238,6 +3282,107 @@ const ALO_SLOT_COLORS = [
   { solid: '#e85d5d', bar: 'rgba(232,93,93,0.65)', line: 'rgba(232,93,93,0.15)' },
   { solid: '#8B7FD8', bar: 'rgba(139,127,216,0.65)', line: 'rgba(139,127,216,0.15)' },
 ];
+
+// ============================================================================
+// ===== RENK / TEMA PANELİ (24.09.2026) =====================================
+// Personel Karnesi'ndeki tema paneliyle aynı mimari: Ana İçerik (10 değişken) + Sol Menü/
+// Kabuk (7 değişken) + Grafik Renk Paleti (5 slot, yukarıdaki ALO_SLOT_COLORS). Değerler
+// CONFIG_SHEET_ID'deki "Tema" sekmesinde (A=Değişken, B=Değer) tutulur - Zafer bu sekmeyi
+// BOŞ olarak manuel oluşturmalı (yoksa okuma sessizce başarısız olur ve varsayılan renkler
+// kullanılmaya devam eder). Sadece Süper Yetkili (Yetki Atama sayfası) düzenleyebilir, ama
+// uygulanan tema HERKESE (her girişte applyThemeFromSheet() ile) yansır - kişiye özel değil,
+// dashboard geneline ait. Bu blok BİLİNÇLİ olarak tüm sayfa IIFE'lerinden ÖNCE, gerçekten
+// paylaşılan (global) kod alanında duruyor - Yetki Atama sayfası açılışta hemen
+// themeRenderPanel() çağırdığı için CONFIG_SHEET_ID/THEME_* burada tanımlı OLMAK ZORUNDA
+// (aksi halde Yetki Atama script'i, Excel Biçimlendirme script'i daha çalışmadan bu
+// isimlere erişmeye çalışıp hata verir).
+// ============================================================================
+const CONFIG_SHEET_ID = '1YvcmSZZlyplOGvcQgiOponjszkZJGdnbxVCmYfQxiCA';
+const TAB_TEMA = 'Tema';
+const THEME_MAIN_VARS = [
+  { key: 'bg',          label: 'Arkaplan' },
+  { key: 'bg-panel',    label: 'Panel Arkaplanı' },
+  { key: 'bg-panel-2',  label: 'Panel Arkaplanı 2' },
+  { key: 'bg-panel-3',  label: 'Panel Arkaplanı 3' },
+  { key: 'line',        label: 'Çizgi / Kenarlık' },
+  { key: 'text',        label: 'Yazı' },
+  { key: 'text-dim',    label: 'Yazı (Soluk)' },
+  { key: 'text-dim-2',  label: 'Yazı (Soluk 2)' },
+  { key: 'accent',      label: 'Vurgu Rengi' },
+  { key: 'accent-dim',  label: 'Vurgu (Soluk)' },
+];
+const THEME_SHELL_VARS = [
+  { key: 'shell-bg',         label: 'Kabuk Arkaplanı' },
+  { key: 'shell-panel',      label: 'Sol Menü Arkaplanı' },
+  { key: 'shell-line',       label: 'Kabuk Çizgisi' },
+  { key: 'shell-text',       label: 'Kabuk Yazısı' },
+  { key: 'shell-text-dim',   label: 'Kabuk Yazısı (Soluk)' },
+  { key: 'shell-text-dim-2', label: 'Kabuk Yazısı (Soluk 2)' },
+  { key: 'shell-accent',     label: 'Kabuk Vurgu Rengi' },
+];
+const THEME_CSS_DEFAULTS = {
+  'bg':'#10182B', 'bg-panel':'#16213D', 'bg-panel-2':'#1C2944', 'bg-panel-3':'#1F2A3D',
+  'line':'#2A3A5C', 'text':'#FFFFFF', 'text-dim':'#8FA3C9', 'text-dim-2':'#5D7299',
+  'accent':'#E8A53D', 'accent-dim':'#8A6A2A',
+  'shell-bg':'#10182B', 'shell-panel':'#16213D', 'shell-line':'#2A3A5C', 'shell-text':'#FFFFFF',
+  'shell-text-dim':'#8FA3C9', 'shell-text-dim-2':'#5D7299', 'shell-accent':'#E8A53D',
+};
+const THEME_SLOT_DEFAULTS = ['#E8A53D', '#5b9cf6', '#3ddc97', '#e85d5d', '#8B7FD8'];
+
+function themeHexToRgba(hex, alpha){
+  const h = (hex || '').replace('#', '');
+  if (h.length !== 6) return `rgba(232,165,61,${alpha})`;
+  const r = parseInt(h.slice(0,2), 16), g = parseInt(h.slice(2,4), 16), b = parseInt(h.slice(4,6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ALO_SLOT_COLORS bir const dizidir ama elemanları (objeler) mutable - dizinin kendisini
+// değiştirmeden içindeki solid/bar/line alanlarını güncelleriz, bu yüzden dosyada bu diziyi
+// referans alan HİÇBİR yer (aloSlotSelectorsHtml, aloBuildSlotDatasets vb.) değişmeden çalışır.
+function themeApplySlotColor(i, hex){
+  if (!ALO_SLOT_COLORS[i]) return;
+  ALO_SLOT_COLORS[i].solid = hex;
+  ALO_SLOT_COLORS[i].bar = themeHexToRgba(hex, 0.65);
+  ALO_SLOT_COLORS[i].line = themeHexToRgba(hex, 0.15);
+}
+
+// Sheet'ten {değişken: değer} haritası okur. Tab yoksa/boşsa sessizce {} döner - varsayılan
+// renkler böylece bozulmadan kalır.
+async function fetchThemeMap(){
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${encodeURIComponent(`'${TAB_TEMA}'!A2:B100`)}`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    if (data.error) return {};
+    const map = {};
+    (data.values || []).forEach(row => {
+      const k = (row[0] || '').trim();
+      const v = (row[1] || '').trim();
+      if (k && v) map[k] = v;
+    });
+    return map;
+  } catch(e){
+    return {};
+  }
+}
+
+// Verilen haritayı hem :root CSS değişkenlerine hem de ALO_SLOT_COLORS'a uygular - Sheet'ten
+// okunan/panelden kaydedilen değer ne olursa olsun aynı yol kullanılır.
+function applyThemeMap(map){
+  if (!map) return;
+  THEME_MAIN_VARS.concat(THEME_SHELL_VARS).forEach(v => {
+    if (map[v.key]) document.documentElement.style.setProperty('--' + v.key, map[v.key]);
+  });
+  for (let i = 0; i < 5; i++){
+    const hex = map['slot-' + i];
+    if (hex) themeApplySlotColor(i, hex);
+  }
+}
+
+async function applyThemeFromSheet(){
+  const map = await fetchThemeMap();
+  applyThemeMap(map);
+}
 
 function aloSlotSelectorsHtml(idPrefix, slots, metrics){
   const rows = slots.map((slot, i) => {
@@ -8488,6 +8633,125 @@ renderPpIslemFields();
   renderYaHead();
   renderNewPagesGrid();
   renderYaTable();
+
+  // ===== Renk/Tema Paneli (bu sayfaya özel görüntüleme/kaydetme mantığı; canlı uygulama
+  // fonksiyonları (applyThemeMap, themeApplySlotColor, THEME_MAIN_VARS vb.) global scope'ta,
+  // Excel Biçimlendirme script bloğunda tanımlı - burada sadece tekrar kullanılıyor). =====
+  function themeColorPickerHtml(key, label, currentHex){
+    return `
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label class="hint" style="font-size:11px;">${label}</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="color" id="theme-pick-${key}" value="${currentHex}" style="width:36px; height:30px; padding:0; border:1px solid var(--shell-line); border-radius:6px; background:none; cursor:pointer;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--shell-text-dim);">${currentHex}</span>
+        </div>
+      </div>`;
+  }
+
+  function themeCurrentCssValue(key, fallback){
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--' + key).trim();
+    return v || fallback;
+  }
+
+  function themeRenderColorGrid(containerId, defs){
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = defs.map(d => themeColorPickerHtml(d.key, d.label, themeCurrentCssValue(d.key, THEME_CSS_DEFAULTS[d.key]))).join('');
+    defs.forEach(d => {
+      const input = document.getElementById(`theme-pick-${d.key}`);
+      if (!input) return;
+      input.addEventListener('input', () => {
+        document.documentElement.style.setProperty('--' + d.key, input.value);
+        input.nextElementSibling.textContent = input.value;
+      });
+    });
+  }
+
+  function themeRenderSlotGrid(){
+    const el = document.getElementById('theme-slotGrid');
+    if (!el) return;
+    el.innerHTML = ALO_SLOT_COLORS.map((s, i) => themeColorPickerHtml('slot-' + i, `Renk ${i + 1}`, s.solid)).join('');
+    ALO_SLOT_COLORS.forEach((s, i) => {
+      const input = document.getElementById(`theme-pick-slot-${i}`);
+      if (!input) return;
+      input.addEventListener('input', () => {
+        themeApplySlotColor(i, input.value);
+        input.nextElementSibling.textContent = input.value;
+      });
+    });
+  }
+
+  function themeRenderPanel(){
+    themeRenderColorGrid('theme-mainGrid', THEME_MAIN_VARS);
+    themeRenderColorGrid('theme-shellGrid', THEME_SHELL_VARS);
+    themeRenderSlotGrid();
+  }
+
+  async function themeWriteMap(map){
+    const token = await ensureWriteToken();
+    const rows = Object.keys(map).map(k => [k, map[k]]);
+    const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${encodeURIComponent(`'${TAB_TEMA}'!A2:B100`)}:clear`;
+    await fetch(clearUrl, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+    const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG_SHEET_ID}/values/${encodeURIComponent(`'${TAB_TEMA}'!A2`)}?valueInputOption=USER_ENTERED`;
+    const res = await fetch(writeUrl, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ range: `'${TAB_TEMA}'!A2`, majorDimension: 'ROWS', values: rows })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || `"${TAB_TEMA}" sekmesine yazılamadı — sekmenin CONFIG_SHEET_ID'de var olduğundan emin olun.`);
+  }
+
+  function themeCollectCurrentMap(){
+    const map = {};
+    THEME_MAIN_VARS.concat(THEME_SHELL_VARS).forEach(d => { map[d.key] = themeCurrentCssValue(d.key, THEME_CSS_DEFAULTS[d.key]); });
+    ALO_SLOT_COLORS.forEach((s, i) => { map['slot-' + i] = s.solid; });
+    return map;
+  }
+
+  async function themeSave(){
+    const statusEl = document.getElementById('theme-statusMsg');
+    const btn = document.getElementById('theme-saveBtn');
+    if (btn){ btn.disabled = true; btn.textContent = 'Kaydediliyor…'; }
+    if (statusEl) statusEl.textContent = 'Kaydediliyor…';
+    try {
+      await themeWriteMap(themeCollectCurrentMap());
+      if (statusEl) statusEl.textContent = '✓ Kaydedildi — herkese uygulanacak — ' + new Date().toLocaleTimeString('tr-TR');
+    } catch(e){
+      if (statusEl) statusEl.textContent = '✗ Hata: ' + e.message;
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '💾 Kaydet'; }
+    }
+  }
+
+  async function themeResetToDefault(){
+    const statusEl = document.getElementById('theme-statusMsg');
+    const btn = document.getElementById('theme-resetBtn');
+    if (btn){ btn.disabled = true; btn.textContent = 'Sıfırlanıyor…'; }
+    if (statusEl) statusEl.textContent = 'Varsayılana dönülüyor…';
+    try {
+      THEME_MAIN_VARS.concat(THEME_SHELL_VARS).forEach(d => {
+        document.documentElement.style.setProperty('--' + d.key, THEME_CSS_DEFAULTS[d.key]);
+      });
+      THEME_SLOT_DEFAULTS.forEach((hex, i) => themeApplySlotColor(i, hex));
+      themeRenderPanel();
+      await themeWriteMap(themeCollectCurrentMap());
+      if (statusEl) statusEl.textContent = '✓ Varsayılan renklere dönüldü — herkese uygulanacak — ' + new Date().toLocaleTimeString('tr-TR');
+    } catch(e){
+      if (statusEl) statusEl.textContent = '✗ Hata: ' + e.message;
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '↺ Varsayılan'; }
+    }
+  }
+
+  const themeSaveBtn = document.getElementById('theme-saveBtn');
+  const themeResetBtn = document.getElementById('theme-resetBtn');
+  if (themeSaveBtn) themeSaveBtn.addEventListener('click', themeSave);
+  if (themeResetBtn) themeResetBtn.addEventListener('click', themeResetToDefault);
+  document.querySelectorAll('.nav-item[data-page="yetki-atama"]').forEach(btn => {
+    btn.addEventListener('click', themeRenderPanel);
+  });
+  themeRenderPanel();
 })();
 </script>
 <script>
@@ -8631,7 +8895,7 @@ async function loadData(isRefresh){
     populateIlFilter();
     populateKatFilter();
     checkConsistency();
-    dateFilter.populateYearMonth();
+    gtdPopulateRangeSelects();
     mapSlowNextRender = true; // ilk yükleme ve her yenileme YAVAŞ/etkileyici oynasın
     dateFilter.reapplyLast();
   } catch(e){
@@ -8647,13 +8911,52 @@ async function loadData(isRefresh){
 
 const dateFilter = createDateFilterController({
   presetGroupId: 'gtd-presetGroup',
-  yearSelectId: 'gtd-yearSelect',
-  monthSelectId: 'gtd-monthSelect',
+  // 24.09.2026: bu sayfada Yıl+Ay tekli seçiciler yerine yıl aşan aralık seçimine izin veren
+  // Başlangıç/Bitiş Yıl+Ay çifti kullanılıyor (bkz. gtdPopulateRangeSelects/gtdApplyRangeSelects),
+  // bu yüzden controller'ın kendi yearSelectId/monthSelectId modu bilinçli olarak devre dışı.
   dateFromId: 'gtd-dateFrom',
   dateToId: 'gtd-dateTo',
   defaultPreset: 'thismonth', // veri artık AYLIK - "son 30 gün" anlamsız kaldı, kaldırıldı (14.08.2026)
   getReferenceRows: () => ALL_ROWS,
   onApply: () => renderAll()
+});
+
+// ===== Başlangıç/Bitiş Yıl+Ay aralık seçimi (yıl aşan aralıklar için, örn. Aralık 2025 – Temmuz 2026) =====
+const GTD_RANGE_SELECT_IDS = ['gtd-yearFromSelect', 'gtd-monthFromSelect', 'gtd-yearToSelect', 'gtd-monthToSelect'];
+function gtdPopulateRangeSelects(){
+  if (!ALL_ROWS.length) return;
+  const years = [...new Set(ALL_ROWS.map(r => r.date.getFullYear()))].sort((a,b) => a - b);
+  const yearOptsHtml = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  const monthOptsHtml = DATE_FILTER_MONTH_NAMES.map((mn,i) => `<option value="${i+1}">${mn}</option>`).join('');
+  const yFrom = document.getElementById('gtd-yearFromSelect');
+  const mFrom = document.getElementById('gtd-monthFromSelect');
+  const yTo = document.getElementById('gtd-yearToSelect');
+  const mTo = document.getElementById('gtd-monthToSelect');
+  [yFrom, yTo].forEach(el => { const prev = el.value; el.innerHTML = yearOptsHtml; if ([...el.options].some(o => o.value === prev)) el.value = prev; });
+  [mFrom, mTo].forEach(el => { const prev = el.value; el.innerHTML = monthOptsHtml; if ([...el.options].some(o => o.value === prev)) el.value = prev; });
+  if (!yFrom.dataset.initd){
+    const first = ALL_ROWS[0].date, last = ALL_ROWS[ALL_ROWS.length - 1].date;
+    yFrom.value = first.getFullYear(); mFrom.value = first.getMonth() + 1;
+    yTo.value = last.getFullYear(); mTo.value = last.getMonth() + 1;
+    yFrom.dataset.initd = '1';
+  }
+}
+function gtdApplyRangeSelects(){
+  const yFrom = document.getElementById('gtd-yearFromSelect');
+  const mFrom = document.getElementById('gtd-monthFromSelect');
+  const yTo = document.getElementById('gtd-yearToSelect');
+  const mTo = document.getElementById('gtd-monthToSelect');
+  if (!yFrom.value || !mFrom.value || !yTo.value || !mTo.value) return;
+  let from = new Date(parseInt(yFrom.value, 10), parseInt(mFrom.value, 10) - 1, 1);
+  let to = new Date(parseInt(yTo.value, 10), parseInt(mTo.value, 10), 0, 23, 59, 59);
+  if (from > to){ const t = from; from = to; to = t; }
+  GTD_RANGE_SELECT_IDS.forEach(id => document.getElementById(id).classList.add('active'));
+  dateFilter.setCustomRange(fmtDate(from), fmtDate(to));
+}
+GTD_RANGE_SELECT_IDS.forEach(id => document.getElementById(id).addEventListener('change', gtdApplyRangeSelects));
+document.getElementById('gtd-presetGroup').addEventListener('click', (e) => {
+  if (!e.target.closest('.preset-btn')) return;
+  GTD_RANGE_SELECT_IDS.forEach(id => document.getElementById(id).classList.remove('active'));
 });
 
 function populateIlFilter(){
@@ -8872,6 +9175,9 @@ function renderKategoriDagilimi(rowsDateOnly){
     const pct = ((r.total / grandTotal) * 100).toFixed(1);
     return `<tr><td>${i+1}</td><td style="text-align:left;">${r.name}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.total).toLocaleString('tr-TR')}</td><td>%${pct}</td><td>${r.topIl}</td><td style="font-family:'IBM Plex Mono',monospace;">${Math.round(r.topIlVal).toLocaleString('tr-TR')}</td></tr>`;
   }).join('') || `<tr><td colspan="6" class="empty-state">Veri yok.</td></tr>`;
+  if (rows.length){
+    tbody.innerHTML += `<tr style="border-top:2px solid var(--line);"><td></td><td style="text-align:left; font-weight:700;">Toplam</td><td style="font-weight:700; color:var(--accent); font-family:'IBM Plex Mono',monospace;">${Math.round(grandTotal).toLocaleString('tr-TR')}</td><td style="font-weight:700; color:var(--accent);">%100.0</td><td></td><td></td></tr>`;
+  }
 }
 
 // Seçili satırlar (il filtresi uygulanmış) içinde, kategori filtresinden BAĞIMSIZ olarak
@@ -9192,6 +9498,7 @@ function renderChart(byIl){
   if (gtdChart) gtdChart.destroy();
   const katLabel = !SELECTED_KAT.length ? 'Genel Talep' :
     (SELECTED_KAT.length === 1 ? CATEGORIES[SELECTED_KAT[0]].name : SELECTED_KAT.length + ' kategori toplamı');
+  const t = chartTheme();
   gtdChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -9199,7 +9506,7 @@ function renderChart(byIl){
       datasets: [{
         label: katLabel,
         data: entries.map(e => Math.round(e[1])),
-        backgroundColor: '#E8A53D',
+        backgroundColor: t.accent,
         borderRadius: 4
       }]
     },
@@ -9222,11 +9529,11 @@ function renderChart(byIl){
       },
       scales: {
         x: {
-          grid: { color: 'rgba(255,255,255,0.06)' },
-          ticks: { color: '#9aa4bf' },
+          grid: { color: t.grid },
+          ticks: { color: t.text },
           suggestedMax: entries.length ? Math.max(...entries.map(e => e[1])) * 1.12 : undefined
         },
-        y: { grid: { display: false }, ticks: { color: '#c7cde0' } }
+        y: { grid: { display: false }, ticks: { color: t.text } }
       }
     },
     plugins: window.ChartDataLabels ? [window.ChartDataLabels] : []
@@ -9253,6 +9560,15 @@ function renderTable(rowsFiltered, rowsAllIl){
     const pct = ((d.total / genelGrandTotal) * 100).toFixed(1);
     return `<tr><td>${i+1}</td><td>${il}</td>${cols}<td>${pct}%</td></tr>`;
   }).join('');
+  if (entries.length){
+    const colTotals = activeCats
+      ? activeCats.map(idx => entries.reduce((s, [, d]) => s + (d.catSums[idx] || 0), 0))
+      : [entries.reduce((s, [, d]) => s + d.total, 0)];
+    const totalCells = colTotals.map(v => `<td style="font-weight:700; color:var(--accent); font-family:'IBM Plex Mono',monospace;">${Math.round(v).toLocaleString('tr-TR')}</td>`).join('');
+    const totalRowSum = entries.reduce((s, [, d]) => s + d.total, 0);
+    const totalPct = ((totalRowSum / genelGrandTotal) * 100).toFixed(1);
+    tableBody.innerHTML += `<tr style="border-top:2px solid var(--line);"><td></td><td style="font-weight:700;">Toplam</td>${totalCells}<td style="font-weight:700; color:var(--accent);">${totalPct}%</td></tr>`;
+  }
   rowCountEl.textContent = `${entries.length} il`;
 }
 
@@ -10905,7 +11221,6 @@ document.querySelector('[data-page="analiz"]').addEventListener('click', () => {
 // tanımlanır. Şablonlar Veri Hazırlama ile AYNI Sheet'te ("Sablonlar" sekmesi) saklanır,
 // proje adı sadece bir etiket.
 // ============================================================================
-const CONFIG_SHEET_ID = '1YvcmSZZlyplOGvcQgiOponjszkZJGdnbxVCmYfQxiCA';
 const TAB_SABLONLAR = 'Sablonlar';
 const EF_PROJECT_LABEL = 'ALO-144';
 
