@@ -1073,6 +1073,7 @@ body{
     <div class="tab" data-tab="ozet">Özet</div>
     <div class="tab" data-tab="detay">Detaylı Liste</div>
     <div class="tab" data-tab="katdagilim">Kategori Dağılımı</div>
+    <div class="tab" data-tab="aylik">Aylık Dağılım</div>
   </div>
 
   <div class="filterbar">
@@ -1463,6 +1464,26 @@ body{
         <canvas id="gtdKatChart-canvas"></canvas>
       </div>
       <div id="gtdKatLegend" style="display:flex; flex-direction:column; gap:9px; min-width:260px; max-width:420px;"></div>
+    </div>
+  </div>
+  </div>
+
+  <div class="tab-content" id="gtd-tab-aylik">
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head">
+      Aylık Dağılım — Trend
+      <span class="hint" style="font-size:10.5px;">seçili aralıktaki her ay için toplam - üstteki İl/Kategori filtrelerine uyumlu</span>
+    </div>
+    <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="gtdAylikChart-canvas"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">Aylık Dağılım — Tablo</div>
+    <div class="table-scroll">
+      <table id="gtdAylikTable">
+        <thead id="gtdAylikTableHead"></thead>
+        <tbody id="gtdAylikTableBody"></tbody>
+      </table>
     </div>
   </div>
   </div>
@@ -9062,6 +9083,100 @@ function renderAll(){
   renderChart(byIlFiltered);
   renderTable(rowsFiltered, rowsDateOnly);
   renderKategoriDagilimi(rowsDateOnly);
+  renderAylikDagilim(rowsFiltered);
+}
+
+// ===== Aylık Dağılım sekmesi (25.09.2026) =====
+// Seçili aralıktaki her ay için ayrı bir satır - üstteki İl ve Kategori filtrelerine uyumlu
+// çalışır (rowsFiltered zaten tarih+il filtrelenmiş halde geliyor, kategori seçimi de
+// Detaylı Liste'deki SELECTED_KAT mantığıyla aynı şekilde sütunları belirler).
+let gtdAylikChart = null;
+function renderAylikDagilim(rowsFiltered){
+  const thead = document.getElementById('gtdAylikTableHead');
+  const tbody = document.getElementById('gtdAylikTableBody');
+  if (!thead || !tbody) return;
+  const activeCats = SELECTED_KAT.length ? SELECTED_KAT : null;
+
+  const byMonth = new Map(); // key: "YYYY-MM" -> { date, catSums[], toplam }
+  rowsFiltered.forEach(r => {
+    const key = `${r.date.getFullYear()}-${String(r.date.getMonth() + 1).padStart(2, '0')}`;
+    if (!byMonth.has(key)) byMonth.set(key, { date: r.date, catSums: CATEGORIES.map(() => 0), toplam: 0 });
+    const agg = byMonth.get(key);
+    r.values.forEach((v, i) => { agg.catSums[i] += (v || 0); });
+    agg.toplam += (r.toplam || 0);
+  });
+  const months = [...byMonth.values()].sort((a, b) => a.date - b.date);
+
+  const headCols = activeCats ? activeCats.map(idx => CATEGORIES[idx].name) : ['Toplam (Tüm Kategoriler)'];
+  thead.innerHTML = `<tr><th>Ay</th>${headCols.map(h => `<th>${h}</th>`).join('')}<th>Toplam</th><th>Önceki Aya Göre</th></tr>`;
+
+  if (!months.length){
+    tbody.innerHTML = `<tr><td colspan="${headCols.length + 3}" class="empty-state">Veri yok.</td></tr>`;
+    renderAylikDagilimChart([], activeCats);
+    return;
+  }
+
+  const rowTotalOf = (m) => activeCats ? activeCats.reduce((s, idx) => s + (m.catSums[idx] || 0), 0) : m.toplam;
+  let prevTotal = null;
+  const rowsHtml = months.map(m => {
+    const rowTotal = rowTotalOf(m);
+    const cols = activeCats
+      ? activeCats.map(idx => `<td style="font-family:'IBM Plex Mono',monospace;">${Math.round(m.catSums[idx] || 0).toLocaleString('tr-TR')}</td>`).join('')
+      : `<td style="font-family:'IBM Plex Mono',monospace;">${Math.round(m.toplam).toLocaleString('tr-TR')}</td>`;
+    let deltaHtml = '<td>—</td>';
+    if (prevTotal !== null && prevTotal !== 0){
+      const delta = ((rowTotal - prevTotal) / prevTotal) * 100;
+      const sign = delta >= 0 ? '+' : '';
+      const color = delta >= 0 ? 'var(--accent)' : 'var(--danger)';
+      deltaHtml = `<td style="color:${color};">${sign}${delta.toFixed(1)}%</td>`;
+    }
+    prevTotal = rowTotal;
+    const label = `${DATE_FILTER_MONTH_NAMES[m.date.getMonth()]} ${m.date.getFullYear()}`;
+    return `<tr><td style="font-weight:600;">${label}</td>${cols}<td style="font-weight:700; color:var(--accent); font-family:'IBM Plex Mono',monospace;">${Math.round(rowTotal).toLocaleString('tr-TR')}</td>${deltaHtml}</tr>`;
+  }).join('');
+
+  const colTotals = activeCats
+    ? activeCats.map(idx => months.reduce((s, m) => s + (m.catSums[idx] || 0), 0))
+    : [months.reduce((s, m) => s + m.toplam, 0)];
+  const totalCells = colTotals.map(v => `<td style="font-weight:700; color:var(--accent); font-family:'IBM Plex Mono',monospace;">${Math.round(v).toLocaleString('tr-TR')}</td>`).join('');
+  const grandTotal = months.reduce((s, m) => s + rowTotalOf(m), 0);
+  tbody.innerHTML = rowsHtml + `<tr style="border-top:2px solid var(--line);"><td style="font-weight:700;">Toplam</td>${totalCells}<td style="font-weight:700; color:var(--accent); font-family:'IBM Plex Mono',monospace;">${Math.round(grandTotal).toLocaleString('tr-TR')}</td><td></td></tr>`;
+
+  renderAylikDagilimChart(months, activeCats);
+}
+
+function renderAylikDagilimChart(months, activeCats){
+  const ctx = document.getElementById('gtdAylikChart-canvas');
+  if (!ctx) return;
+  if (gtdAylikChart) gtdAylikChart.destroy();
+  const t = chartTheme();
+  const labels = months.map(m => `${DATE_FILTER_MONTH_NAMES[m.date.getMonth()].slice(0, 3)} ${String(m.date.getFullYear()).slice(2)}`);
+  const data = months.map(m => Math.round(activeCats ? activeCats.reduce((s, idx) => s + (m.catSums[idx] || 0), 0) : m.toplam));
+  gtdAylikChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Genel Talep',
+        data,
+        borderColor: t.accent,
+        backgroundColor: themeHexToRgba(t.accent, 0.15),
+        fill: true,
+        tension: 0.25,
+        pointRadius: 3,
+        pointBackgroundColor: t.accent,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: true } },
+      scales: {
+        x: { grid: { color: t.grid }, ticks: { color: t.text } },
+        y: { grid: { color: t.grid }, ticks: { color: t.text }, beginAtZero: true }
+      }
+    }
+  });
 }
 
 // Kategori Dağılımı sekmesi: İL AYRIMI YOK (tüm illerin toplamı), kategori filtresi de
@@ -11188,6 +11303,19 @@ document.querySelector('[data-page="analiz"]').addEventListener('click', () => {
       </div>
       <hr style="border:none; border-top:1px solid var(--line); margin:18px 0;">
       <div class="ef-section">
+        <h3 style="margin:0 0 6px;">Sütun Bazlı İstisnalar</h3>
+        <p style="font-size:12.5px; color:var(--dim); margin:0 0 10px; line-height:1.6;">
+          "Veri Satırları" hedefi TÜM sütunlara uygulanır — kullanmazsan hiçbir şey değişmez,
+          normal çalışmaya devam eder. İstersen 1, istersen 5 sütun için buradan ayrı ayrı
+          istisna ekle: her satırda bir sütun seç, o sütun için istediğin biçimi (kalın, renk,
+          hizalama, kenarlık, sayı formatı — sayı/yüzde/metin/tarih hepsi seçilebilir, kaydır,
+          yazı boyutu) belirle. Burada seçtiğin ayarlar o sütunda "Veri Satırları"nı EZER (son söz).
+        </p>
+        <div id="efColOverrideTableWrap"></div>
+        <button class="refresh-btn" id="efColOverrideAddBtn" style="margin-top:10px;">+ Sütun İstisnası Ekle</button>
+      </div>
+      <hr style="border:none; border-top:1px solid var(--line); margin:18px 0;">
+      <div class="ef-section">
         <h3 style="margin:0 0 6px;">Koşullu Biçimlendirme</h3>
         <p style="font-size:12.5px; color:var(--dim); margin:0 0 10px; line-height:1.6;">Belirli bir sütunun (başlık adına göre) değerine göre otomatik renklendirme — gerçek Excel kuralı olarak yazılır.</p>
         <div id="efCondTableWrap"></div>
@@ -11262,6 +11390,12 @@ function efDefaultFormatState(){
 }
 
 let efFormatState = efDefaultFormatState();
+// Sütun bazlı Sayı Formatı istisnaları - [{ id, metrik, sayiFormat, sayiFormatPreset }]. "Veri
+// Satırları" hedefinin Sayı Formatı'nı TEK bir sütun için ezer (örn. veri satırları ayraçlı
+// sayı ama bir sütun yüzde). 25.09.2026: Zafer'in "yüzde sütununu ayrı formatlayamıyorum"
+// sorununa çözüm - Koşullu Biçimlendirme'nin aksine burada sadece RENK değil numFmt yazılır.
+let efColumnFormatOverrides = [];
+let efColOverrideIdSeq = 1;
 let efKosulluBicimlendirme = []; // [{ id, metrik, operator, deger1, deger2, renk, oncelik }] - metrik bir sütun
 // adı OLABİLİR ya da özel değer EF_ALL_COLUMNS_VALUE ("(Tüm Sütunlar)") olabilir - bu durumda
 // kural TEK bir sütuna değil, export edilen tablonun TÜM veri sütunlarına uygulanır. 29.08.2026:
@@ -11294,8 +11428,11 @@ function efApplyCellStyle(cell, st){
 }
 
 // Başlık(1. satır)/A Sütunu(1. sütun)/Veri/Toplam Sütunu(son sütun)/Toplam Satırı(son satır)
-// stillerini, tanımlı ÖNCELİK SIRASIYLA (taban->son söz) bir worksheet'e uygular.
-function efApplyFormatToWorksheet(ws, totalRows, totalCols){
+// stillerini, tanımlı ÖNCELİK SIRASIYLA (taban->son söz) bir worksheet'e uygular. `columns`
+// verilirse (label->col eşlemesi), en son adım olarak Sütun Bazlı Sayı Formatı İstisnaları
+// uygulanır - bunlar gerçek SON SÖZ'dür, Toplam Satırı dahil her şeyi ezer (sadece numFmt,
+// renk/kalınlık gibi diğer stiller o sütunda olduğu gibi kalır).
+function efApplyFormatToWorksheet(ws, totalRows, totalCols, columns){
   if (totalRows < 1 || totalCols < 1) return;
   const lastRow = totalRows, lastCol = totalCols;
   const applyToRange = (key, cells) => {
@@ -11319,9 +11456,22 @@ function efApplyFormatToWorksheet(ws, totalRows, totalCols){
   // başlık satırının tek sahibi Başlık Satırı'dır, hiçbir sütun kuralı 1. satıra dokunmaz).
   const lastColCells = []; for (let r = 2; r <= lastRow; r++) lastColCells.push([r, lastCol]);
   applyToRange('toplamSutunu', lastColCells);
-  // 5) Toplam Satırı - son satır, tüm sütunlar (SON SÖZ - her şeyi ezer)
+  // 5) Toplam Satırı - son satır, tüm sütunlar (5 sabit hedef içinde SON SÖZ)
   const lastRowCells = []; for (let c = 1; c <= lastCol; c++) lastRowCells.push([lastRow, c]);
   applyToRange('toplamSatiri', lastRowCells);
+  // 6) Sütun Bazlı İstisnalar - GERÇEK son söz. Biçim Ayarları'ndaki 5 hedefle AYNI stil
+  // alanlarını (kalın/renk/arka plan/hizalama/kenarlık/sayı formatı/kaydır/yazı boyutu) taşır -
+  // efApplyCellStyle'a doğrudan verilir, "uygula" burada satırın var OLMASI demek.
+  if (columns && columns.length){
+    efColumnFormatOverrides.forEach(rule => {
+      if (!rule.metrik) return;
+      const colDef = columns.find(c => c.label === rule.metrik);
+      if (!colDef) return;
+      const colIdx = colDef.col + 1; // columns 0-bazlı, ExcelJS 1-bazlı
+      const st = Object.assign({}, rule, { uygula: true });
+      for (let r = 2; r <= lastRow; r++) efApplyCellStyle(ws.getCell(r, colIdx), st);
+    });
+  }
 }
 
 // ----- Koşullu biçimlendirme: yazma (gerçek Excel kuralı) -----
@@ -11526,6 +11676,104 @@ document.getElementById('efCondAddBtn').addEventListener('click', () => {
   efRenderCondTable();
 });
 
+// ----- Panel: Sütun Bazlı Sayı Formatı İstisnaları -----
+// "Veri Satırları" hedefinin Sayı Formatı'nı TEK bir sütun için ezer. Koşullu Biçimlendirme
+// tablosuyla aynı görsel dil (satır bazlı, Metrik dropdown canlı başlıklardan gelir), tek fark
+// burada renk değil gerçek bir Excel numFmt kaydediliyor - efApplyFormatToWorksheet içinde,
+// 5 sabit hedeften SONRA (en son söz) uygulanır.
+// 25.09.2026: Zafer'in isteğiyle sadece Sayı Formatı değil, 5 sabit hedefteki (Biçim Ayarları)
+// TÜM alanlar (Kalın, Yazı Rengi, Arka Plan, Hizalama, Kenarlık, Sayı Formatı, Kaydır, Yazı
+// Boyutu) burada da sütun bazlı seçilebilir hale getirildi - EF_FORMAT_COLS'un "uygula" hariç
+// aynısı yeniden kullanılıyor (satırın var olması zaten "bu sütuna uygula" demek, ayrı bir
+// onay kutusuna gerek yok). Kullanılmazsa (hiç satır eklenmezse) hiçbir şey değişmez.
+function efRenderColOverrideTable(){
+  const wrap = document.getElementById('efColOverrideTableWrap');
+  if (!wrap) return;
+  if (!efColumnFormatOverrides.length){ wrap.innerHTML = '<div style="color:var(--dim); font-size:12.5px;">Henüz istisna eklenmedi.</div>'; return; }
+  const activeHeaders = efGetActiveTableHeaders(efActivePageId);
+  const metrikOptionsHtml = (selected) => {
+    const opts = [`<option value="" ${!selected ? 'selected' : ''}>Seç…</option>`];
+    activeHeaders.forEach(h => opts.push(`<option value="${h}" ${selected === h ? 'selected' : ''}>${h}</option>`));
+    if (selected && !activeHeaders.includes(selected)){
+      opts.push(`<option value="${selected}" selected>${selected} (mevcut değil)</option>`);
+    }
+    return opts.join('');
+  };
+  const fieldCols = EF_FORMAT_COLS.filter(c => c.key !== 'uygula');
+  const head = '<tr><th>Sütun</th>' + fieldCols.map(c => `<th>${c.label}</th>`).join('') + '<th></th></tr>';
+  const rows = efColumnFormatOverrides.map(r => {
+    const cells = fieldCols.map(c => {
+      let val = r[c.key];
+      if (c.type === 'bool') return `<td style="text-align:center;"><input type="checkbox" data-id="${r.id}" data-field="${c.key}" ${val ? 'checked' : ''}></td>`;
+      if (c.type === 'color'){
+        // Biçim Ayarları tablosuyla aynı davranış: boş renk kutusu görsel olarak beyaz
+        // gösterilir ama gerçek state'e de hemen yazılır, aksi halde "ayarladım sandım ama
+        // kaydedilmemiş" durumu oluşur.
+        if (!val){ val = '#ffffff'; r[c.key] = val; }
+        return `<td><input type="color" data-id="${r.id}" data-field="${c.key}" value="${val}"></td>`;
+      }
+      if (c.type === 'select'){
+        const opts = c.options.map(([v, tr]) => `<option value="${v}" ${val === v ? 'selected' : ''}>${tr}</option>`).join('');
+        return `<td><select data-id="${r.id}" data-field="${c.key}">${opts}</select></td>`;
+      }
+      if (c.type === 'number') return `<td><input type="number" data-id="${r.id}" data-field="${c.key}" value="${val != null ? val : ''}" style="width:60px;"></td>`;
+      if (c.key === 'sayiFormat'){
+        const presetMatch = EF_NUMBER_FORMAT_PRESETS.find(p => p.value === val);
+        const isCustom = !!val && !presetMatch;
+        const opts = [`<option value="" ${!val ? 'selected' : ''}>(Biçim Yok)</option>`,
+          ...EF_NUMBER_FORMAT_PRESETS.map(p => `<option value="${p.value}" ${val === p.value ? 'selected' : ''}>${p.label}</option>`),
+          `<option value="__custom__" ${isCustom ? 'selected' : ''}>Özel (elle yaz)…</option>`
+        ].join('');
+        return `<td>
+          <select data-id="${r.id}" data-field="sayiFormatPreset" style="width:150px;">${opts}</select>
+          <input type="text" data-id="${r.id}" data-field="sayiFormat" value="${val || ''}" placeholder="#,##0.00" style="width:100px; margin-top:4px; ${isCustom ? '' : 'display:none;'}">
+        </td>`;
+      }
+      return `<td><input type="text" data-id="${r.id}" data-field="${c.key}" value="${val || ''}" placeholder="${c.placeholder || ''}" style="width:90px;"></td>`;
+    }).join('');
+    return `<tr data-rownum="${r.id}">
+      <td><select data-id="${r.id}" data-field="metrik" style="width:150px;">${metrikOptionsHtml(r.metrik)}</select></td>
+      ${cells}
+      <td><button type="button" class="refresh-btn" data-coloverridedelete="${r.id}">🗑</button></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table class="ef-fmt-table">${head}${rows}</table>`;
+}
+document.getElementById('efColOverrideTableWrap').addEventListener('change', (e) => {
+  const el = e.target;
+  const id = parseInt(el.getAttribute('data-id'), 10);
+  const field = el.getAttribute('data-field');
+  if (!id || !field) return;
+  const rule = efColumnFormatOverrides.find(r => r.id === id);
+  if (!rule) return;
+  if (field === 'sayiFormatPreset'){
+    const customInput = el.parentElement.querySelector('input[data-field="sayiFormat"]');
+    if (el.value === '__custom__'){
+      customInput.style.display = '';
+      customInput.focus();
+    } else {
+      customInput.style.display = 'none';
+      customInput.value = el.value;
+      rule.sayiFormat = el.value;
+    }
+    return;
+  }
+  if (el.type === 'checkbox'){ rule[field] = el.checked; return; }
+  if (el.type === 'number'){ rule[field] = el.value === '' ? null : parseFloat(el.value); return; }
+  rule[field] = el.value;
+});
+document.getElementById('efColOverrideTableWrap').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-coloverridedelete]');
+  if (!btn) return;
+  const id = parseInt(btn.getAttribute('data-coloverridedelete'), 10);
+  efColumnFormatOverrides = efColumnFormatOverrides.filter(r => r.id !== id);
+  efRenderColOverrideTable();
+});
+document.getElementById('efColOverrideAddBtn').addEventListener('click', () => {
+  efColumnFormatOverrides.push(Object.assign({ id: efColOverrideIdSeq++, metrik: '' }, efEmptyStyle()));
+  efRenderColOverrideTable();
+});
+
 
 // ----- Panel: Bu Ayarlarla Kaydet -----
 document.getElementById('efSaveBtn').addEventListener('click', async () => {
@@ -11536,7 +11784,7 @@ document.getElementById('efSaveBtn').addEventListener('click', async () => {
   statusEl.textContent = 'Kaydediliyor…';
   try {
     const token = await ensureWriteToken();
-    const payload = JSON.stringify({ formatState: efFormatState, kosulluBicimlendirme: efKosulluBicimlendirme, tarih: new Date().toISOString() });
+    const payload = JSON.stringify({ formatState: efFormatState, kosulluBicimlendirme: efKosulluBicimlendirme, columnFormatOverrides: efColumnFormatOverrides, tarih: new Date().toISOString() });
     const CHUNK_SIZE = 40000;
     const chunks = [];
     for (let i = 0; i < payload.length; i += CHUNK_SIZE) chunks.push(payload.slice(i, i + CHUNK_SIZE));
@@ -11622,8 +11870,11 @@ document.getElementById('efLoadBtn').addEventListener('click', () => {
     // Kaydedilmiş kurallara yerel panel id'si ata (düzenleme/silme arayüzü için gerekli).
     efKosulluBicimlendirme = (Array.isArray(data.kosulluBicimlendirme) ? data.kosulluBicimlendirme : [])
       .map(r => Object.assign({}, r, { id: efCondIdSeq++ }));
+    efColumnFormatOverrides = (Array.isArray(data.columnFormatOverrides) ? data.columnFormatOverrides : [])
+      .map(r => Object.assign({}, r, { id: efColOverrideIdSeq++ }));
     efRenderFormatTable();
     efRenderCondTable();
+    efRenderColOverrideTable();
     efUpdateCurrentSummary();
     statusEl.textContent = `✓ "${row[0]}" şablonu yüklendi.`;
   } catch (err){
@@ -11698,6 +11949,7 @@ function openExcelFormatPanel(pageId){
   document.getElementById('excelFormatModalOverlay').style.display = 'flex';
   efRenderFormatTable();
   efRenderCondTable();
+  efRenderColOverrideTable();
   efUpdateCurrentSummary();
   efLoadTemplateList();
 }
@@ -11750,7 +12002,7 @@ async function efBuildWorksheetFromTable(wb, tableEl, sheetName){
 
   const totalCols = columns.length;
   const totalRows = dataRows.length + 1; // başlık + veri satırları
-  efApplyFormatToWorksheet(ws, totalRows, totalCols);
+  efApplyFormatToWorksheet(ws, totalRows, totalCols, columns);
 
   const result = { columns };
   efApplyKosulluBicimlendirme(ws, result, dataRows.length);
