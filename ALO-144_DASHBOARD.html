@@ -1470,14 +1470,22 @@ body{
 
   <div class="tab-content" id="gtd-tab-aylik">
   <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-head">
-      Aylık Dağılım — Trend
-      <span class="hint" style="font-size:10.5px;">seçili aralıktaki her ay için toplam - üstteki İl/Kategori filtrelerine uyumlu</span>
+    <div class="panel-head">Filtre</div>
+    <div style="padding:14px 18px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div class="date-input-group">
+        <label>İl</label>
+        <select id="gtdIlAylik" class="gtd-il-select"><option value="all">Tüm İller</option></select>
+      </div>
+      <div class="date-input-group" style="position:relative;">
+        <label>Kategori (çoklu seçim)</label>
+        <button type="button" id="gtdKatBtnAylik" class="refresh-btn gtd-kat-btn" style="min-width:220px; text-align:left;">Genel (Tüm Kategoriler) ▾</button>
+        <div id="gtdKatPanelAylik" class="gtd-kat-panel" style="display:none; position:absolute; top:100%; left:0; z-index:30; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:4px; min-width:280px; max-height:280px; overflow-y:auto; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5);"></div>
+      </div>
+      <span class="hint" style="font-size:10.5px;">Diğer sekmelerdeki (Harita hariç) filtrelerle senkron çalışır</span>
     </div>
-    <div class="chart-wrap" style="height:300px; padding:0 18px 18px;"><canvas id="gtdAylikChart-canvas"></canvas></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head">Aylık Dağılım — Tablo</div>
     <div class="table-scroll">
       <table id="gtdAylikTable">
@@ -1485,6 +1493,12 @@ body{
         <tbody id="gtdAylikTableBody"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="chart-panel" style="padding-bottom:0;">
+    <div class="chart-panel-head">Grafik <span class="hint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik (Toplam ya da bir kategori) ve grafik tipi (Çizgi/Sütun) seçin</span></div>
+    <div id="gtdAyCh-selectors" style="padding:8px 18px 6px;"></div>
+    <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="gtdAylikChart-canvas"></canvas></div>
   </div>
   </div>
 
@@ -8873,9 +8887,11 @@ document.addEventListener('click', (e) => {
 
 registerIlSelect(document.getElementById('gtdIlOzet'));
 registerIlSelect(document.getElementById('gtdIlTable'));
+registerIlSelect(document.getElementById('gtdIlAylik'));
 registerKatControl(document.getElementById('gtdKatBtnMap'), document.getElementById('gtdKatPanelMap'));
 registerKatControl(document.getElementById('gtdKatBtnOzet'), document.getElementById('gtdKatPanelOzet'));
 registerKatControl(document.getElementById('gtdKatBtnTable'), document.getElementById('gtdKatPanelTable'));
+registerKatControl(document.getElementById('gtdKatBtnAylik'), document.getElementById('gtdKatPanelAylik'));
 
 // ================= Veri Çekme =================
 async function loadData(isRefresh){
@@ -9090,7 +9106,7 @@ function renderAll(){
 // Seçili aralıktaki her ay için ayrı bir satır - üstteki İl ve Kategori filtrelerine uyumlu
 // çalışır (rowsFiltered zaten tarih+il filtrelenmiş halde geliyor, kategori seçimi de
 // Detaylı Liste'deki SELECTED_KAT mantığıyla aynı şekilde sütunları belirler).
-let gtdAylikChart = null;
+let AYLIK_MONTHS = []; // en son hesaplanan ay listesi - 5-slot grafik motoru buradan besleniyor
 function renderAylikDagilim(rowsFiltered){
   const thead = document.getElementById('gtdAylikTableHead');
   const tbody = document.getElementById('gtdAylikTableBody');
@@ -9110,9 +9126,10 @@ function renderAylikDagilim(rowsFiltered){
   const headCols = activeCats ? activeCats.map(idx => CATEGORIES[idx].name) : ['Toplam (Tüm Kategoriler)'];
   thead.innerHTML = `<tr><th>Ay</th>${headCols.map(h => `<th>${h}</th>`).join('')}<th>Toplam</th><th>Önceki Aya Göre</th></tr>`;
 
+  AYLIK_MONTHS = months;
   if (!months.length){
     tbody.innerHTML = `<tr><td colspan="${headCols.length + 3}" class="empty-state">Veri yok.</td></tr>`;
-    renderAylikDagilimChart([], activeCats);
+    gtdAylikChart.render();
     return;
   }
 
@@ -9142,42 +9159,27 @@ function renderAylikDagilim(rowsFiltered){
   const grandTotal = months.reduce((s, m) => s + rowTotalOf(m), 0);
   tbody.innerHTML = rowsHtml + `<tr style="border-top:2px solid var(--line);"><td style="font-weight:700;">Toplam</td>${totalCells}<td style="font-weight:700; color:var(--accent); font-family:'IBM Plex Mono',monospace;">${Math.round(grandTotal).toLocaleString('tr-TR')}</td><td></td></tr>`;
 
-  renderAylikDagilimChart(months, activeCats);
+  gtdAylikChart.render();
 }
 
-function renderAylikDagilimChart(months, activeCats){
-  const ctx = document.getElementById('gtdAylikChart-canvas');
-  if (!ctx) return;
-  if (gtdAylikChart) gtdAylikChart.destroy();
-  const t = chartTheme();
-  const labels = months.map(m => `${DATE_FILTER_MONTH_NAMES[m.date.getMonth()].slice(0, 3)} ${String(m.date.getFullYear()).slice(2)}`);
-  const data = months.map(m => Math.round(activeCats ? activeCats.reduce((s, idx) => s + (m.catSums[idx] || 0), 0) : m.toplam));
-  gtdAylikChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Genel Talep',
-        data,
-        borderColor: t.accent,
-        backgroundColor: themeHexToRgba(t.accent, 0.15),
-        fill: true,
-        tension: 0.25,
-        pointRadius: 3,
-        pointBackgroundColor: t.accent,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { enabled: true } },
-      scales: {
-        x: { grid: { color: t.grid }, ticks: { color: t.text } },
-        y: { grid: { color: t.grid }, ticks: { color: t.text }, beginAtZero: true }
-      }
-    }
-  });
+// Dashboard genelindeki standart 5-slot grafik motoru (bkz. createSlotChartPanel) - "Toplam"
+// ve her kategori ayrı bir metrik olarak sunulur, kullanıcı istediği kadarını (en fazla 5)
+// istediği tipte (Çizgi/Sütun) aynı anda çizebilir.
+function gtdAylikChartContext(){
+  const labels = AYLIK_MONTHS.map(m => `${DATE_FILTER_MONTH_NAMES[m.date.getMonth()].slice(0, 3)} ${String(m.date.getFullYear()).slice(2)}`);
+  const metrics = [
+    { key: 'toplam', label: 'Toplam', agg: 'sum', values: AYLIK_MONTHS.map(m => m.toplam) },
+    ...CATEGORIES.map(c => ({ key: String(c.index), label: c.name, agg: 'sum', values: AYLIK_MONTHS.map(m => m.catSums[c.index]) }))
+  ];
+  return { labels, metrics };
 }
+const gtdAylikChart = createSlotChartPanel({
+  idPrefix: 'gtdAyCh',
+  selectorsId: 'gtdAyCh-selectors',
+  canvasId: 'gtdAylikChart-canvas',
+  getContext: gtdAylikChartContext,
+  getDefaultMetricKeys: () => ['toplam']
+});
 
 // Kategori Dağılımı sekmesi: İL AYRIMI YOK (tüm illerin toplamı), kategori filtresi de
 // UYGULANMAZ (her zaman tüm kategoriler tek tek listelenir) - amaç kategorileri kendi
