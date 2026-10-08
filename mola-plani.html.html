@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mola Planı</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+  :root { --b:#185FA5; --bd:#0C447C; --bg:#eef2f6; --c:#fff; --t:#1d2733; --m:#6b7785; --br:#d5dde6; --soft:#E6F1FB; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--t); font-family:"Segoe UI",Arial,sans-serif; }
+  .bar { position:sticky; top:0; z-index:5; background:var(--c); border-bottom:1px solid var(--br); }
+  .bar-in { max-width:1000px; margin:auto; padding:10px 16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .hafta { display:flex; align-items:center; gap:6px; margin-right:auto; }
+  .hafta b { min-width:150px; text-align:center; font-size:15px; }
+  button { font:inherit; font-size:13px; border:1px solid var(--br); background:var(--c); color:var(--t); padding:7px 12px; border-radius:7px; cursor:pointer; }
+  button:hover { background:#f4f6f9; }
+  button.ana { background:var(--b); border-color:var(--b); color:#fff; }
+  button.ana:hover { background:var(--bd); }
+  button.aktif { background:var(--soft); border-color:#85B7EB; color:var(--bd); }
+  button.sil { border:0; background:none; color:#A32D2D; font-size:18px; padding:2px 8px; }
+  .wrap { max-width:1000px; margin:auto; padding:16px; }
+  .kart { background:var(--c); border:1px solid var(--br); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .kart h3 { margin:0 0 6px; font-size:16px; }
+  .not { color:var(--m); font-size:13px; line-height:1.5; }
+  input, select { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; background:#fff; color:var(--t); }
+  .satir { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .liste { width:100%; border-collapse:collapse; margin-top:10px; }
+  .liste td, .liste th { padding:5px 4px; border-bottom:1px solid #e8edf2; font-size:13px; text-align:left; }
+  .liste input { width:100%; }
+  .metinler { display:grid; grid-template-columns:160px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
+  .metinler textarea { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; resize:vertical; }
+  @media (max-width:640px) { .metinler { grid-template-columns:1fr; } }
+  .bos { text-align:center; padding:40px 16px; }
+  .bos ol { text-align:left; display:inline-block; color:var(--m); font-size:14px; line-height:1.8; margin:12px 0 18px; }
+  .mailview { overflow-x:auto; }
+  .durum { font-size:12px; color:var(--m); display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .durum i { width:8px; height:8px; border-radius:50%; background:#B4B2A9; display:inline-block; }
+  .durum.ok i { background:#639922; } .durum.is i { background:#EF9F27; } .durum.hata i { background:#E24B4A; }
+  .bag-form { display:grid; grid-template-columns:170px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
+  @media (max-width:640px) { .bag-form { grid-template-columns:1fr; } }
+  #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1d2733; color:#fff; padding:10px 16px; border-radius:8px; font-size:14px; display:none; z-index:9; max-width:92%; }
+  @media (max-width:640px) { .hafta { margin-right:0; width:100%; justify-content:space-between; } .hafta b { min-width:0; } }
+  @media print { .bar, .panel, #toast { display:none !important; } body { background:#fff; } .wrap { padding:0; max-width:none; } }
+</style>
+</head>
+<body>
+
+<div class="bar"><div class="bar-in">
+  <div class="hafta">
+    <button id="geri" aria-label="Önceki hafta">◀</button>
+    <b id="haftaAd">—</b>
+    <button id="ileri" aria-label="Sonraki hafta">▶</button>
+    <button id="buHafta">Bu hafta</button>
+  </div>
+  <span id="durum" class="durum" title=""><i></i><span>Yerel</span></span>
+  <input id="ara" placeholder="İsim ara" style="width:130px">
+  <button id="duzenleBtn">Düzenle</button>
+  <button id="yapistirBtn">Yapıştır</button>
+  <button id="iceriBtn">İçeri aktar</button>
+  <button id="disariBtn">Dışarı aktar</button>
+  <button id="yazdirBtn">Yazdır</button>
+  <button id="baglantiBtn">Bağlantı</button>
+  <button id="kopyalaBtn" class="ana">Mail için kopyala</button>
+  <input type="file" id="dosya" accept=".xlsx,.xls" hidden>
+</div></div>
+
+<div class="wrap">
+  <div id="baglanti" class="kart panel" hidden></div>
+  <div id="yukleme" class="kart panel" hidden></div>
+  <div id="duzenle" class="kart panel" hidden></div>
+  <div id="bilgi" class="not panel" style="margin:0 2px 10px"></div>
+  <div id="icerik"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ---------- ÇEKİRDEK ---------- */
+const RENK = [["185FA5","E6F1FB","0C447C"],["3B6D11","EAF3DE","27500A"],["854F0B","FAEEDA","633806"],["534AB7","EEEDFE","3C3489"],["0F6E56","E1F5EE","085041"],["993556","FBEAF0","72243E"]];
+const ORTA = [["B5D4F4","042C53"],["C0DD97","173404"],["FAC775","412402"],["CECBF6","26215C"],["9FE1CB","04342C"],["F4C0D1","4B1528"]];
+const GUN = 864e5;
+const renk = i => RENK[i % RENK.length];
+const pad = n => String(n).padStart(2, '0');
+function pzt(d) { const t = new Date(d); t.setHours(12,0,0,0); t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return t; }
+function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+function isoTarih(s) { const [y,m,g] = s.split('-').map(Number); return new Date(y, m-1, g, 12); }
+function trTarih(d) { return pad(d.getDate()) + '.' + pad(d.getMonth()+1) + '.' + d.getFullYear(); }
+function haftaAralik(d) { const m = pzt(d); return trTarih(m) + ' – ' + trTarih(new Date(m.getTime() + 4 * GUN)); }
+const VARSAYILAN = { baslik: 'ALO-144 OSMANİYE', anaBaslik: 'Haftalık Mola Planı', ustNot: '', altNot: 'Gruplar her hafta bir üst grubun saatlerine geçer.' };
+const metin = (st, k) => (st && st[k] != null ? st[k] : VARSAYILAN[k]);
+const satirli = t => esc(t).replace(/\n/g, '<br>');
+function haftaFark(a, b) { return Math.round((pzt(a) - pzt(b)) / (7 * GUN)); }
+function mod(a, n) { return ((a % n) + n) % n; }
+function grupHafta(temel, ofs, N) { return mod(temel - 1 - ofs, N) + 1; }   // her hafta 2→1, 1→N
+function grupTemel(buHafta, ofs, N) { return mod(buHafta - 1 + ofs, N) + 1; }
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/** Excel satırlarından (dizi dizisi) planı çözer. Biçim: GRUP | İSİM SOYİSİM | MOLA 1 | ... (grup hücresi birleştirilmiş olabilir) */
+function planCoz(aoa) {
+  const norm = s => String(s ?? '').trim();
+  const ust = s => norm(s).toLocaleUpperCase('tr');
+  const isimRe = /İSİM|ISIM|AD SOYAD|ADI SOYADI/;
+  const hr = aoa.findIndex(r => (r || []).some(c => isimRe.test(ust(c))));
+  if (hr < 0) throw new Error('Başlık satırı bulunamadı. Dosyada "İSİM SOYİSİM" sütunu olmalı.');
+  const H = aoa[hr].map(ust);
+  const nc = H.findIndex(c => isimRe.test(c));
+  let gc = H.findIndex((c, i) => i !== nc && /GRUP/.test(c));
+  if (gc < 0) gc = nc - 1;
+  if (gc < 0) throw new Error('Grup sütunu bulunamadı. Grup sütunu isim sütununun solunda olmalı.');
+  const tc = [], basliklar = [];
+  for (let i = nc + 1; i < aoa[hr].length; i++) {
+    const b = norm(aoa[hr][i]).replace(/^[^\p{L}\p{N}]+/u, '');
+    if (b) { tc.push(i); basliklar.push(b.toLocaleUpperCase('tr')); }
+  }
+  if (!tc.length) throw new Error('Mola sütunları bulunamadı.');
+  let cur = 0; const kisiler = [], slots = {};
+  for (let r = hr + 1; r < aoa.length; r++) {
+    const row = aoa[r] || [];
+    const m = norm(row[gc]).match(/\d+/);
+    if (m) cur = +m[0];
+    const ad = norm(row[nc]);
+    if (!ad || isimRe.test(ust(ad))) continue;                     // boş satır veya tekrar eden başlık
+    const saat = tc.map(i => norm(row[i]).replace(/\s*-\s*/, ' - '));
+    if (!saat.some(s => /\d{1,2}[:.]\d{2}/.test(s))) continue;     // saati olmayan satır kişi değildir (not, toplam vb.)
+    if (!cur) throw new Error(`"${ad}" için grup bulunamadı.`);
+    if (!slots[cur] && saat.some(Boolean)) slots[cur] = saat;
+    kisiler.push({ ad, g: cur });
+  }
+  if (!kisiler.length) throw new Error('Personel bulunamadı.');
+  const N = Math.max(...kisiler.map(k => k.g));
+  const eksik = [];
+  for (let g = 1; g <= N; g++) if (!slots[g]) eksik.push(g);
+  if (eksik.length) throw new Error(`${eksik.join(', ')}. grubun saatleri yok. Her grupta en az bir kişinin saatleri dolu olmalı.`);
+  return { basliklar, saatler: Array.from({ length: N }, (_, i) => slots[i + 1]), kisiler };
+}
+
+function haftaPlani(st, monday) {
+  const N = st.saatler.length, ofs = haftaFark(monday, isoTarih(st.temelHafta));
+  const bol = st.saatler.map((saat, i) => ({ no: i + 1, saat, kisiler: [] }));
+  st.kisiler.forEach(k => { if (k.g >= 1 && k.g <= N) bol[grupHafta(k.g, ofs, N) - 1].kisiler.push(k.ad); });
+  return { ofs, N, bol, basliklar: st.basliklar, toplam: st.kisiler.length };
+}
+
+function ozet(p) {
+  const bas = s => (s || '').split(' - ')[0], son = s => (s || '').split(' - ').pop();
+  const ilk = p.bol.map(b => bas(b.saat[0])).filter(Boolean).sort()[0] || '—';
+  const yi = p.basliklar.findIndex(b => b.includes('YEMEK'));
+  let yemek = '—';
+  if (yi >= 0) {
+    const a = p.bol.map(b => bas(b.saat[yi])).filter(Boolean).sort();
+    const z = p.bol.map(b => son(b.saat[yi])).filter(Boolean).sort();
+    if (a.length) yemek = a[0] + ' – ' + z[z.length - 1];
+  }
+  return [['Toplam personel', p.toplam], ['Grup sayısı', p.N], ['İlk mola', ilk], ['Yemek aralığı', yemek]];
+}
+
+/** Mail ile aynı görünüm: tablo tabanlı, satır içi stil (Outlook'a yapıştırınca bozulmaz). */
+function mailHtml(p, monday, st, q) {
+  const F = 'font-family:Segoe UI,Arial,sans-serif';
+  const qq = (q || '').trim().toLocaleLowerCase('tr');
+  const kol = p.basliklar.length + 2;
+  let o = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f6"><tr><td align="center" style="padding:0">`;
+  o += `<table role="presentation" width="760" cellpadding="0" cellspacing="0" style="max-width:760px;width:100%;background:#ffffff;border:1px solid #d5dde6">`;
+  o += `<tr><td style="background:#185FA5;height:6px;line-height:6px;font-size:1px">&nbsp;</td></tr>`;
+  o += `<tr><td style="background:#E6F1FB;padding:18px 24px;border-bottom:1px solid #B5D4F4;${F}"><div style="font-size:12px;letter-spacing:.5px;color:#185FA5"><font color="#185FA5"><b>${esc(metin(st, 'baslik'))}</b></font></div><div style="font-size:22px;font-weight:bold;margin-top:2px;color:#042C53"><font color="#042C53"><b>${esc(metin(st, 'anaBaslik'))}</b></font></div><div style="font-size:14px;margin-top:2px;color:#0C447C"><font color="#0C447C">${haftaAralik(monday)}</font></div></td></tr>`;
+  if (metin(st, 'ustNot').trim()) o += `<tr><td style="padding:14px 22px 0;${F}"><div style="background:#FAEEDA;border:1px solid #EF9F27;padding:10px 12px;font-size:13px;color:#412402"><font color="#412402">${satirli(metin(st, 'ustNot'))}</font></div></td></tr>`;
+  o += `<tr><td style="padding:16px 16px 4px"><table role="presentation" width="100%" cellpadding="0" cellspacing="6"><tr>`;
+  ozet(p).forEach(([l, v]) => { o += `<td width="25%" style="background:#f4f6f9;border:1px solid #e1e7ee;padding:10px 12px;${F}"><div style="font-size:11px;color:#6b7785">${l}</div><div style="font-size:20px;font-weight:bold;color:#1d2733;margin-top:2px">${esc(v)}</div></td>`; });
+  o += `</tr></table></td></tr>`;
+  o += `<tr><td style="padding:12px 22px 4px;${F}"><div style="font-size:15px;font-weight:bold;color:#1d2733">Grup saatleri özeti</div></td></tr>`;
+  o += `<tr><td style="padding:6px 22px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">`;
+  const fc = (renk_, t, kalin) => `<font color="#${renk_}">${kalin ? '<b>' + t + '</b>' : t}</font>`;   // Outlook yazı rengini korusun diye
+  const th = `background:#D3DDE8;font-size:11px;font-weight:bold;padding:7px 4px;border:1px solid #9fb0c2;text-align:center;${F}`;
+  o += `<tr><td style="${th}">${fc('1d2733', 'GRUP', 1)}</td>` + p.basliklar.map(h => `<td style="${th}">${fc('1d2733', esc(h), 1)}</td>`).join('') + `</tr>`;
+  p.bol.forEach((b, i) => {
+    const [, bg, tx] = renk(i), [orta, koyu] = ORTA[i % ORTA.length];
+    o += `<tr><td style="background:#${orta};font-size:12px;padding:6px;border:1px solid #9fb0c2;text-align:center;white-space:nowrap;${F}">${fc(koyu, b.no + '. GRUP', 1)}</td>`
+      + b.saat.map((t, j) => `<td style="background:#${bg};font-size:11px;padding:6px 3px;border:1px solid #9fb0c2;text-align:center;${F}">${fc(tx, esc(t).replace(' - ', '<br>'), p.basliklar[j].includes('YEMEK'))}</td>`).join('') + `</tr>`;
+  });
+  o += `</table></td></tr>`;
+  o += `<tr><td style="padding:12px 22px 4px;${F}"><div style="font-size:15px;font-weight:bold;color:#1d2733">Personel listesi</div></td></tr>`;
+  o += `<tr><td style="padding:6px 22px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">`;
+  const th2 = `background:#D3DDE8;font-size:11px;font-weight:bold;padding:7px 4px;border:1px solid #9fb0c2;text-align:center;${F}`;
+  o += `<tr><td style="${th2}">${fc('1d2733', 'GRUP', 1)}</td><td style="${th2};text-align:left">${fc('1d2733', 'İSİM SOYİSİM', 1)}</td>` + p.basliklar.map(h => `<td style="${th2}">${fc('1d2733', esc(h), 1)}</td>`).join('') + `</tr>`;
+  const kenar = 'border-top:1px solid #9fb0c2;border-bottom:1px solid #9fb0c2;border-left:2px solid #8597aa;border-right:2px solid #8597aa';
+  p.bol.forEach((b, i) => {
+    const [d, bg, tx] = renk(i), [orta, koyu] = ORTA[i % ORTA.length];
+    b.kisiler.forEach((ad, r) => {
+      const hit = qq && ad.toLocaleLowerCase('tr').includes(qq);
+      const z = hit ? '#FAC775' : (r % 2 ? '#' + bg : '#ffffff');
+      o += `<tr>` + (r === 0 ? `<td rowspan="${b.kisiler.length}" style="background:#${orta};font-size:12px;border:1px solid #9fb0c2;text-align:center;width:62px;${F}">${fc(koyu, b.no + '.<br>GRUP', 1)}</td>` : '')
+        + `<td ${hit ? 'data-hit="1"' : ''} style="background:${z};font-size:12px;padding:5px 6px;${kenar};white-space:nowrap;${F}">${fc('1d2733', esc(ad), 1)}</td>`
+        + b.saat.map((t, j) => `<td style="background:${z};font-size:11px;padding:5px 3px;${kenar};text-align:center;white-space:nowrap;${F}">${fc(p.basliklar[j].includes('YEMEK') ? '1d2733' : '3d4752', esc(t), p.basliklar[j].includes('YEMEK'))}</td>`).join('') + `</tr>`;
+    });
+    o += `<tr><td colspan="${kol}" style="background:#${d};height:6px;line-height:6px;font-size:1px">&nbsp;</td></tr>`;
+  });
+  o += `</table></td></tr>`;
+  o += `<tr><td style="padding:12px 22px;font-size:12px;color:#6b7785;${F}"><font color="#6b7785">${satirli(metin(st, 'altNot'))}</font></td></tr>`;
+  o += `</table></td></tr></table>`;
+  return o;
+}
+/* ---------- ÇEKİRDEK SONU ---------- */
+
+const ANAHTAR = 'molaPlani.v1', BAG_ANAHTAR = 'molaPlani.baglanti';
+let ST = null, goruntu = pzt(new Date()), duzenMod = false, bekleyen = null;
+const $ = id => document.getElementById(id);
+
+/* ---------- ORTAK KAYIT (Google Sheets) ---------- */
+let BAG = null;                  // { url, key, ad }
+let SURUM = null;                // sunucudaki son bilinen sürüm
+let META = { guncelleyen: '', guncelleme: '' };
+let islemler = [], gonderZ = null, gonderiliyor = false, bekleyenGonderim = false;
+
+function bagOku() { try { BAG = JSON.parse(localStorage.getItem(BAG_ANAHTAR) || 'null'); } catch (e) { BAG = null; } }
+function bagYaz() { try { BAG ? localStorage.setItem(BAG_ANAHTAR, JSON.stringify(BAG)) : localStorage.removeItem(BAG_ANAHTAR); } catch (e) {} }
+const bagli = () => !!(BAG && BAG.url && BAG.key);
+
+function durumGoster(tur, yazi, ipucu) {
+  const d = $('durum'); d.className = 'durum ' + (tur || '');
+  d.querySelector('span').textContent = yazi; d.title = ipucu || '';
+}
+function metaYazi() {
+  if (!META.guncelleme) return 'Ortak plan';
+  const t = new Date(META.guncelleme);
+  const bugun = t.toDateString() === new Date().toDateString();
+  return `Son değişiklik: ${META.guncelleyen || '—'}, ${bugun ? '' : trTarih(t) + ' '}${pad(t.getHours())}:${pad(t.getMinutes())}`;
+}
+function metaAl(r) { if (r.surum != null) SURUM = r.surum; META = { guncelleyen: r.guncelleyen || '', guncelleme: r.guncelleme || '' }; }
+
+async function sunucuGet(op) {
+  const u = BAG.url + (BAG.url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(BAG.key) + (op ? '&op=' + op : '') + '&t=' + Date.now();
+  const res = await fetch(u, { redirect: 'follow' });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || 'Sunucu hatası');
+  return j;
+}
+async function sunucuPost(govde) {
+  const res = await fetch(BAG.url, { method: 'POST', redirect: 'follow', body: JSON.stringify(govde) });
+  return res.json();
+}
+
+async function sunucudanYukle(sessiz) {
+  if (!bagli()) return false;
+  durumGoster('is', 'Yükleniyor…');
+  try {
+    const j = await sunucuGet();
+    metaAl(j);
+    if (j.state) { ST = j.state; yerelKaydet(); }
+    else if (ST && !sessiz && confirm('Ortak kayıt boş. Bu bilgisayardaki planı ortak kayda yükleyelim mi?')) { islem('Plan ilk kez ortak kayda yüklendi'); }
+    durumGoster('ok', metaYazi(), 'Ortak kayda bağlı');
+    ciz();
+    return true;
+  } catch (e) {
+    durumGoster('hata', 'Bağlantı hatası', e.message);
+    if (!sessiz) toast('Ortak kayda ulaşılamadı: ' + e.message);
+    return false;
+  }
+}
+
+/** Bir değişiklik yapıldığında çağrılır: kısa bir beklemeyle tek seferde gönderir. */
+function islem(aciklama) {
+  if (aciklama) islemler.push(aciklama);
+  yerelKaydet();
+  if (!bagli()) return;
+  durumGoster('is', 'Kaydediliyor…');
+  clearTimeout(gonderZ);
+  gonderZ = setTimeout(gonder, 700);
+}
+async function gonder() {
+  if (gonderiliyor) { bekleyenGonderim = true; return; }
+  if (!ST || !bagli()) return;
+  gonderiliyor = true;
+  const giden = islemler.splice(0);
+  try {
+    const j = await sunucuPost({ key: BAG.key, base: SURUM == null ? 0 : SURUM, state: ST, kim: BAG.ad || 'Adsız', islem: giden.join(' · ') || 'Plan güncellendi' });
+    if (j.ok) {
+      metaAl(j); durumGoster('ok', metaYazi(), 'Ortak kayda bağlı');
+    } else if (j.conflict) {
+      metaAl(j); if (j.state) ST = j.state; yerelKaydet(); ciz();
+      durumGoster('ok', metaYazi());
+      toast(`${j.guncelleyen || 'Başka biri'} az önce planı değiştirdi. Güncel hali yüklendi; son değişikliğini tekrar yap.`);
+    } else {
+      islemler.unshift(...giden);
+      durumGoster('hata', 'Kaydedilemedi', j.error);
+      toast('Kaydedilemedi: ' + (j.error || 'bilinmeyen hata'));
+    }
+  } catch (e) {
+    islemler.unshift(...giden);
+    bekleyenGonderim = true;
+    durumGoster('hata', 'Kaydedilemedi, tekrar denenecek', e.message);
+  } finally {
+    gonderiliyor = false;
+    if (bekleyenGonderim) { bekleyenGonderim = false; clearTimeout(gonderZ); gonderZ = setTimeout(gonder, islemler.length ? 700 : 15000); }
+  }
+}
+
+/** 30 sn'de bir: başkası değiştirdiyse planı yeniler (düzenleme sırasında yazı kutusundaysan bekler). */
+async function kontrolEt() {
+  if (!bagli() || gonderiliyor || islemler.length || document.hidden) return;
+  const odak = document.activeElement;
+  if (odak && odak.closest && odak.closest('#duzenle, #yukleme, #baglanti') && /INPUT|TEXTAREA|SELECT/.test(odak.tagName)) return;
+  try {
+    const j = await sunucuGet('surum');
+    if (SURUM == null || j.surum !== SURUM) {
+      const once = SURUM;
+      await sunucudanYukle(true);
+      if (once != null) toast(`${META.guncelleyen || 'Biri'} planı güncelledi.`);
+    } else { metaAl(j); durumGoster('ok', metaYazi(), 'Ortak kayda bağlı'); }
+  } catch (e) { durumGoster('hata', 'Bağlantı hatası', e.message); }
+}
+setInterval(kontrolEt, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) kontrolEt(); });
+
+/* Davet linki: #baglan=... ile açılınca bağlantıyı kendiliğinden kurar */
+function davetOku() {
+  const m = location.hash.match(/baglan=([^&]+)/);
+  if (!m) return;
+  try {
+    const d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+    if (d.url && d.key) { BAG = { url: d.url, key: d.key, ad: (BAG && BAG.ad) || '' }; bagYaz(); }
+  } catch (e) {}
+  history.replaceState(null, '', location.pathname + location.search);
+}
+function davetLinki() {
+  const kod = btoa(unescape(encodeURIComponent(JSON.stringify({ url: BAG.url, key: BAG.key }))));
+  return location.href.split('#')[0] + '#baglan=' + encodeURIComponent(kod);
+}
+
+function baglantiCiz() {
+  const b = BAG || {};
+  $('baglanti').innerHTML = `<h3>Ortak kayıt bağlantısı</h3>
+    <div class="not">Bağlıyken yapılan her değişiklik Google Sheet'e kaydedilir ve dashboard'u kullanan herkes aynı planı görür. Açık sayfalar 30 saniyede bir kendini günceller.</div>
+    <div class="bag-form">
+      <label class="not" for="b_ad">Adın (kayıtta görünür)</label><input id="b_ad" value="${esc(b.ad || '')}" placeholder="Ad Soyad">
+      <label class="not" for="b_url">Web uygulaması adresi</label><input id="b_url" value="${esc(b.url || '')}" placeholder="https://script.google.com/macros/s/.../exec">
+      <label class="not" for="b_key">Erişim anahtarı</label><input id="b_key" type="password" value="${esc(b.key || '')}">
+    </div>
+    <div id="b_hata" class="not" style="color:#A32D2D;margin-top:6px"></div>
+    <div class="satir" style="margin-top:12px">
+      <button class="ana" onclick="baglantiKaydet()">Bağlan</button>
+      ${bagli() ? `<button onclick="davetKopyala()">Ekip için davet linki kopyala</button><button onclick="baglantiKes()">Bağlantıyı kes</button>` : ''}
+      <button onclick="$('baglanti').hidden=true">Kapat</button>
+    </div>`;
+}
+async function baglantiKaydet() {
+  const ad = $('b_ad').value.trim(), url = $('b_url').value.trim(), key = $('b_key').value.trim();
+  $('b_hata').textContent = '';
+  if (!ad) { $('b_hata').textContent = 'Adını yaz; değişiklik kaydında görünecek.'; return; }
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) { $('b_hata').textContent = 'Adres https://script.google.com/... ile başlamalı.'; return; }
+  if (!key) { $('b_hata').textContent = 'Erişim anahtarını yaz.'; return; }
+  const eski = BAG; BAG = { ad, url, key };
+  try { await sunucuGet('surum'); }
+  catch (e) { BAG = eski; $('b_hata').textContent = 'Bağlanılamadı: ' + e.message; return; }
+  bagYaz(); SURUM = null;
+  $('baglanti').hidden = true;
+  await sunucudanYukle(false);
+  toast('Ortak kayda bağlandı');
+}
+function baglantiKes() {
+  if (!confirm('Ortak kayıt bağlantısı kesilsin mi? Plan bu bilgisayarda kalır ama değişiklikler artık paylaşılmaz.')) return;
+  BAG = BAG && BAG.ad ? { ad: BAG.ad } : null; bagYaz(); SURUM = null;
+  durumGoster('', 'Yerel', 'Ortak kayda bağlı değil'); baglantiCiz();
+}
+async function davetKopyala() {
+  const link = davetLinki();
+  try { await navigator.clipboard.writeText(link); toast('Davet linki kopyalandı. Ekip bu linki açınca bağlantı kendiliğinden kurulur.'); }
+  catch (e) { prompt('Bu linki kopyala:', link); }
+}
+$('baglantiBtn').onclick = () => { const p = $('baglanti'); p.hidden = !p.hidden; if (!p.hidden) { baglantiCiz(); p.scrollIntoView({ behavior: 'smooth' }); } };
+
+function yukleDurum() { try { const s = localStorage.getItem(ANAHTAR); if (s) ST = JSON.parse(s); } catch (e) { ST = null; } }
+function yerelKaydet() {
+  try { localStorage.setItem(ANAHTAR, JSON.stringify(ST)); } catch (e) {}
+}
+function kaydet(aciklama) { islem(aciklama); }
+function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._z); t._z = setTimeout(() => t.style.display = 'none', 3500); }
+function xlsxVar() { if (window.XLSX) return true; toast('Excel kütüphanesi yüklenemedi. Sayfa internete erişebilmeli.'); return false; }
+
+function ciz() {
+  $('haftaAd').textContent = haftaAralik(goruntu);
+  const buMu = haftaFark(goruntu, new Date()) === 0;
+  $('buHafta').classList.toggle('aktif', buMu);
+  ['disariBtn', 'kopyalaBtn', 'yazdirBtn', 'duzenleBtn', 'ara'].forEach(id => $(id).disabled = !ST);
+  if (!ST) {
+    $('bilgi').textContent = '';
+    $('icerik').innerHTML = `<div class="kart bos">
+      <h3>Başlangıç planını yükle</h3>
+      <ol>
+        <li>Mevcut mola planını Excel olarak hazırla: <b>GRUP | İSİM SOYİSİM | MOLA 1 | MOLA 2 | …</b></li>
+        <li>Excel'de tabloyu kopyalayıp <b>Yapıştır</b>'a bas (ya da <b>İçeri aktar</b> ile dosyayı seç) ve planın hangi haftaya ait olduğunu seç.</li>
+        <li>Sonraki haftalar kendiliğinden döner: 2. grup 1. grubun saatlerine, 1. grup son grubun saatlerine geçer.</li>
+      </ol><br>
+      <div class="satir" style="justify-content:center">
+        <button class="ana" onclick="$('yapistirBtn').click()">Excel'den yapıştır</button>
+        <button onclick="$('dosya').click()">Dosyadan yükle</button>
+        <button onclick="sablonIndir()">Örnek şablon indir</button>
+      </div></div>`;
+    return;
+  }
+  const p = haftaPlani(ST, goruntu);
+  const fark = haftaFark(goruntu, isoTarih(ST.temelHafta));
+  $('bilgi').innerHTML = `Son yüklenen plan: <b>${haftaAralik(isoTarih(ST.temelHafta))}</b> haftası`
+    + (ST.yuklendi ? ` (${esc(ST.yuklendi)})` : '')
+    + ` · Gösterilen hafta bu plandan <b>${fark === 0 ? 'aynı hafta' : (fark > 0 ? fark + ' hafta sonra' : (-fark) + ' hafta önce')}</b>`;
+  $('icerik').innerHTML = `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value)}</div>`;
+  const hit = $('icerik').querySelector('[data-hit]');
+  if (hit && $('ara').value.trim()) hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (duzenMod) duzenleCiz();
+}
+
+/* ---------- İÇERİ AKTAR ---------- */
+$('iceriBtn').onclick = () => { if (xlsxVar()) $('dosya').click(); };
+$('dosya').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f || !xlsxVar()) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    planOnizle(XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }), f.name);
+  } catch (err) { toast(err.message || 'Dosya okunamadı'); }
+};
+
+/* Excel'den kopyala → buraya yapıştır (dosya ve internet gerekmez) */
+$('yapistirBtn').onclick = () => {
+  $('yukleme').hidden = false;
+  $('yukleme').innerHTML = `<h3>Excel'den yapıştır</h3>
+    <div class="not">Excel'de başlık satırı dahil tabloyu seç (GRUP, İSİM SOYİSİM, MOLA… sütunları), <b>Ctrl+C</b> ile kopyala, aşağıdaki kutuya tıklayıp <b>Ctrl+V</b> yap.</div>
+    <textarea id="yapKutu" rows="5" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px" placeholder="Buraya yapıştır"></textarea>
+    <div class="satir" style="margin-top:8px"><button onclick="$('yukleme').hidden=true">Vazgeç</button></div>`;
+  const k = $('yapKutu'); k.focus();
+  k.addEventListener('paste', ev => {
+    ev.preventDefault();
+    const metin = (ev.clipboardData || window.clipboardData).getData('text/plain');
+    try { planOnizle(tsvCoz(metin), 'Yapıştırılan tablo'); }
+    catch (err) { toast(err.message || 'Tablo okunamadı'); }
+  });
+};
+function tsvCoz(t) {
+  const satirlar = [], s = t.replace(/\r\n?/g, '\n');
+  let row = [], hucre = '', tirnak = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (tirnak) { if (c === '"' && s[i + 1] === '"') { hucre += '"'; i++; } else if (c === '"') tirnak = false; else hucre += c; }
+    else if (c === '"' && hucre === '') tirnak = true;
+    else if (c === '\t') { row.push(hucre); hucre = ''; }
+    else if (c === '\n') { row.push(hucre); satirlar.push(row); row = []; hucre = ''; }
+    else hucre += c;
+  }
+  if (hucre || row.length) { row.push(hucre); satirlar.push(row); }
+  return satirlar;
+}
+
+function planOnizle(aoa, kaynak) {
+  const f = { name: kaynak };
+  try {
+    bekleyen = planCoz(aoa);
+    const sayim = bekleyen.saatler.map((_, i) => `${i + 1}. grup: ${bekleyen.kisiler.filter(k => k.g === i + 1).length}`).join(' · ');
+    $('yukleme').hidden = false;
+    $('yukleme').innerHTML = `<h3>Plan okundu: ${esc(f.name)}</h3>
+      <div class="not">${bekleyen.kisiler.length} personel, ${bekleyen.saatler.length} grup (${sayim})<br>Sütunlar: ${bekleyen.basliklar.map(esc).join(', ')}</div>
+      <div class="satir" style="margin-top:12px">
+        <label class="not" for="yHafta">Bu plan hangi haftaya ait?</label>
+        <input type="date" id="yHafta" value="${iso(goruntu)}">
+        <button class="ana" onclick="yuklemeyiOnayla()">Yükle</button>
+        <button onclick="$('yukleme').hidden=true;bekleyen=null">Vazgeç</button>
+      </div>
+      <div class="not" style="margin-top:8px">Mevcut plan bununla değiştirilecek. Sonraki haftalar bu plandan döner.</div>`;
+    $('yukleme').scrollIntoView({ behavior: 'smooth' });
+  } catch (err) { toast(err.message || 'Tablo okunamadı'); }
+}
+function yuklemeyiOnayla() {
+  const v = $('yHafta').value;
+  if (!v) { toast('Hafta seç'); return; }
+  const mon = pzt(isoTarih(v)), n = new Date();
+  ST = { baslik: metin(ST, 'baslik'), anaBaslik: metin(ST, 'anaBaslik'), ustNot: metin(ST, 'ustNot'), altNot: metin(ST, 'altNot'), basliklar: bekleyen.basliklar, saatler: bekleyen.saatler, kisiler: bekleyen.kisiler,
+         temelHafta: iso(mon), yuklendi: `${trTarih(n)} ${pad(n.getHours())}:${pad(n.getMinutes())} yüklendi` };
+  bekleyen = null; kaydet(`Yeni plan yüklendi (${ST.kisiler.length} kişi, ${haftaAralik(mon)} haftası)`); $('yukleme').hidden = true; goruntu = mon; ciz();
+  toast('Plan yüklendi');
+}
+
+/* ---------- DIŞARI AKTAR ---------- */
+function excelYaz(p, monday, dosyaAdi) {
+  const rows = [['GRUP', 'İSİM SOYİSİM', ...p.basliklar]], merges = [], tur = ['bas'], grupNo = [null];
+  p.bol.forEach((b, i) => {
+    const s = rows.length;
+    b.kisiler.forEach(ad => { rows.push([`${b.no}. GRUP`, ad, ...b.saat]); tur.push('kisi'); grupNo.push(i); });
+    if (b.kisiler.length > 1) merges.push({ s: { r: s, c: 0 }, e: { r: s + b.kisiler.length - 1, c: 0 } });
+    rows.push(new Array(rows[0].length).fill('')); tur.push('ayir'); grupNo.push(i);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges'] = merges;
+  ws['!cols'] = [{ wch: 10 }, { wch: 26 }, ...p.basliklar.map(() => ({ wch: 15 }))];
+  ws['!rows'] = tur.map(t => t === 'ayir' ? { hpt: 6 } : { hpt: 18 });
+  const kenar = { style: 'thin', color: { rgb: 'C9D3DE' } };
+  const border = { top: kenar, bottom: kenar, left: kenar, right: kenar };
+  for (let r = 0; r < rows.length; r++) for (let c = 0; c < rows[0].length; c++) {
+    const a = XLSX.utils.encode_cell({ r, c });
+    if (!ws[a]) ws[a] = { t: 's', v: '' };
+    const [d, bg, tx] = grupNo[r] == null ? [] : renk(grupNo[r]);
+    const yemek = c >= 2 && p.basliklar[c - 2].includes('YEMEK');
+    let s = { font: { name: 'Calibri', sz: 10, color: { rgb: '1D2733' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border };
+    if (tur[r] === 'bas') s = { ...s, fill: { fgColor: { rgb: '185FA5' } }, font: { ...s.font, bold: true, color: { rgb: 'FFFFFF' } } };
+    else if (tur[r] === 'ayir') s = { fill: { fgColor: { rgb: d } } };
+    else if (c === 0) s = { ...s, fill: { fgColor: { rgb: bg } }, font: { ...s.font, bold: true, color: { rgb: tx } } };
+    else if (c === 1) s = { ...s, font: { ...s.font, bold: true }, alignment: { ...s.alignment, horizontal: 'left' } };
+    else if (yemek) s = { ...s, font: { ...s.font, bold: true } };
+    ws[a].s = s;
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Mola Planı');
+  XLSX.writeFile(wb, dosyaAdi);
+}
+$('disariBtn').onclick = () => {
+  if (!ST || !xlsxVar()) return;
+  excelYaz(haftaPlani(ST, goruntu), goruntu, `Mola_Plani_${iso(goruntu).replace(/-/g, '')}.xlsx`);
+  toast('İndirildi. Değiştirip İçeri aktar ile bu haftaya yükleyebilirsin.');
+};
+function sablonIndir() {
+  if (!xlsxVar()) return;
+  const ornek = { baslik: '', temelHafta: iso(goruntu),
+    basliklar: ['MOLA 1', 'MOLA 2', 'MOLA 3', 'YEMEK', 'MOLA 4', 'MOLA 5', 'MOLA 6'],
+    saatler: [['08:30 - 08:40', '09:30 - 09:40', '10:30 - 10:40', '11:30 - 12:10', '13:30 - 13:40', '14:50 - 15:00', '16:20 - 16:30'],
+              ['08:40 - 08:50', '09:40 - 09:50', '10:40 - 10:50', '12:15 - 12:55', '13:50 - 14:00', '15:00 - 15:10', '16:30 - 16:40']],
+    kisiler: [{ ad: 'Örnek Kişi 1', g: 1 }, { ad: 'Örnek Kişi 2', g: 1 }, { ad: 'Örnek Kişi 3', g: 2 }, { ad: 'Örnek Kişi 4', g: 2 }] };
+  excelYaz(haftaPlani(ornek, goruntu), goruntu, 'Mola_Plani_Sablon.xlsx');
+}
+
+/* ---------- DÜZENLE ---------- */
+$('duzenleBtn').onclick = () => {
+  duzenMod = !duzenMod;
+  $('duzenleBtn').classList.toggle('aktif', duzenMod);
+  $('duzenle').hidden = !duzenMod;
+  if (duzenMod) duzenleCiz();
+};
+function duzenleCiz() {
+  const p = haftaPlani(ST, goruntu), N = p.N;
+  const sec = g => Array.from({ length: N }, (_, i) => `<option value="${i + 1}" ${g === i + 1 ? 'selected' : ''}>${i + 1}. Grup</option>`).join('');
+  $('duzenle').innerHTML = `<h3>Düzenle (${haftaAralik(goruntu)} haftasına göre)</h3>
+    <div class="not">Burada seçtiğin grup gösterilen hafta için geçerli olur, sonraki haftalar oradan döner. Saatleri değiştirmek için Dışarı aktar → Excel'de düzenle → İçeri aktar.</div>
+    <div class="metinler">
+      <label class="not" for="m_baslik">Üst küçük başlık</label><input id="m_baslik" value="${esc(metin(ST,'baslik'))}" onchange="metinKaydet('baslik',this.value)">
+      <label class="not" for="m_anaBaslik">Ana başlık</label><input id="m_anaBaslik" value="${esc(metin(ST,'anaBaslik'))}" onchange="metinKaydet('anaBaslik',this.value)">
+      <label class="not" for="m_ustNot">Üst not (boş bırakılırsa görünmez; duyuru vb.)</label><textarea id="m_ustNot" rows="2" onchange="metinKaydet('ustNot',this.value)">${esc(metin(ST,'ustNot'))}</textarea>
+      <label class="not" for="m_altNot">Alt not</label><textarea id="m_altNot" rows="2" onchange="metinKaydet('altNot',this.value)">${esc(metin(ST,'altNot'))}</textarea>
+    </div>
+    <table class="liste"><thead><tr><th>Ad soyad</th><th style="width:120px">Bu hafta</th><th style="width:36px"></th></tr></thead><tbody>
+    ${ST.kisiler.map((k, i) => `<tr>
+      <td><input value="${esc(k.ad)}" onchange="adDegis(${i},this.value)"></td>
+      <td><select onchange="grupDegis(${i},+this.value)">${sec(grupHafta(k.g, p.ofs, N))}</select></td>
+      <td><button class="sil" aria-label="Sil" onclick="kisiSil(${i})">×</button></td></tr>`).join('')}
+    </tbody></table>
+    <div class="satir" style="margin-top:10px"><button onclick="kisiEkle()">+ Kişi ekle</button></div>`;
+}
+const METIN_AD = { baslik: 'Üst küçük başlık', anaBaslik: 'Ana başlık', ustNot: 'Üst not', altNot: 'Alt not' };
+function metinKaydet(k, v) { ST[k] = v; kaydet(METIN_AD[k] + ' değiştirildi'); ciz(); }
+const ofsNow = () => haftaFark(goruntu, isoTarih(ST.temelHafta));
+function adDegis(i, v) { v = v.trim(); if (!v) { toast('İsim boş olamaz'); duzenleCiz(); return; } const eski = ST.kisiler[i].ad; ST.kisiler[i].ad = v; kaydet(`${eski} → ${v} (isim düzeltildi)`); ciz(); }
+function grupDegis(i, g) { ST.kisiler[i].g = grupTemel(g, ofsNow(), ST.saatler.length); kaydet(`${ST.kisiler[i].ad} → ${g}. grup (${haftaAralik(goruntu)})`); ciz(); }
+function kisiSil(i) { if (!confirm(ST.kisiler[i].ad + ' listeden çıkarılsın mı?')) return; const ad = ST.kisiler[i].ad; ST.kisiler.splice(i, 1); kaydet(`${ad} silindi`); ciz(); }
+function kisiEkle() {
+  const ad = (prompt('Ad soyad') || '').trim(); if (!ad) return;
+  const g = parseInt(prompt(`Bu hafta hangi grupta? (1-${ST.saatler.length})`, '1'), 10);
+  if (!(g >= 1 && g <= ST.saatler.length)) { toast('Geçersiz grup'); return; }
+  ST.kisiler.push({ ad, g: grupTemel(g, ofsNow(), ST.saatler.length) }); kaydet(`${ad} eklendi (${g}. grup, ${haftaAralik(goruntu)})`); ciz();
+}
+
+/* ---------- KOPYALA / YAZDIR / GEZİNME ---------- */
+$('kopyalaBtn').onclick = async () => {
+  if (!ST) return;
+  const p = haftaPlani(ST, goruntu), html = mailHtml(p, goruntu, ST, '');
+  const duz = `${metin(ST, 'anaBaslik')} - ${haftaAralik(goruntu)}\n\n` + p.bol.map(b => `${b.no}. GRUP (${b.saat.join(' | ')})\n` + b.kisiler.join('\n')).join('\n\n');
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([duz], { type: 'text/plain' }) })]);
+      toast('Kopyalandı. Outlook\'ta yeni maile Ctrl+V ile yapıştır.'); return;
+    }
+  } catch (e) {}
+  const d = document.createElement('div');
+  d.contentEditable = 'true'; d.style.cssText = 'position:fixed;left:-99999px;top:0';
+  d.innerHTML = html; document.body.appendChild(d);
+  const r = document.createRange(); r.selectNodeContents(d);
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  const ok = document.execCommand('copy'); s.removeAllRanges(); d.remove();
+  toast(ok ? 'Kopyalandı. Outlook\'ta yeni maile Ctrl+V ile yapıştır.' : 'Kopyalanamadı. Sayfayı seçip elle kopyala.');
+};
+$('yazdirBtn').onclick = () => window.print();
+$('geri').onclick = () => { goruntu = new Date(goruntu.getTime() - 7 * GUN); ciz(); };
+$('ileri').onclick = () => { goruntu = new Date(goruntu.getTime() + 7 * GUN); ciz(); };
+$('buHafta').onclick = () => { goruntu = pzt(new Date()); ciz(); };
+let araZ; $('ara').oninput = () => { clearTimeout(araZ); araZ = setTimeout(ciz, 200); };
+
+bagOku(); davetOku(); yukleDurum(); ciz();
+if (bagli()) sunucudanYukle(true); else durumGoster('', 'Yerel', 'Ortak kayda bağlı değil — Bağlantı butonundan bağlan');
+if (bagli() && !BAG.ad) { $('baglanti').hidden = false; baglantiCiz(); }
+</script>
+</body>
+</html>
