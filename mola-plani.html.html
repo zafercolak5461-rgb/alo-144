@@ -28,6 +28,11 @@
   .liste { width:100%; border-collapse:collapse; margin-top:10px; }
   .liste td, .liste th { padding:5px 4px; border-bottom:1px solid #e8edf2; font-size:13px; text-align:left; }
   .liste input { width:100%; }
+  .d-filtre { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; position:sticky; top:var(--barH, 58px); background:var(--c); padding:6px 0; z-index:2; }
+  .d-filtre input { flex:1; min-width:180px; font-size:14px; padding:8px 10px; }
+  .liste tr.tek td { background:#FAEEDA; }
+  .d-metin { margin-top:14px; border-top:1px solid #e8edf2; padding-top:10px; }
+  .d-metin summary { cursor:pointer; font-size:14px; font-weight:600; color:var(--t); }
   .metinler { display:grid; grid-template-columns:160px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
   .metinler textarea { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; resize:vertical; }
   @media (max-width:640px) { .metinler { grid-template-columns:1fr; } }
@@ -311,19 +316,25 @@ async function kontrolEt() {
 setInterval(kontrolEt, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) kontrolEt(); });
 
-/* Davet linki: #baglan=... ile açılınca bağlantıyı kendiliğinden kurar */
+/* Davet linki: ?d=... ile açılınca bağlantıyı kendiliğinden kurar (eski #baglan= linkleri de çalışır) */
+const b64u = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64uCoz = t => { t = t.replace(/-/g, '+').replace(/_/g, '/'); while (t.length % 4) t += '='; return decodeURIComponent(escape(atob(t))); };
 function davetOku() {
-  const m = location.hash.match(/baglan=([^&]+)/);
-  if (!m) return;
+  const q = new URLSearchParams(location.search);
+  let kod = q.get('d'), eski = false;
+  if (!kod) { const m = location.hash.match(/baglan=([^&]+)/); if (m) { kod = decodeURIComponent(m[1]); eski = true; } }
+  if (!kod) return;
   try {
-    const d = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
-    if (d.url && d.key) { BAG = { url: d.url, key: d.key, ad: (BAG && BAG.ad) || '' }; bagYaz(); }
+    const d = JSON.parse(eski ? decodeURIComponent(escape(atob(kod))) : b64uCoz(kod));
+    const url = d.u || d.url, key = d.k || d.key;
+    if (url && key) { BAG = { url, key, ad: (BAG && BAG.ad) || '' }; bagYaz(); }
   } catch (e) {}
-  history.replaceState(null, '', location.pathname + location.search);
+  history.replaceState(null, '', location.pathname);
 }
 function davetLinki() {
-  const kod = btoa(unescape(encodeURIComponent(JSON.stringify({ url: BAG.url, key: BAG.key }))));
-  return location.href.split('#')[0] + '#baglan=' + encodeURIComponent(kod);
+  const id = (BAG.url.match(/\/macros\/s\/([^/]+)\/exec/) || [])[1];
+  const veri = id ? { u: 'https://script.google.com/macros/s/' + id + '/exec', k: BAG.key } : { u: BAG.url, k: BAG.key };
+  return location.origin + location.pathname + '?d=' + b64u(JSON.stringify(veri));
 }
 
 function baglantiCiz() {
@@ -530,26 +541,67 @@ $('duzenleBtn').onclick = () => {
   duzenMod = !duzenMod;
   $('duzenleBtn').classList.toggle('aktif', duzenMod);
   $('duzenle').hidden = !duzenMod;
-  if (duzenMod) duzenleCiz();
+  if (duzenMod) duzenleCiz(); else $('duzenle').innerHTML = '';
 };
+let dAra = '', dGrup = 0;
+const trKucuk = t => String(t).toLocaleLowerCase('tr');
 function duzenleCiz() {
-  const p = haftaPlani(ST, goruntu), N = p.N;
+  const N = ST.saatler.length;
+  if (!$('d_ara')) {
+    $('duzenle').innerHTML = `<h3 id="d_bas"></h3>
+      <div class="d-filtre">
+        <input id="d_ara" type="search" placeholder="Personel ara (ad veya soyad)" autocomplete="off">
+        <select id="d_grup" aria-label="Grup filtresi"></select>
+        <button onclick="kisiEkle()">+ Kişi ekle</button>
+      </div>
+      <div id="d_sayac" class="not" style="margin:6px 2px 0"></div>
+      <table class="liste"><thead><tr><th>Ad soyad</th><th style="width:120px">Bu hafta</th><th style="width:36px"></th></tr></thead><tbody id="d_liste"></tbody></table>
+      <details class="d-metin">
+        <summary>Başlık ve notlar</summary>
+        <div class="metinler">
+          <label class="not" for="m_baslik">Üst küçük başlık</label><input id="m_baslik" onchange="metinKaydet('baslik',this.value)">
+          <label class="not" for="m_anaBaslik">Ana başlık</label><input id="m_anaBaslik" onchange="metinKaydet('anaBaslik',this.value)">
+          <label class="not" for="m_ustNot">Üst not (boş bırakılırsa görünmez; duyuru vb.)</label><textarea id="m_ustNot" rows="2" onchange="metinKaydet('ustNot',this.value)"></textarea>
+          <label class="not" for="m_altNot">Alt not</label><textarea id="m_altNot" rows="2" onchange="metinKaydet('altNot',this.value)"></textarea>
+        </div>
+      </details>
+      <div class="not" style="margin-top:10px">Seçtiğin grup gösterilen hafta için geçerli olur, sonraki haftalar oradan döner. Saatleri değiştirmek için Dışarı aktar → Excel'de düzenle → İçeri aktar.</div>`;
+    const ust = $('ara').value.trim();
+    if (ust) dAra = ust;
+    $('d_ara').value = dAra;
+    $('d_ara').oninput = e => { dAra = e.target.value; listeCiz(); };
+    $('d_ara').onkeydown = e => {
+      if (e.key === 'Enter') { const ilk = $('d_liste').querySelector('select'); if (ilk) ilk.focus(); }
+      if (e.key === 'Escape') { dAra = ''; e.target.value = ''; listeCiz(); }
+    };
+    $('d_grup').onchange = e => { dGrup = +e.target.value; listeCiz(); };
+    setTimeout(() => $('d_ara').focus(), 0);
+  }
+  $('d_bas').textContent = `Düzenle (${haftaAralik(goruntu)} haftasına göre)`;
+  $('d_grup').innerHTML = `<option value="0">Tüm gruplar</option>` + Array.from({ length: N }, (_, i) => `<option value="${i + 1}" ${dGrup === i + 1 ? 'selected' : ''}>${i + 1}. Grup</option>`).join('');
+  ['baslik', 'anaBaslik', 'ustNot', 'altNot'].forEach(k => { const el = $('m_' + k); if (el && document.activeElement !== el) el.value = metin(ST, k); });
+  listeCiz();
+}
+function listeCiz() {
+  const N = ST.saatler.length, ofs = ofsNow();
+  const q = trKucuk(dAra.trim());
   const sec = g => Array.from({ length: N }, (_, i) => `<option value="${i + 1}" ${g === i + 1 ? 'selected' : ''}>${i + 1}. Grup</option>`).join('');
-  $('duzenle').innerHTML = `<h3>Düzenle (${haftaAralik(goruntu)} haftasına göre)</h3>
-    <div class="not">Burada seçtiğin grup gösterilen hafta için geçerli olur, sonraki haftalar oradan döner. Saatleri değiştirmek için Dışarı aktar → Excel'de düzenle → İçeri aktar.</div>
-    <div class="metinler">
-      <label class="not" for="m_baslik">Üst küçük başlık</label><input id="m_baslik" value="${esc(metin(ST,'baslik'))}" onchange="metinKaydet('baslik',this.value)">
-      <label class="not" for="m_anaBaslik">Ana başlık</label><input id="m_anaBaslik" value="${esc(metin(ST,'anaBaslik'))}" onchange="metinKaydet('anaBaslik',this.value)">
-      <label class="not" for="m_ustNot">Üst not (boş bırakılırsa görünmez; duyuru vb.)</label><textarea id="m_ustNot" rows="2" onchange="metinKaydet('ustNot',this.value)">${esc(metin(ST,'ustNot'))}</textarea>
-      <label class="not" for="m_altNot">Alt not</label><textarea id="m_altNot" rows="2" onchange="metinKaydet('altNot',this.value)">${esc(metin(ST,'altNot'))}</textarea>
-    </div>
-    <table class="liste"><thead><tr><th>Ad soyad</th><th style="width:120px">Bu hafta</th><th style="width:36px"></th></tr></thead><tbody>
-    ${ST.kisiler.map((k, i) => `<tr>
-      <td><input value="${esc(k.ad)}" onchange="adDegis(${i},this.value)"></td>
-      <td><select onchange="grupDegis(${i},+this.value)">${sec(grupHafta(k.g, p.ofs, N))}</select></td>
-      <td><button class="sil" aria-label="Sil" onclick="kisiSil(${i})">×</button></td></tr>`).join('')}
-    </tbody></table>
-    <div class="satir" style="margin-top:10px"><button onclick="kisiEkle()">+ Kişi ekle</button></div>`;
+  const satirlar = ST.kisiler.map((k, i) => ({ k, i, g: grupHafta(k.g, ofs, N) }))
+    .filter(x => (!q || trKucuk(x.k.ad).includes(q)) && (!dGrup || x.g === dGrup))
+    .sort((a, b) => a.g - b.g || a.k.ad.localeCompare(b.k.ad, 'tr'));
+  const tek = q && satirlar.length === 1;
+  $('d_liste').innerHTML = satirlar.length ? satirlar.map(({ k, i, g }) => `<tr${tek ? ' class="tek"' : ''}>
+      <td><input value="${esc(k.ad)}" aria-label="Ad soyad" onchange="adDegis(${i},this.value)"></td>
+      <td><select onchange="grupDegis(${i},+this.value)">${sec(g)}</select></td>
+      <td><button class="sil" aria-label="${esc(k.ad)} sil" onclick="kisiSil(${i})">×</button></td></tr>`).join('')
+    : `<tr><td colspan="3" class="not" style="padding:14px 4px">Eşleşen personel yok.${q ? ` <button onclick="kisiEkleIsimle()">“${esc(dAra.trim())}” olarak ekle</button>` : ''}</td></tr>`;
+  $('d_sayac').textContent = (q || dGrup) ? `${satirlar.length} / ${ST.kisiler.length} personel gösteriliyor` : `${ST.kisiler.length} personel`;
+}
+function kisiEkleIsimle() {
+  const ad = dAra.trim(); if (!ad) return;
+  const g = parseInt(prompt(`${ad} bu hafta hangi grupta? (1-${ST.saatler.length})`, dGrup || '1'), 10);
+  if (!(g >= 1 && g <= ST.saatler.length)) { toast('Geçersiz grup'); return; }
+  ST.kisiler.push({ ad, g: grupTemel(g, ofsNow(), ST.saatler.length) }); kaydet(`${ad} eklendi (${g}. grup, ${haftaAralik(goruntu)})`); ciz();
 }
 const METIN_AD = { baslik: 'Üst küçük başlık', anaBaslik: 'Ana başlık', ustNot: 'Üst not', altNot: 'Alt not' };
 function metinKaydet(k, v) { ST[k] = v; kaydet(METIN_AD[k] + ' değiştirildi'); ciz(); }
@@ -589,6 +641,8 @@ $('ileri').onclick = () => { goruntu = new Date(goruntu.getTime() + 7 * GUN); ci
 $('buHafta').onclick = () => { goruntu = pzt(new Date()); ciz(); };
 let araZ; $('ara').oninput = () => { clearTimeout(araZ); araZ = setTimeout(ciz, 200); };
 
+const barH = () => document.documentElement.style.setProperty('--barH', document.querySelector('.bar').offsetHeight + 'px');
+barH(); addEventListener('resize', barH);
 bagOku(); davetOku(); yukleDurum(); ciz();
 if (bagli()) sunucudanYukle(true); else durumGoster('', 'Yerel', 'Ortak kayda bağlı değil — Bağlantı butonundan bağlan');
 if (bagli() && !BAG.ad) { $('baglanti').hidden = false; baglantiCiz(); }
