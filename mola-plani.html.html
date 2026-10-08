@@ -39,6 +39,12 @@
   .bos { text-align:center; padding:40px 16px; }
   .bos ol { text-align:left; display:inline-block; color:var(--m); font-size:14px; line-height:1.8; margin:12px 0 18px; }
   .mailview { overflow-x:auto; }
+  .grup-btn { cursor:pointer; transition:filter .12s; box-shadow:inset 0 -3px 0 rgba(0,0,0,.12); }
+  .grup-btn:hover { filter:brightness(.94); }
+  .grup-btn:focus-visible { outline:2px solid #185FA5; outline-offset:-2px; }
+  .grup-btn.secili { box-shadow:inset 0 0 0 3px #1d2733; }
+  .grup-sayi { font-size:10px; font-weight:normal; color:#3d4752; margin-top:2px; }
+  .tumu-btn { font-size:12px; padding:3px 10px; margin-left:8px; vertical-align:middle; }
   .durum { font-size:12px; color:var(--m); display:flex; align-items:center; gap:6px; white-space:nowrap; }
   .durum i { width:8px; height:8px; border-radius:50%; background:#B4B2A9; display:inline-block; }
   .durum.ok i { background:#639922; } .durum.is i { background:#EF9F27; } .durum.hata i { background:#E24B4A; }
@@ -160,7 +166,8 @@ function ozet(p) {
 }
 
 /** Mail ile aynı görünüm: tablo tabanlı, satır içi stil (Outlook'a yapıştırınca bozulmaz). */
-function mailHtml(p, monday, st, q) {
+function mailHtml(p, monday, st, q, ek) {
+  const ekran = !!ek, secili = ek && ek.grup || 0;   // ekran: dashboard görünümü (mail kopyasında yok)
   const F = 'font-family:Segoe UI,Arial,sans-serif';
   const qq = (q || '').trim().toLocaleLowerCase('tr');
   const kol = p.basliklar.length + 2;
@@ -179,16 +186,21 @@ function mailHtml(p, monday, st, q) {
   o += `<tr><td style="${th}">${fc('1d2733', 'GRUP', 1)}</td>` + p.basliklar.map(h => `<td style="${th}">${fc('1d2733', esc(h), 1)}</td>`).join('') + `</tr>`;
   p.bol.forEach((b, i) => {
     const [, bg, tx] = renk(i), [orta, koyu] = ORTA[i % ORTA.length];
-    o += `<tr><td style="background:#${orta};font-size:12px;padding:6px;border:1px solid #9fb0c2;text-align:center;white-space:nowrap;${F}">${fc(koyu, b.no + '. GRUP', 1)}</td>`
-      + b.saat.map((t, j) => `<td style="background:#${bg};font-size:11px;padding:6px 3px;border:1px solid #9fb0c2;text-align:center;${F}">${fc(tx, esc(t).replace(' - ', '<br>'), p.basliklar[j].includes('YEMEK'))}</td>`).join('') + `</tr>`;
+    const soluk = ekran && secili && secili !== b.no ? 'opacity:.4;' : '';
+    const grupHucre = ekran
+      ? `<td class="grup-btn${secili === b.no ? ' secili' : ''}" data-grup="${b.no}" role="button" tabindex="0" aria-pressed="${secili === b.no}" title="${secili === b.no ? 'Tüm grupları göster' : 'Sadece ' + b.no + '. grubu göster'}" style="background:#${orta};font-size:12px;padding:6px;border:1px solid #9fb0c2;text-align:center;white-space:nowrap;${soluk}${F}">${fc(koyu, (secili === b.no ? '✓ ' : '') + b.no + '. GRUP', 1)}<div class="grup-sayi">${b.kisiler.length} kişi</div></td>`
+      : `<td style="background:#${orta};font-size:12px;padding:6px;border:1px solid #9fb0c2;text-align:center;white-space:nowrap;${F}">${fc(koyu, b.no + '. GRUP', 1)}</td>`;
+    o += `<tr>` + grupHucre
+      + b.saat.map((t, j) => `<td style="${soluk}background:#${bg};font-size:11px;padding:6px 3px;border:1px solid #9fb0c2;text-align:center;${F}">${fc(tx, esc(t).replace(' - ', '<br>'), p.basliklar[j].includes('YEMEK'))}</td>`).join('') + `</tr>`;
   });
   o += `</table></td></tr>`;
-  o += `<tr><td style="padding:12px 22px 4px;${F}"><div style="font-size:15px;font-weight:bold;color:#1d2733">Personel listesi</div></td></tr>`;
+  o += `<tr><td style="padding:12px 22px 4px;${F}"><div style="font-size:15px;font-weight:bold;color:#1d2733">Personel listesi${secili ? ` · ${secili}. grup <button class="tumu-btn" data-grup="0">Tüm grupları göster</button>` : ''}</div></td></tr>`;
   o += `<tr><td style="padding:6px 22px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">`;
   const th2 = `background:#D3DDE8;font-size:11px;font-weight:bold;padding:7px 4px;border:1px solid #9fb0c2;text-align:center;${F}`;
   o += `<tr><td style="${th2}">${fc('1d2733', 'GRUP', 1)}</td><td style="${th2};text-align:left">${fc('1d2733', 'İSİM SOYİSİM', 1)}</td>` + p.basliklar.map(h => `<td style="${th2}">${fc('1d2733', esc(h), 1)}</td>`).join('') + `</tr>`;
   const kenar = 'border-top:1px solid #9fb0c2;border-bottom:1px solid #9fb0c2;border-left:2px solid #8597aa;border-right:2px solid #8597aa';
   p.bol.forEach((b, i) => {
+    if (secili && secili !== b.no) return;
     const [d, bg, tx] = renk(i), [orta, koyu] = ORTA[i % ORTA.length];
     b.kisiler.forEach((ad, r) => {
       const hit = qq && ad.toLocaleLowerCase('tr').includes(qq);
@@ -413,7 +425,8 @@ function ciz() {
   $('bilgi').innerHTML = `Son yüklenen plan: <b>${haftaAralik(isoTarih(ST.temelHafta))}</b> haftası`
     + (ST.yuklendi ? ` (${esc(ST.yuklendi)})` : '')
     + ` · Gösterilen hafta bu plandan <b>${fark === 0 ? 'aynı hafta' : (fark > 0 ? fark + ' hafta sonra' : (-fark) + ' hafta önce')}</b>`;
-  $('icerik').innerHTML = `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value)}</div>`;
+  if (seciliGrup > p.N) seciliGrup = 0;
+  $('icerik').innerHTML = `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value, { grup: seciliGrup })}</div>`;
   const hit = $('icerik').querySelector('[data-hit]');
   if (hit && $('ara').value.trim()) hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
   if (duzenMod) duzenleCiz();
@@ -639,6 +652,10 @@ $('yazdirBtn').onclick = () => window.print();
 $('geri').onclick = () => { goruntu = new Date(goruntu.getTime() - 7 * GUN); ciz(); };
 $('ileri').onclick = () => { goruntu = new Date(goruntu.getTime() + 7 * GUN); ciz(); };
 $('buHafta').onclick = () => { goruntu = pzt(new Date()); ciz(); };
+let seciliGrup = 0;
+function grupSec(g) { seciliGrup = seciliGrup === g ? 0 : g; ciz(); }
+$('icerik').addEventListener('click', e => { const t = e.target.closest('[data-grup]'); if (t) grupSec(+t.dataset.grup); });
+$('icerik').addEventListener('keydown', e => { const t = e.target.closest('.grup-btn'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); grupSec(+t.dataset.grup); } });
 let araZ; $('ara').oninput = () => { clearTimeout(araZ); araZ = setTimeout(ciz, 200); };
 
 const barH = () => document.documentElement.style.setProperty('--barH', document.querySelector('.bar').offsetHeight + 'px');
