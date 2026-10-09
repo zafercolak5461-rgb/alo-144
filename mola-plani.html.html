@@ -67,6 +67,13 @@
   .k-kisi { display:flex; flex-direction:column; background:#fff; border:1px solid #F09595; border-left:4px solid #E24B4A; border-radius:6px; padding:6px 12px; }
   .k-kisi b { font-size:15px; color:#501313; }
   .k-kisi small { font-size:11px; color:#A32D2D; }
+  .k-vdisi { margin-top:10px; padding:10px 12px; border-radius:8px; background:#E6F1FB; border:1px solid #85B7EB; }
+  .k-vdisi-bas { font-size:13px; font-weight:600; color:#0C447C; }
+  .k-vdisi-grup { margin-top:8px; font-size:11px; font-weight:700; color:#185FA5; text-transform:uppercase; letter-spacing:.3px; }
+  .k-vdisi-liste { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .k-vd { background:#fff; border:1px solid #B5D4F4; border-radius:6px; padding:4px 10px; font-size:13px; color:#042C53; }
+  .k-vd small { color:#185FA5; font-size:11px; }
+  .k-uyari { display:inline-block; margin-left:4px; background:#FAEEDA; color:#633806; border:1px solid #EF9F27; border-radius:10px; padding:0 8px; font-size:12px; font-weight:600; }
   .k-tamam { margin-top:12px; padding:8px 12px; border-radius:8px; background:#EAF3DE; border:1px solid #97C459; color:#27500A; font-size:13px; font-weight:600; }
   .k-rozet { display:inline-block; margin-left:8px; background:#E24B4A; color:#fff; font-size:12px; font-weight:600; padding:3px 10px; border-radius:12px; vertical-align:middle; }
   .k-mesai { margin-top:10px; padding:10px 12px; border-radius:8px; background:#FCEBEB; border:1px solid #F09595; color:#501313; font-size:13px; line-height:1.6; }
@@ -782,9 +789,9 @@ function karsilastir(cms) {
   const eslesen = es.eslesen.filter(e => !gelmediMi(e.x.k.ad));
   const eslesmeyen = es.eslesmeyen.filter(a => !gelmediMi(a.ad));
   const planDisiCms = es.planDisiCms;
-  const cmsteYok = es.cmsteYok.filter(x => !gelmediMi(x.k.ad));
+  const cmsteYok0 = es.cmsteYok.filter(x => !gelmediMi(x.k.ad));
   const gizlenen = yokGecerli ? YOK.kisiler.filter(k => k.gelmedi) : [];
-  let mesaideYok = [];
+  let mesaideYok = []; const vardiyaDisi = [];
   if (yokGecerli) {
     const cmsN = cms.ajanlar.map(a => normAd(a.ad));
     const cmsteVar = k => cmsN.some(n => isimBenzer(n, k.n));
@@ -792,6 +799,12 @@ function karsilastir(cms) {
     // Son tur: soyadı değişmiş olabilir (evlilik vb.). Adı aynı olan, yoklamada karşılığı olmayan tek bir CMS kaydı varsa aynı kişi say.
     const yoklamadaYok = cmsN.filter(n => !YOK.kisiler.some(k => isimBenzer(n, k.n)));
     mesaideYok = mesaideYok.filter(k => { const ilk = k.n.split(' ')[0]; return yoklamadaYok.filter(n => n.split(' ')[0] === ilk).length !== 1; });
+    // CMS'te olmayıp nedeni vardiya saati olanlar: mesaisi bitmiş ya da henüz başlamamış
+    const cmsteVar2 = k => cmsteVar(k) || (() => { const ilk = k.n.split(' ')[0]; return yoklamadaYok.filter(n => n.split(' ')[0] === ilk).length === 1; })();
+    YOK.kisiler.filter(k => !k.gelmedi && k.vardiya && !cmsteVar2(k)).forEach(k => {
+      if (simdi < k.vardiya[0]) vardiyaDisi.push({ ...k, durum: 'baslamadi' });
+      else if (simdi >= k.vardiya[1]) vardiyaDisi.push({ ...k, durum: 'bitti' });
+    });
   }
   const cikmayan = [], planDisi = [], asim = [], dogru = [], digerDurum = [];
   const planSimdi = { yemek: 0, mola: 0 }, cmsSimdi = { yemek: 0, mola: 0 };
@@ -819,7 +832,9 @@ function karsilastir(cms) {
     if (simdiki) cikmayan.push({ ...satir, kTur: simdiki.tur, aciklama: `${simdiki.ad} ${saatYaz(simdiki.bas)}–${saatYaz(simdiki.bit)} · ${simdi - simdiki.bas} dk geçti` });
     else if (a.tur === 'diger') digerDurum.push({ ...satir, aciklama: '' });
   });
-  return { ref, yokGecerli, gizlenen, mesaideYok, planSimdi, cmsSimdi, cikmayan, planDisi, asim, dogru, digerDurum, eslesmeyen, planDisiCms, cmsteYok, toplam: cms.ajanlar.length };
+  const vdN = vardiyaDisi.map(k => k.n);
+  const cmsteYok = cmsteYok0.filter(x => !vdN.some(n => isimBenzer(n, normAd(x.k.ad))));
+  return { ref, yokGecerli, gizlenen, mesaideYok, vardiyaDisi, planSimdi, cmsSimdi, cikmayan, planDisi, asim, dogru, digerDurum, eslesmeyen, planDisiCms, cmsteYok, toplam: cms.ajanlar.length };
 }
 
 /* İsim benzerliği: Türkçe karakter, eksik/fazla soyad, kısaltma (HANDE~HANDENUR) ve tek harf hatası (SELVHAN~SELVIHAN) toleranslı */
@@ -940,15 +955,25 @@ async function yoklamaDosya(f) {
     let sec = sayfalar.find(x => x.tarih === bugun);
     if (!sec) {
       const liste = sayfalar.map((x, i) => `${i + 1}) ${x.ad}`).join('\n');
-      const c = parseInt(prompt(`Dosyada bugünün (${trTarih(new Date())}) sayfası yok. Hangi sayfa kullanılsın?\n${liste}`, String(sayfalar.length)), 10);
+      const c = parseInt(prompt(`Dosyada bugünün (${trTarih(new Date())}) tarihli sayfası yok. Hangi sayfa kullanılsın?\n${liste}`, String(sayfalar.length)), 10);
       sec = sayfalar[c - 1]; if (!sec) return;
+      if (sec.tarih && !confirm(`"${sec.ad}" sayfası ${trTarih(isoTarih(sec.tarih))} tarihli. Bugün (${trTarih(new Date())}) için bu sayfa kullanılsın mı?`)) return;
     }
     const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sec.ad], { header: 1, raw: false, defval: '' });
     const kisiler = yoklamaTablo(aoa);
     if (!kisiler || !kisiler.length) { toast(`"${sec.ad}" sayfasında personel tablosu (AgentName) bulunamadı.`); return; }
     yoklamaKur(kisiler, bugun, `${f.name} › ${sec.ad}`);
-    if (sec.tarih && sec.tarih !== bugun) toast(`Dikkat: ${sec.ad} sayfası kullanıldı, bugünün tarihi değil.`);
   } catch (e) { toast('Yoklama okunamadı: ' + (e.message || e)); }
+}
+/** Yoklama satırında gösterilecek sayfa bilgisi: sayfa adı ve (adındaki) tarih; bugünden farklıysa uyarı */
+function yokSayfaYazi() {
+  const sayfa = String(YOK.kaynak || YOK.sayfa || '').split('›').pop().trim();
+  const st = sayfaTarihi(sayfa);
+  if (!sayfa || /^Yapıştırılan/.test(sayfa)) return `<b>${trTarih(isoTarih(YOK.tarih))}</b> <span class="k-not">(yapıştırılan tablo)</span>`;
+  const ad = `<b>${esc(sayfa)}</b> sayfası`;
+  if (st && st !== YOK.tarih) return `${ad} <span class="k-uyari">⚠ bugün (${trTarih(isoTarih(YOK.tarih))}) için ${trTarih(isoTarih(st))} tarihli sayfa kullanılıyor</span>`;
+  if (!st) return `${ad} <span class="k-uyari">⚠ sayfa adında tarih yok, bugün (${trTarih(isoTarih(YOK.tarih))}) için kullanılıyor</span>`;
+  return ad;
 }
 function yoklamaYapistir(metin) {
   const kisiler = yoklamaTablo(tsvCoz(metin));
@@ -987,7 +1012,7 @@ function kontrolCiz() {
       <select id="k_tol" onchange="TOLERANS_DK=+this.value;try{localStorage.setItem('molaPlani.tolerans',this.value)}catch(e){};kontrolCiz()">${[0,1,2,3,5,10].map(v => `<option value="${v}" ${v === TOLERANS_DK ? 'selected' : ''}>${v} dk</option>`).join('')}</select>
       <span class="k-not">Molanın başlamasından bu kadar süre sonra çıkmayan ve süresini bu kadar aşan uyarılır.</span></div>
     <div class="k-yok">${YOK
-      ? `<span>📋 <b>Yoklama:</b> ${trTarih(isoTarih(YOK.tarih))} · ${YOK.kisiler.length} kişi · <b>${YOK.kisiler.filter(k => k.gelmedi).length}</b> kişi bugün yok <span class="k-not">${YOK.ortak ? `· ortak${YOK.yukleyen ? ', yükleyen ' + esc(YOK.yukleyen) : ''}${YOK.zaman ? ' ' + esc(String(YOK.zaman).slice(-5)) : ''}` : '· sadece bu tarayıcıda'}</span></span><span class="satir"><button onclick="$('k_yokDosya').click()">Değiştir</button><button onclick="yoklamaSil()">Kaldır</button></span>`
+      ? `<span>📋 <b>Yoklama:</b> ${yokSayfaYazi()} · ${YOK.kisiler.length} kişi · <b>${YOK.kisiler.filter(k => k.gelmedi).length}</b> kişi bugün yok <span class="k-not">${YOK.ortak ? `· ortak${YOK.yukleyen ? ', yükleyen ' + esc(YOK.yukleyen) : ''}${YOK.zaman ? ' ' + esc(String(YOK.zaman).slice(-5)) : ''}` : '· sadece bu tarayıcıda'}</span></span><span class="satir"><button onclick="$('k_yokDosya').click()">Değiştir</button><button onclick="yoklamaSil()">Kaldır</button></span>`
       : `<span>📋 <b>Bugünün yoklaması yüklü değil.</b> <span class="k-not">${yoklamaSunucuTarih ? `Ortak kayıttaki son yoklama ${trTarih(isoTarih(yoklamaSunucuTarih))} tarihli. ` : ''}Biri yüklediğinde herkes için geçerli olur: rapor/izinli olanlar gizlenir, mesaide olup CMS'te olmayanlar gösterilir.</span></span><span class="satir"><button class="ana" onclick="$('k_yokDosya').click()">Yoklama yükle</button><button onclick="yoklamaYapistirAc()">Tablo yapıştır</button></span>`}
       <input type="file" id="k_yokDosya" accept=".xlsx,.xls" hidden onchange="if(this.files[0])yoklamaDosya(this.files[0]);this.value=''">
     </div>
@@ -1004,7 +1029,7 @@ function kontrolCiz() {
     if (s.yokGecerli) {
       const N = ST.saatler.length, ofs = haftaFark(s.ref, isoTarih(ST.temelHafta));
       const planGrubu = k => { const x = ST.kisiler.find(p => isimBenzer(normAd(p.ad), k.n)); return x ? grupHafta(x.g, ofs, N) + '. grup' : 'planda yok'; };
-      const kart = k => `<span class="k-kisi"><b>${esc(guzelAd(k.ad))}</b><small>${saatYaz(k.vardiya[0])}–${saatYaz(k.vardiya[1])} · ${planGrubu(k)}${k.not ? ' · ' + esc(k.not) : ''}</small></span>`;
+      const kart = k => `<span class="k-kisi"><b>${esc(gorunurAd(k.ad))}</b><small>${saatYaz(k.vardiya[0])}–${saatYaz(k.vardiya[1])} · ${planGrubu(k)}${k.not ? ' · ' + esc(k.not) : ''}</small></span>`;
       const dusen = s.mesaideYok.filter(k => k.girisVar), gelmemis = s.mesaideYok.filter(k => !k.girisVar);
       if (s.mesaideYok.length) {
         h += `<div class="k-alarm" role="alert">
@@ -1015,8 +1040,15 @@ function kontrolCiz() {
       } else {
         h += `<div class="k-tamam">✓ Mesaideki herkes CMS'te görünüyor.</div>`;
       }
-      const bekleyen = YOK.kisiler.filter(k => !k.gelmedi && k.vardiya && simdiDk(s.ref) < k.vardiya[0]);
-      if (bekleyen.length) h += `<div class="k-not" style="margin-top:6px">Vardiyası henüz başlamamış ${bekleyen.length} kişi: ${bekleyen.map(k => `${esc(guzelAd(k.ad))} (${saatYaz(k.vardiya[0])})`).join(', ')}</div>`;
+      if (s.vardiyaDisi.length) {
+        const bitti = s.vardiyaDisi.filter(k => k.durum === 'bitti').sort((a, b) => b.vardiya[1] - a.vardiya[1]);
+        const baslamadi = s.vardiyaDisi.filter(k => k.durum === 'baslamadi').sort((a, b) => a.vardiya[0] - b.vardiya[0]);
+        const bilgi = (k, yazi) => `<span class="k-vd"><b>${esc(gorunurAd(k.ad))}</b> <small>${yazi}</small></span>`;
+        h += `<div class="k-vdisi"><div class="k-vdisi-bas">ℹ Vardiya saati nedeniyle hatta olmayanlar (${s.vardiyaDisi.length}) <span class="k-not">— bunlar hata değil</span></div>
+          ${bitti.length ? `<div class="k-vdisi-grup">Mesaisi bitti</div><div class="k-vdisi-liste">${bitti.map(k => bilgi(k, saatYaz(k.vardiya[1]) + "'de mesaisi bitti")).join('')}</div>` : ''}
+          ${baslamadi.length ? `<div class="k-vdisi-grup">Mesaisi henüz başlamadı</div><div class="k-vdisi-liste">${baslamadi.map(k => bilgi(k, saatYaz(k.vardiya[0]) + "'de başlayacak")).join('')}</div>` : ''}
+        </div>`;
+      }
       if (s.gizlenen.length) {
         const say = YOK.sayim || {};
         h += `<div class="k-not" style="margin-top:6px">Yoklamaya göre bugün gelmeyen ${s.gizlenen.length} kişi kontrollerde gizlendi${Object.keys(say).length ? ': ' + Object.entries(say).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${esc(n)} ${c}`).join(' · ') : ''}</div>`;
@@ -1071,7 +1103,9 @@ function disCikar(i) {
   if (!confirm(`${d.ad} plan dışı listesinden çıkarılsın mı? Mola kontrolde tekrar sorulur.`)) return;
   ST.planDisi.splice(i, 1); kaydet(`${d.ad} plan dışı listesinden çıkarıldı`); kontrolCiz();
 }
-const guzelAd = s => String(s).toLocaleLowerCase('tr').split(/\s+/).filter(Boolean).map(w => w.charAt(0).toLocaleUpperCase('tr') + w.slice(1)).join(' ');
+const guzelAd = s => { const t = String(s); const tr = /[ÇĞİıÖŞÜçğöşü]/.test(t); return t.split(/\s+/).filter(Boolean).map(w => { const k = tr ? w.toLocaleLowerCase('tr') : w.toLowerCase(); return (tr ? k.charAt(0).toLocaleUpperCase('tr') : k.charAt(0).toUpperCase()) + k.slice(1); }).join(' '); };
+/** Ekranda gösterilecek ad: planda varsa plandaki (doğru Türkçe) yazım */
+const gorunurAd = ad => { const n = normAd(ad); const x = ST && ST.kisiler.find(k => normAd(k.ad) === n) || ST && ST.kisiler.find(k => isimBenzer(normAd(k.ad), n)); return x ? x.ad : guzelAd(ad); };
 function cmsBagla(no, i, cmsAd) {
   if (i === '') return;
   if (i === 'dis') {
