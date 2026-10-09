@@ -51,6 +51,27 @@
   .durum.ok i { background:#639922; } .durum.is i { background:#EF9F27; } .durum.hata i { background:#E24B4A; }
   .bag-form { display:grid; grid-template-columns:170px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
   @media (max-width:640px) { .bag-form { grid-template-columns:1fr; } }
+  .k-ozet { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:12px 0; }
+  @media (max-width:640px) { .k-ozet { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  .k-kutu { border:1px solid var(--br); border-radius:8px; padding:10px 12px; background:#f8fafc; }
+  .k-kutu b { display:block; font-size:22px; }
+  .k-kutu span { font-size:12px; color:var(--m); }
+  .k-kutu.kirmizi { background:#FCEBEB; border-color:#F09595; } .k-kutu.kirmizi b { color:#A32D2D; }
+  .k-kutu.turuncu { background:#FAEEDA; border-color:#EF9F27; } .k-kutu.turuncu b { color:#854F0B; }
+  .k-kutu.mor { background:#EEEDFE; border-color:#AFA9EC; } .k-kutu.mor b { color:#3C3489; }
+  .k-kutu.yesil { background:#EAF3DE; border-color:#97C459; } .k-kutu.yesil b { color:#27500A; }
+  .k-bolum { margin-top:14px; }
+  .k-bolum h4 { margin:0 0 6px; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .k-bolum h4 i { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .k-tablo { width:100%; border-collapse:collapse; font-size:13px; }
+  .k-tablo td, .k-tablo th { padding:6px 6px; border-bottom:1px solid #e8edf2; text-align:left; vertical-align:top; }
+  .k-tablo th { font-size:11px; color:var(--m); font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+  .k-tablo .s { white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .etiket { display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; background:#eef2f6; color:#3d4752; white-space:nowrap; }
+  .etiket.yemek { background:#FAEEDA; color:#633806; } .etiket.mola { background:#E6F1FB; color:#0C447C; }
+  .etiket.cagri { background:#EAF3DE; color:#27500A; } .etiket.hazir { background:#E1F5EE; color:#085041; } .etiket.diger { background:#EEEDFE; color:#3C3489; }
+  .k-not { font-size:12px; color:var(--m); }
+  details.k-acik summary { cursor:pointer; font-size:13px; color:var(--m); margin-top:12px; }
   #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1d2733; color:#fff; padding:10px 16px; border-radius:8px; font-size:14px; display:none; z-index:9; max-width:92%; }
   @media (max-width:640px) { .hafta { margin-right:0; width:100%; justify-content:space-between; } .hafta b { min-width:0; } }
   @media print { .bar, .panel, #toast { display:none !important; } body { background:#fff; } .wrap { padding:0; max-width:none; } }
@@ -67,6 +88,7 @@
   </div>
   <span id="durum" class="durum" title=""><i></i><span>Yerel</span></span>
   <input id="ara" placeholder="İsim ara" style="width:130px">
+  <button id="kontrolBtn">Mola kontrol</button>
   <button id="duzenleBtn">Düzenle</button>
   <button id="yapistirBtn">Yapıştır</button>
   <button id="iceriBtn">İçeri aktar</button>
@@ -79,6 +101,7 @@
 
 <div class="wrap">
   <div id="baglanti" class="kart panel" hidden></div>
+  <div id="kontrol" class="kart panel" hidden></div>
   <div id="yukleme" class="kart panel" hidden></div>
   <div id="duzenle" class="kart panel" hidden></div>
   <div id="bilgi" class="not panel" style="margin:0 2px 10px"></div>
@@ -497,6 +520,10 @@ function yuklemeyiOnayla() {
   const v = $('yHafta').value;
   if (!v) { toast('Hafta seç'); return; }
   const mon = pzt(isoTarih(v)), n = new Date();
+  if (ST && ST.kisiler) {   // CMS eşleştirmelerini isimden koru
+    const eski = new Map(ST.kisiler.filter(k => k.cms).map(k => [normAd(k.ad), k.cms]));
+    bekleyen.kisiler.forEach(k => { const c = eski.get(normAd(k.ad)); if (c) k.cms = c; });
+  }
   ST = { baslik: metin(ST, 'baslik'), anaBaslik: metin(ST, 'anaBaslik'), ustNot: metin(ST, 'ustNot'), altNot: metin(ST, 'altNot'), basliklar: bekleyen.basliklar, saatler: bekleyen.saatler, kisiler: bekleyen.kisiler,
          temelHafta: iso(mon), yuklendi: `${trTarih(n)} ${pad(n.getHours())}:${pad(n.getMinutes())} yüklendi` };
   bekleyen = null; kaydet(`Yeni plan yüklendi (${ST.kisiler.length} kişi, ${haftaAralik(mon)} haftası)`); $('yukleme').hidden = true; goruntu = mon; ciz();
@@ -637,6 +664,185 @@ function kisiEkle() {
   if (!(g >= 1 && g <= ST.saatler.length)) { toast('Geçersiz grup'); return; }
   ST.kisiler.push({ ad, g: grupTemel(g, ofsNow(), ST.saatler.length) }); kaydet(`${ad} eklendi (${g}. grup, ${haftaAralik(goruntu)})`); ciz();
 }
+
+/* ---------- MOLA KONTROL (CMS karşılaştırma) ----------
+   CMS "Anlık İzleme" sayfası Ctrl+A / Ctrl+C ile kopyalanıp yapıştırılır.
+   Metin sadece tarayıcıda okunur; vatandaş telefon numaraları atılır, hiçbir yere kaydedilmez. */
+let TOLERANS_DK = 2;            // geç çıkma / süre aşımı için tolerans (panelden değişir)
+try { const t = +localStorage.getItem('molaPlani.tolerans'); if (t >= 0 && t <= 15 && localStorage.getItem('molaPlani.tolerans') !== null) TOLERANS_DK = t; } catch (e) {}
+const ERKEN_DK = 5;             // planlı molaya bu kadar erken çıkış "planlı" sayılır
+const DURUM_TUR = s => {
+  const t = trKucuk(s);
+  if (t === 'yemek') return 'yemek';
+  if (t === 'ihtiyaç' || t === 'ihtiyac' || t === 'mola') return 'mola';
+  if (t === 'hazır' || t === 'hazir') return 'hazir';
+  if (t === 'görüşmede' || t === 'gelen' || t === 'giden') return 'cagri';
+  return 'diger';
+};
+const normAd = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleUpperCase('tr').replace(/İ/g, 'I').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+const sureSn = t => { const p = t.split(':').map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]; };
+const dk = t => { const m = String(t).match(/(\d{1,2})[:.](\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+const saatYaz = m => pad(Math.floor(((m % 1440) + 1440) % 1440 / 60)) + ':' + pad(((m % 60) + 60) % 60);
+const sureYaz = sn => { const m = Math.floor(sn / 60), s = sn % 60; return m >= 60 ? `${Math.floor(m / 60)} sa ${m % 60} dk` : `${m} dk ${pad(s)} sn`; };
+
+function cmsCoz(metin) {
+  const satir = metin.replace(/\r/g, '').split('\n').map(x => x.trim()).filter(Boolean);
+  let zaman = null;
+  for (const x of satir.slice(0, 40)) {
+    const m = x.match(/^(\d{2})[./](\d{2})[./](\d{4})\s+(\d{1,2}):(\d{2})/);
+    if (m) { zaman = new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]); break; }
+  }
+  const BOLUM = { 'gelen çağrı': 'cagri', 'giden çağrı': 'cagri', 'müsait': 'hazir', 'hazır değil': null };
+  const ajanlar = []; let bolum = null;
+  for (let i = 0; i < satir.length; i++) {
+    const x = satir[i], k = trKucuk(x);
+    if (k in BOLUM) { bolum = BOLUM[k]; continue; }
+    if (!/^\d{5}$/.test(x) || i === 0) continue;
+    const ad = satir[i - 1];
+    if (!/^[A-ZÇĞİIÖŞÜ][A-ZÇĞİIÖŞÜ .'-]+$/.test(ad)) continue;
+    let durumYazi = null, tur = null, sure = null;
+    for (let j = i + 1; j < Math.min(i + 8, satir.length); j++) {
+      const y = satir[j];
+      if (/^\d{5}$/.test(y)) break;
+      if (/^TG:/.test(y)) break;
+      if (!durumYazi && /^\+?\d[\d ]{6,}$/.test(y)) { durumYazi = 'Görüşmede'; tur = 'cagri'; continue; }   // telefon numarası: okunmaz, saklanmaz
+      if (!durumYazi && /^[A-Za-zÇĞİIÖŞÜçğıiöşü ]+$/.test(y)) { durumYazi = y; tur = DURUM_TUR(y); continue; }
+      if (sure == null && /^\d{1,2}:\d{2}(:\d{2})?$/.test(y)) { sure = sureSn(y); continue; }
+    }
+    if (!durumYazi && bolum) { tur = bolum; durumYazi = bolum === 'cagri' ? 'Görüşmede' : 'Hazır'; }
+    ajanlar.push({ ad, no: x, durum: durumYazi || '—', tur: tur || 'diger', sure: sure || 0 });
+  }
+  return { zaman, ajanlar };
+}
+
+/** CMS ajanını plandaki kişiyle eşleştirir: önce kayıtlı numara, sonra tam isim, sonra isim parçaları. */
+function eslestir(ajanlar) {
+  const kisiler = ST.kisiler.map((k, i) => ({ k, i, n: normAd(k.ad), t: normAd(k.ad).split(' ') }));
+  const noIle = new Map(kisiler.filter(x => x.k.cms).map(x => [String(x.k.cms), x]));
+  const kullanildi = new Set(), sonuc = [];
+  const ata = (a, x, nasil) => { kullanildi.add(x.i); sonuc.push({ a, x, nasil }); };
+  const kalan = [];
+  ajanlar.forEach(a => { const x = noIle.get(a.no); x && !kullanildi.has(x.i) ? ata(a, x, 'no') : kalan.push(a); });
+  const kalan2 = [];
+  kalan.forEach(a => {
+    const n = normAd(a.ad), adaylar = kisiler.filter(x => !kullanildi.has(x.i) && !x.k.cms && x.n === n);
+    adaylar.length === 1 ? ata(a, adaylar[0], 'isim') : kalan2.push(a);
+  });
+  const eslesmeyen = [];
+  kalan2.forEach(a => {
+    const t = normAd(a.ad).split(' ');
+    const adaylar = kisiler.filter(x => !kullanildi.has(x.i) && !x.k.cms && x.t[0] === t[0] && (x.t.every(p => t.includes(p)) || t.every(p => x.t.includes(p)) || (x.t.length > 1 && t.includes(x.t[x.t.length - 1]))));
+    adaylar.length === 1 ? ata(a, adaylar[0], 'benzer') : eslesmeyen.push(a);
+  });
+  return { eslesen: sonuc, eslesmeyen, cmsteYok: kisiler.filter(x => !kullanildi.has(x.i)) };
+}
+
+/** Bir kişinin o günkü planlı molaları: [{bas, bit, tur, ad}] (dakika) */
+function kisiDilimleri(k, gun) {
+  const N = ST.saatler.length, g = grupHafta(k.g, haftaFark(gun, isoTarih(ST.temelHafta)), N);
+  return { g, dilimler: ST.basliklar.map((b, j) => {
+    const parca = String(ST.saatler[g - 1][j] || '').split('-');
+    const bas = dk(parca[0]), bit = dk(parca[1] || '');
+    return bas == null || bit == null ? null : { bas, bit, ad: b, tur: b.includes('YEMEK') ? 'yemek' : 'mola' };
+  }).filter(Boolean) };
+}
+
+function karsilastir(cms) {
+  const ref = cms.zaman || new Date();
+  const simdi = ref.getHours() * 60 + ref.getMinutes();
+  const { eslesen, eslesmeyen, cmsteYok } = eslestir(cms.ajanlar);
+  const cikmayan = [], planDisi = [], asim = [], dogru = [], digerDurum = [];
+  eslesen.forEach(({ a, x }) => {
+    const { g, dilimler } = kisiDilimleri(x.k, ref);
+    const molada = a.tur === 'mola' || a.tur === 'yemek';
+    const satir = { ad: x.k.ad, no: a.no, g, durum: a.durum, tur: a.tur, sure: a.sure };
+    if (molada) {
+      const basladi = simdi - Math.round(a.sure / 60);
+      const d = dilimler.find(d => d.tur === a.tur && basladi >= d.bas - ERKEN_DK && basladi <= d.bit);
+      if (!d) {
+        const sonraki = dilimler.filter(d => d.tur === a.tur && d.bas > simdi).sort((p, q) => p.bas - q.bas)[0];
+        const onceki = dilimler.filter(d => d.tur === a.tur && d.bit <= simdi).sort((p, q) => q.bas - p.bas)[0];
+        planDisi.push({ ...satir, aciklama: `Çıkış ~${saatYaz(basladi)}` + (onceki ? ` · son planlı ${onceki.ad}: ${saatYaz(onceki.bas)}–${saatYaz(onceki.bit)}` : '') + (sonraki ? ` · sıradaki ${sonraki.ad}: ${saatYaz(sonraki.bas)}` : '') });
+        return;
+      }
+      const hak = (d.bit - d.bas) * 60;
+      if (a.sure > hak + TOLERANS_DK * 60) asim.push({ ...satir, aciklama: `${d.ad} ${saatYaz(d.bas)}–${saatYaz(d.bit)} · hakkı ${d.bit - d.bas} dk, ${Math.round((a.sure - hak) / 60)} dk fazla` });
+      else dogru.push({ ...satir, aciklama: `${d.ad} ${saatYaz(d.bas)}–${saatYaz(d.bit)}` });
+      return;
+    }
+    const simdiki = dilimler.find(d => simdi >= d.bas + TOLERANS_DK && simdi < d.bit);
+    if (simdiki) cikmayan.push({ ...satir, aciklama: `${simdiki.ad} ${saatYaz(simdiki.bas)}–${saatYaz(simdiki.bit)} · ${simdi - simdiki.bas} dk geçti` });
+    else if (a.tur === 'diger') digerDurum.push({ ...satir, aciklama: '' });
+  });
+  return { ref, cikmayan, planDisi, asim, dogru, digerDurum, eslesmeyen, cmsteYok, toplam: cms.ajanlar.length };
+}
+
+let sonCms = null;
+function kontrolCiz() {
+  const p = $('kontrol');
+  if (!ST) { p.innerHTML = '<h3>Mola kontrol</h3><div class="not">Önce planı yükle.</div>'; return; }
+  let h = `<h3>Mola kontrol</h3>
+    <div class="not">CMS'te <b>Anlık İzleme</b> sayfasında <b>Ctrl+A</b>, sonra <b>Ctrl+C</b> yap; aşağıdaki kutuya tıklayıp <b>Ctrl+V</b> yap. Metin sadece bu ekranda okunur, hiçbir yere kaydedilmez.</div>
+    <div class="satir" style="margin-top:8px"><label class="not" for="k_tol">Tolerans</label>
+      <select id="k_tol" onchange="TOLERANS_DK=+this.value;try{localStorage.setItem('molaPlani.tolerans',this.value)}catch(e){};kontrolCiz()">${[0,1,2,3,5,10].map(v => `<option value="${v}" ${v === TOLERANS_DK ? 'selected' : ''}>${v} dk</option>`).join('')}</select>
+      <span class="k-not">Molanın başlamasından bu kadar süre sonra çıkmayan ve süresini bu kadar aşan uyarılır.</span></div>
+    <textarea id="k_kutu" rows="2" placeholder="CMS ekranını buraya yapıştır" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px"></textarea>`;
+  if (sonCms) {
+    const s = karsilastir(sonCms);
+    const gun = s.ref.getDay();
+    h += `<div class="not" style="margin-top:8px">CMS saati: <b>${trTarih(s.ref)} ${pad(s.ref.getHours())}:${pad(s.ref.getMinutes())}</b> · CMS'te ${s.toplam} kişi · Planla eşleşen ${s.toplam - s.eslesmeyen.length}</div>`;
+    if (gun === 0 || gun === 6) h += `<div class="not" style="color:#A32D2D">Hafta sonu: plan hafta içi için hazırlandı, sonuçlar yanıltıcı olabilir.</div>`;
+    h += `<div class="k-ozet">
+      <div class="k-kutu kirmizi"><b>${s.cikmayan.length}</b><span>Molaya çıkmamış</span></div>
+      <div class="k-kutu turuncu"><b>${s.asim.length}</b><span>Süresini aşmış</span></div>
+      <div class="k-kutu mor"><b>${s.planDisi.length}</b><span>Planı dışında molada</span></div>
+      <div class="k-kutu yesil"><b>${s.dogru.length}</b><span>Planına uygun molada</span></div></div>`;
+    const etk = (tur, yazi) => `<span class="etiket ${tur}">${esc(yazi)}</span>`;
+    const tablo = (baslik, renk, liste, bosYazi, sureGoster = true) => `<div class="k-bolum"><h4><i style="background:${renk}"></i>${baslik} (${liste.length})</h4>` +
+      (liste.length ? `<table class="k-tablo"><tr><th>Personel</th><th>Grup</th><th>CMS durumu</th><th>Plan</th></tr>` +
+        liste.sort((a, b) => b.sure - a.sure).map(x => `<tr><td><b>${esc(x.ad)}</b> <span class="k-not">${x.no}</span></td><td class="s">${x.g}. grup</td><td class="s">${etk(x.tur, x.durum)}${sureGoster ? ` <span class="k-not">${sureYaz(x.sure)}</span>` : ''}</td><td class="k-not">${esc(x.aciklama)}</td></tr>`).join('') + `</table>`
+        : `<div class="k-not">${bosYazi}</div>`) + `</div>`;
+    h += tablo('Molaya çıkmamış', '#E24B4A', s.cikmayan, 'Planda şu an molası olup çıkmayan yok.', false);
+    if (s.cikmayan.length) h += `<div class="k-not" style="margin-top:4px">CMS sadece anlık durumu gösterir: bu listedekilerden molasını erken bitirip dönmüş olan da olabilir.</div>`;
+    h += tablo('Süresini aşmış', '#EF9F27', s.asim, 'Süre aşımı yok.');
+    h += tablo('Planı dışında molada', '#7F77DD', s.planDisi, 'Planı dışında molada olan yok.');
+    h += `<details class="k-acik"><summary>Planına uygun molada olanlar (${s.dogru.length})</summary>${tablo('Planına uygun', '#639922', s.dogru, '—')}</details>`;
+    if (s.digerDurum.length) h += `<details class="k-acik"><summary>Diğer durumlar (İç Hizmet vb.) (${s.digerDurum.length})</summary>${tablo('Diğer durumlar', '#888780', s.digerDurum, '—')}</details>`;
+    if (s.eslesmeyen.length) {
+      const secenek = s.cmsteYok.slice().sort((a, b) => a.k.ad.localeCompare(b.k.ad, 'tr')).map(x => `<option value="${x.i}">${esc(x.k.ad)}</option>`).join('');
+      h += `<div class="k-bolum"><h4><i style="background:#B4B2A9"></i>Planda bulunamayan CMS kayıtları (${s.eslesmeyen.length})</h4>
+        <div class="k-not" style="margin-bottom:6px">Plandaki doğru kişiyi seç; eşleşme kaydedilir ve bir dahaki sefere otomatik tanınır.</div>
+        <table class="k-tablo">${s.eslesmeyen.map(a => `<tr><td><b>${esc(a.ad)}</b> <span class="k-not">${a.no}</span></td><td>${etk(a.tur, a.durum)}</td>
+          <td><select onchange="cmsBagla('${a.no}', this.value)"><option value="">Plandaki kişiyi seç…</option>${secenek}</select></td></tr>`).join('')}</table></div>`;
+    }
+    if (s.cmsteYok.length) h += `<details class="k-acik"><summary>Planda olup CMS'te görünmeyenler (${s.cmsteYok.length}) — oturum açmamış / izinli olabilir</summary><div class="k-not" style="margin-top:6px;line-height:1.8">${s.cmsteYok.map(x => esc(x.k.ad)).join(' · ')}</div></details>`;
+  }
+  p.innerHTML = h;
+  const k = $('k_kutu');
+  k.addEventListener('paste', ev => {
+    ev.preventDefault();
+    const metin = (ev.clipboardData || window.clipboardData).getData('text/plain');
+    const c = cmsCoz(metin);
+    if (!c.ajanlar.length) { toast('CMS listesi okunamadı. Anlık İzleme sayfasında Ctrl+A ile tümünü seçip kopyala.'); return; }
+    sonCms = c; kontrolCiz();
+    toast(`${c.ajanlar.length} kişi okundu`);
+  });
+  k.addEventListener('input', () => { if (k.value.length > 200) { const c = cmsCoz(k.value); k.value = ''; if (c.ajanlar.length) { sonCms = c; kontrolCiz(); } } });
+}
+function cmsBagla(no, i) {
+  if (i === '') return;
+  const k = ST.kisiler[+i];
+  ST.kisiler.forEach(x => { if (String(x.cms) === no) delete x.cms; });
+  k.cms = no;
+  kaydet(`${k.ad} ↔ CMS ${no} eşleştirildi`);
+  kontrolCiz();
+}
+$('kontrolBtn').onclick = () => {
+  const p = $('kontrol'); p.hidden = !p.hidden;
+  $('kontrolBtn').classList.toggle('aktif', !p.hidden);
+  if (!p.hidden) { kontrolCiz(); p.scrollIntoView({ behavior: 'smooth' }); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50); }
+  else sonCms = null;
+};
 
 /* ---------- KOPYALA / YAZDIR / GEZİNME ---------- */
 $('kopyalaBtn').onclick = async () => {
