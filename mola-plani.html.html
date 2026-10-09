@@ -886,13 +886,51 @@ function yoklamaTablo(aoa) {
 }
 const simdiDk = d => d.getHours() * 60 + d.getMinutes();
 function sayfaTarihi(ad) { const m = String(ad).match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/); return m ? `${m[3]}-${pad(m[2])}-${pad(m[1])}` : null; }
-function yoklamaKur(kisiler, tarih, kaynak) {
-  YOK = { tarih, sayfa: kaynak, kisiler };
-  yoklamaYaz();
-  const gm = kisiler.filter(k => k.gelmedi).length;
-  toast(`Yoklama yüklendi: ${kisiler.length} kişi, ${gm} kişi bugün yok`);
+/** Ortak kayda/tarayıcıya gidecek hale getirir: kişi bazında devamsızlık sebebi atılır, sadece toplam sayılar kalır. */
+function yoklamaSade(kisiler, tarih, kaynak) {
+  const sayim = {};
+  kisiler.filter(k => k.gelmedi).forEach(k => { const n = guzelAd(String(k.neden || 'Diğer').replace(/\s*\(.*$/, '')); sayim[n] = (sayim[n] || 0) + 1; });
+  return { tarih, kaynak, sayim, kisiler: kisiler.map(k => ({ ad: k.ad, vardiya: k.vardiya, girisVar: !!k.girisVar, gelmedi: !!k.gelmedi, not: k.gelmedi ? '' : (k.not || '') })) };
+}
+function yoklamaAyarla(y, ortak) {
+  if (!y) { YOK = null; yoklamaYaz(); return; }
+  y.kisiler.forEach(k => { k.n = normAd(k.ad); });
+  y.ortak = !!ortak;
+  YOK = y; yoklamaYaz();
+}
+async function yoklamaKur(kisiler, tarih, kaynak) {
+  const y = yoklamaSade(kisiler, tarih, kaynak);
+  const gm = y.kisiler.filter(k => k.gelmedi).length;
+  if (bagli()) {
+    try {
+      const j = await sunucuPost({ key: BAG.key, op: 'yoklama', kim: BAG.ad || 'Adsız', yoklama: y });
+      if (!j.ok) throw new Error(j.error || 'kaydedilemedi');
+      yoklamaAyarla(j.yoklama || y, true);
+      toast(`Yoklama ortak kayda yüklendi (${y.kisiler.length} kişi, ${gm} bugün yok). Tüm takım liderleri görür.`);
+    } catch (e) {
+      y.yukleyen = BAG.ad || ''; yoklamaAyarla(y, false);
+      toast('Ortak kayda yüklenemedi, sadece bu tarayıcıda kullanılıyor: ' + e.message);
+    }
+  } else {
+    yoklamaAyarla(y, false);
+    toast(`Yoklama yüklendi: ${y.kisiler.length} kişi, ${gm} kişi bugün yok (ortak kayda bağlı değilsin, sadece bu tarayıcıda)`);
+  }
   kontrolCiz();
 }
+/** Ortak kayıttaki yoklamayı alır (bugüne aitse kullanır). */
+let yokSonCekim = 0;
+async function yoklamaSunucudan(zorla) {
+  if (!bagli() || (!zorla && Date.now() - yokSonCekim < 60000)) return;
+  yokSonCekim = Date.now();
+  try {
+    const j = await sunucuGet('yoklama');
+    const y = j.yoklama;
+    if (y && y.tarih === iso(new Date())) { yoklamaAyarla(y, true); }
+    else if (YOK && YOK.ortak) { yoklamaAyarla(null); }
+    yoklamaSunucuTarih = y ? y.tarih : null;
+  } catch (e) {}
+}
+let yoklamaSunucuTarih = null;
 async function yoklamaDosya(f) {
   if (!xlsxVar()) return;
   try {
@@ -921,7 +959,13 @@ function yoklamaYapistirAc() {
   const t = prompt('Yoklama sayfasında AgentName başlığından son kişiye kadar seçip kopyala, buraya yapıştır:');
   if (t) yoklamaYapistir(t);
 }
-function yoklamaSil() { YOK = null; yoklamaYaz(); kontrolCiz(); }
+async function yoklamaSil() {
+  if (YOK && YOK.ortak && bagli()) {
+    if (!confirm('Yoklama ortak kayıttan kaldırılsın mı? Tüm takım liderlerinde kalkar.')) return;
+    try { await sunucuPost({ key: BAG.key, op: 'yoklamaSil', kim: BAG.ad || 'Adsız' }); } catch (e) {}
+  }
+  yoklamaAyarla(null); kontrolCiz();
+}
 /** CMS/plan adı yoklamadaki kişiyle aynı mı (Türkçe karakter, eksik/fazla soyad toleranslı) */
 function yoklamaBul(ad) {
   if (!YOK) return null;
@@ -943,8 +987,8 @@ function kontrolCiz() {
       <select id="k_tol" onchange="TOLERANS_DK=+this.value;try{localStorage.setItem('molaPlani.tolerans',this.value)}catch(e){};kontrolCiz()">${[0,1,2,3,5,10].map(v => `<option value="${v}" ${v === TOLERANS_DK ? 'selected' : ''}>${v} dk</option>`).join('')}</select>
       <span class="k-not">Molanın başlamasından bu kadar süre sonra çıkmayan ve süresini bu kadar aşan uyarılır.</span></div>
     <div class="k-yok">${YOK
-      ? `<span>📋 <b>Yoklama:</b> ${trTarih(isoTarih(YOK.tarih))} · ${YOK.kisiler.length} kişi · <b>${YOK.kisiler.filter(k => k.gelmedi).length}</b> kişi bugün yok <span class="k-not">(${esc(YOK.sayfa)})</span></span><span class="satir"><button onclick="$('k_yokDosya').click()">Değiştir</button><button onclick="yoklamaSil()">Kaldır</button></span>`
-      : `<span>📋 <b>Bugünün yoklaması yüklü değil.</b> <span class="k-not">Yüklersen rapor/izinli olanlar gizlenir, mesaide olup CMS'te olmayanlar gösterilir.</span></span><span class="satir"><button class="ana" onclick="$('k_yokDosya').click()">Yoklama yükle</button><button onclick="yoklamaYapistirAc()">Tablo yapıştır</button></span>`}
+      ? `<span>📋 <b>Yoklama:</b> ${trTarih(isoTarih(YOK.tarih))} · ${YOK.kisiler.length} kişi · <b>${YOK.kisiler.filter(k => k.gelmedi).length}</b> kişi bugün yok <span class="k-not">${YOK.ortak ? `· ortak${YOK.yukleyen ? ', yükleyen ' + esc(YOK.yukleyen) : ''}${YOK.zaman ? ' ' + esc(String(YOK.zaman).slice(-5)) : ''}` : '· sadece bu tarayıcıda'}</span></span><span class="satir"><button onclick="$('k_yokDosya').click()">Değiştir</button><button onclick="yoklamaSil()">Kaldır</button></span>`
+      : `<span>📋 <b>Bugünün yoklaması yüklü değil.</b> <span class="k-not">${yoklamaSunucuTarih ? `Ortak kayıttaki son yoklama ${trTarih(isoTarih(yoklamaSunucuTarih))} tarihli. ` : ''}Biri yüklediğinde herkes için geçerli olur: rapor/izinli olanlar gizlenir, mesaide olup CMS'te olmayanlar gösterilir.</span></span><span class="satir"><button class="ana" onclick="$('k_yokDosya').click()">Yoklama yükle</button><button onclick="yoklamaYapistirAc()">Tablo yapıştır</button></span>`}
       <input type="file" id="k_yokDosya" accept=".xlsx,.xls" hidden onchange="if(this.files[0])yoklamaDosya(this.files[0]);this.value=''">
     </div>
     <textarea id="k_kutu" rows="2" placeholder="CMS ekranını buraya yapıştır" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px"></textarea>`;
@@ -974,8 +1018,8 @@ function kontrolCiz() {
       const bekleyen = YOK.kisiler.filter(k => !k.gelmedi && k.vardiya && simdiDk(s.ref) < k.vardiya[0]);
       if (bekleyen.length) h += `<div class="k-not" style="margin-top:6px">Vardiyası henüz başlamamış ${bekleyen.length} kişi: ${bekleyen.map(k => `${esc(guzelAd(k.ad))} (${saatYaz(k.vardiya[0])})`).join(', ')}</div>`;
       if (s.gizlenen.length) {
-        const say = {}; s.gizlenen.forEach(k => { const n = k.neden.replace(/\s*\(.*$/, ''); say[n] = (say[n] || 0) + 1; });
-        h += `<div class="k-not" style="margin-top:6px">Yoklamaya göre bugün gelmeyen ${s.gizlenen.length} kişi kontrollerde gizlendi: ${Object.entries(say).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${esc(guzelAd(n))} ${c}`).join(' · ')}</div>`;
+        const say = YOK.sayim || {};
+        h += `<div class="k-not" style="margin-top:6px">Yoklamaya göre bugün gelmeyen ${s.gizlenen.length} kişi kontrollerde gizlendi${Object.keys(say).length ? ': ' + Object.entries(say).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${esc(n)} ${c}`).join(' · ') : ''}</div>`;
       }
     } else if (YOK) h += `<div class="k-not" style="color:#854F0B;margin-top:6px">Yüklü yoklama ${trTarih(isoTarih(YOK.tarih))} tarihli, CMS saati farklı bir gün; yoklama bu kontrolde kullanılmadı.</div>`;
     else h += `<div class="k-not" style="margin-top:6px">Hattan düşenleri görmek için bugünün yoklamasını yükle.</div>`;
@@ -1017,6 +1061,7 @@ function kontrolCiz() {
     const c = cmsCoz(metin);
     if (!c.ajanlar.length) { toast('CMS listesi okunamadı. Anlık İzleme sayfasında Ctrl+A ile tümünü seçip kopyala.'); return; }
     sonCms = c; kontrolCiz();
+    yoklamaSunucudan(false).then(() => { if (sonCms === c) kontrolCiz(); });
     toast(`${c.ajanlar.length} kişi okundu`);
   });
   k.addEventListener('input', () => { if (k.value.length > 200) { const c = cmsCoz(k.value); k.value = ''; if (c.ajanlar.length) { sonCms = c; kontrolCiz(); } } });
@@ -1061,6 +1106,7 @@ $('kontrolBtn').onclick = () => {
   const p = $('kontrol'); p.hidden = false;
   $('kontrolBtn').classList.add('aktif');
   kontrolCiz(); p.scrollIntoView({ behavior: 'smooth' }); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50);
+  yoklamaSunucudan(true).then(() => { if (!$('kontrol').hidden) { kontrolCiz(); if (!sonCms && $('k_kutu')) $('k_kutu').focus(); } });
 };
 function kontrolKapat() { sonCms = null; $('kontrol').hidden = true; $('kontrol').innerHTML = ''; $('kontrolBtn').classList.remove('aktif'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function kontrolTemizle() { sonCms = null; kontrolCiz(); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50); }
