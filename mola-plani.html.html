@@ -31,7 +31,8 @@
   .d-filtre { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; position:sticky; top:var(--barH, 58px); background:var(--c); padding:6px 0; z-index:2; }
   .d-filtre input { flex:1; min-width:180px; font-size:14px; padding:8px 10px; }
   .liste tr.tek td { background:#FAEEDA; }
-  .d-metin { margin-top:14px; border-top:1px solid #e8edf2; padding-top:10px; }
+  .d-metin { margin-top:10px; border:1px solid #e1e7ee; border-radius:8px; padding:10px 12px; background:#f8fafc; }
+  .d-baslik-liste { margin-top:16px; font-size:14px; font-weight:600; }
   .d-metin summary { cursor:pointer; font-size:14px; font-weight:600; color:var(--t); }
   .metinler { display:grid; grid-template-columns:160px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
   .metinler textarea { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; resize:vertical; }
@@ -562,6 +563,16 @@ function duzenleCiz() {
   const N = ST.saatler.length;
   if (!$('d_ara')) {
     $('duzenle').innerHTML = `<h3 id="d_bas"></h3>
+      <details class="d-metin" id="d_metin">
+        <summary>Başlık ve notlar <span class="not">(maildeki üst/alt yazılar)</span></summary>
+        <div class="metinler">
+          <label class="not" for="m_baslik">Üst küçük başlık</label><input id="m_baslik" oninput="metinYaziyor('baslik',this.value)" onchange="metinKaydet('baslik',this.value)">
+          <label class="not" for="m_anaBaslik">Ana başlık</label><input id="m_anaBaslik" oninput="metinYaziyor('anaBaslik',this.value)" onchange="metinKaydet('anaBaslik',this.value)">
+          <label class="not" for="m_ustNot">Üst not (boş bırakılırsa görünmez; duyuru vb.)</label><textarea id="m_ustNot" rows="2" oninput="metinYaziyor('ustNot',this.value)" onchange="metinKaydet('ustNot',this.value)"></textarea>
+          <label class="not" for="m_altNot">Alt not</label><textarea id="m_altNot" rows="2" oninput="metinYaziyor('altNot',this.value)" onchange="metinKaydet('altNot',this.value)"></textarea>
+        </div>
+      </details>
+      <div class="d-baslik-liste">Personel</div>
       <div class="d-filtre">
         <input id="d_ara" type="search" placeholder="Personel ara (ad veya soyad)" autocomplete="off">
         <select id="d_grup" aria-label="Grup filtresi"></select>
@@ -569,15 +580,6 @@ function duzenleCiz() {
       </div>
       <div id="d_sayac" class="not" style="margin:6px 2px 0"></div>
       <table class="liste"><thead><tr><th>Ad soyad</th><th style="width:120px">Bu hafta</th><th style="width:36px"></th></tr></thead><tbody id="d_liste"></tbody></table>
-      <details class="d-metin">
-        <summary>Başlık ve notlar</summary>
-        <div class="metinler">
-          <label class="not" for="m_baslik">Üst küçük başlık</label><input id="m_baslik" onchange="metinKaydet('baslik',this.value)">
-          <label class="not" for="m_anaBaslik">Ana başlık</label><input id="m_anaBaslik" onchange="metinKaydet('anaBaslik',this.value)">
-          <label class="not" for="m_ustNot">Üst not (boş bırakılırsa görünmez; duyuru vb.)</label><textarea id="m_ustNot" rows="2" onchange="metinKaydet('ustNot',this.value)"></textarea>
-          <label class="not" for="m_altNot">Alt not</label><textarea id="m_altNot" rows="2" onchange="metinKaydet('altNot',this.value)"></textarea>
-        </div>
-      </details>
       <div class="not" style="margin-top:10px">Seçtiğin grup gösterilen hafta için geçerli olur, sonraki haftalar oradan döner. Saatleri değiştirmek için Dışarı aktar → Excel'de düzenle → İçeri aktar.</div>`;
     const ust = $('ara').value.trim();
     if (ust) dAra = ust;
@@ -588,6 +590,9 @@ function duzenleCiz() {
       if (e.key === 'Escape') { dAra = ''; e.target.value = ''; listeCiz(); }
     };
     $('d_grup').onchange = e => { dGrup = +e.target.value; listeCiz(); };
+    let acik = true; try { acik = localStorage.getItem('molaPlani.notlarAcik') !== '0'; } catch (e) {}
+    $('d_metin').open = acik;
+    $('d_metin').addEventListener('toggle', () => { try { localStorage.setItem('molaPlani.notlarAcik', $('d_metin').open ? '1' : '0'); } catch (e) {} });
     setTimeout(() => $('d_ara').focus(), 0);
   }
   $('d_bas').textContent = `Düzenle (${haftaAralik(goruntu)} haftasına göre)`;
@@ -617,7 +622,11 @@ function kisiEkleIsimle() {
   ST.kisiler.push({ ad, g: grupTemel(g, ofsNow(), ST.saatler.length) }); kaydet(`${ad} eklendi (${g}. grup, ${haftaAralik(goruntu)})`); ciz();
 }
 const METIN_AD = { baslik: 'Üst küçük başlık', anaBaslik: 'Ana başlık', ustNot: 'Üst not', altNot: 'Alt not' };
-function metinKaydet(k, v) { ST[k] = v; kaydet(METIN_AD[k] + ' değiştirildi'); ciz(); }
+let metinZ = {};
+function metinYaziyor(k, v) { clearTimeout(metinZ[k]); metinZ[k] = setTimeout(() => metinKaydet(k, v), 800); }
+function metinKaydet(k, v) {
+  clearTimeout(metinZ[k]);
+  if (metin(ST, k) === v) return; ST[k] = v; kaydet(METIN_AD[k] + ' değiştirildi'); ciz(); }
 const ofsNow = () => haftaFark(goruntu, isoTarih(ST.temelHafta));
 function adDegis(i, v) { v = v.trim(); if (!v) { toast('İsim boş olamaz'); duzenleCiz(); return; } const eski = ST.kisiler[i].ad; ST.kisiler[i].ad = v; kaydet(`${eski} → ${v} (isim düzeltildi)`); ciz(); }
 function grupDegis(i, g) { ST.kisiler[i].g = grupTemel(g, ofsNow(), ST.saatler.length); kaydet(`${ST.kisiler[i].ad} → ${g}. grup (${haftaAralik(goruntu)})`); ciz(); }
