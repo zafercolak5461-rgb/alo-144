@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mola Planı</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<style>
+  :root { --b:#185FA5; --bd:#0C447C; --bg:#eef2f6; --c:#fff; --t:#1d2733; --m:#6b7785; --br:#d5dde6; --soft:#E6F1FB; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--t); font-family:"Segoe UI",Arial,sans-serif; }
+  .bar { position:sticky; top:0; z-index:5; background:var(--c); border-bottom:1px solid var(--br); }
+  .bar-in { max-width:1000px; margin:auto; padding:10px 16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .hafta { display:flex; align-items:center; gap:6px; margin-right:auto; }
+  .hafta b { min-width:150px; text-align:center; font-size:15px; }
+  button { font:inherit; font-size:13px; border:1px solid var(--br); background:var(--c); color:var(--t); padding:7px 12px; border-radius:7px; cursor:pointer; }
+  button:hover { background:#f4f6f9; }
+  button.ana { background:var(--b); border-color:var(--b); color:#fff; }
+  button.ana:hover { background:var(--bd); }
+  button.aktif { background:var(--soft); border-color:#85B7EB; color:var(--bd); }
+  button.sil { border:0; background:none; color:#A32D2D; font-size:18px; padding:2px 8px; }
+  .wrap { max-width:1000px; margin:auto; padding:16px; }
+  .kart { background:var(--c); border:1px solid var(--br); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .kart h3 { margin:0 0 6px; font-size:16px; }
+  .not { color:var(--m); font-size:13px; line-height:1.5; }
+  input, select { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; background:#fff; color:var(--t); }
+  .satir { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .liste { width:100%; border-collapse:collapse; margin-top:10px; }
+  .liste td, .liste th { padding:5px 4px; border-bottom:1px solid #e8edf2; font-size:13px; text-align:left; }
+  .liste input { width:100%; }
+  .d-filtre { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; position:sticky; top:var(--barH, 58px); background:var(--c); padding:6px 0; z-index:2; }
+  .d-filtre input { flex:1; min-width:180px; font-size:14px; padding:8px 10px; }
+  .liste tr.tek td { background:#FAEEDA; }
+  .d-metin { margin-top:10px; border:1px solid #e1e7ee; border-radius:8px; padding:10px 12px; background:#f8fafc; }
+  .d-baslik-liste { margin-top:16px; font-size:14px; font-weight:600; }
+  .d-metin summary { cursor:pointer; font-size:14px; font-weight:600; color:var(--t); }
+  .metinler { display:grid; grid-template-columns:160px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
+  .metinler textarea { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; resize:vertical; }
+  @media (max-width:640px) { .metinler { grid-template-columns:1fr; } }
+  .bos { text-align:center; padding:40px 16px; }
+  .bos ol { text-align:left; display:inline-block; color:var(--m); font-size:14px; line-height:1.8; margin:12px 0 18px; }
+  .mailview { overflow-x:auto; }
+  .grup-btn { cursor:pointer; transition:filter .12s; box-shadow:inset 0 -3px 0 rgba(0,0,0,.12); }
+  .grup-btn:hover { filter:brightness(.94); }
+  .grup-btn:focus-visible { outline:2px solid #185FA5; outline-offset:-2px; }
+  .grup-btn.secili { box-shadow:inset 0 0 0 3px #1d2733; }
+  .grup-sayi { font-size:10px; font-weight:normal; color:#3d4752; margin-top:2px; }
+  .tumu-btn { font-size:12px; padding:3px 10px; margin-left:8px; vertical-align:middle; }
+  .durum { font-size:12px; color:var(--m); display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .durum i { width:8px; height:8px; border-radius:50%; background:#B4B2A9; display:inline-block; }
+  .durum.ok i { background:#639922; } .durum.is i { background:#EF9F27; } .durum.hata i { background:#E24B4A; }
+  .bag-form { display:grid; grid-template-columns:170px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
+  @media (max-width:640px) { .bag-form { grid-template-columns:1fr; } }
+  .k-bas { display:flex; justify-content:space-between; align-items:center; gap:8px; position:sticky; top:var(--barH, 58px); z-index:3; background:var(--c); margin:-16px -16px 0; padding:12px 16px; border-bottom:1px solid #e8edf2; border-radius:10px 10px 0 0; }
+  .panel { scroll-margin-top:calc(var(--barH, 58px) + 8px); }
+  .k-bas h3 { margin:0; }
+  .k-yok { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; padding:8px 10px; border:1px dashed #b9c5d2; border-radius:8px; background:#f8fafc; font-size:13px; }
+  .k-alarm { margin-top:12px; border:2px solid #E24B4A; background:#FCEBEB; border-radius:10px; padding:14px 16px; }
+  .k-alarm-bas { display:flex; align-items:center; gap:14px; }
+  .k-alarm-bas b { font-size:17px; color:#791F1F; }
+  .k-alarm-sayi { min-width:52px; height:52px; border-radius:50%; background:#E24B4A; color:#fff; font-size:26px; font-weight:700; display:flex; align-items:center; justify-content:center; animation:k-nabiz 1.6s ease-in-out infinite; }
+  @keyframes k-nabiz { 0%,100% { box-shadow:0 0 0 0 rgba(226,75,74,.45); } 50% { box-shadow:0 0 0 8px rgba(226,75,74,0); } }
+  @media (prefers-reduced-motion: reduce) { .k-alarm-sayi { animation:none; } }
+  .k-alarm-alt { font-size:12px; color:#A32D2D; margin-top:2px; }
+  .k-alarm-grup { margin-top:12px; font-size:12px; font-weight:700; color:#791F1F; text-transform:uppercase; letter-spacing:.3px; }
+  .k-alarm-liste { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+  .k-kisi { display:flex; flex-direction:column; background:#fff; border:1px solid #F09595; border-left:4px solid #E24B4A; border-radius:6px; padding:6px 12px; }
+  .k-kisi b { font-size:15px; color:#501313; }
+  .k-kisi small { font-size:11px; color:#A32D2D; }
+  .k-vdisi { margin-top:10px; padding:10px 12px; border-radius:8px; background:#E6F1FB; border:1px solid #85B7EB; }
+  .k-vdisi-bas { font-size:13px; font-weight:600; color:#0C447C; }
+  .k-vdisi-grup { margin-top:8px; font-size:11px; font-weight:700; color:#185FA5; text-transform:uppercase; letter-spacing:.3px; }
+  .k-vdisi-liste { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .k-vd { background:#fff; border:1px solid #B5D4F4; border-radius:6px; padding:4px 10px; font-size:13px; color:#042C53; }
+  .k-vd small { color:#185FA5; font-size:11px; }
+  .k-tamam { margin-top:12px; padding:8px 12px; border-radius:8px; background:#EAF3DE; border:1px solid #97C459; color:#27500A; font-size:13px; font-weight:600; }
+  .k-rozet { display:inline-block; margin-left:8px; background:#E24B4A; color:#fff; font-size:12px; font-weight:600; padding:3px 10px; border-radius:12px; vertical-align:middle; }
+  .k-mesai { margin-top:10px; padding:10px 12px; border-radius:8px; background:#FCEBEB; border:1px solid #F09595; color:#501313; font-size:13px; line-height:1.6; }
+  .k-ozet { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:12px 0; }
+  @media (max-width:640px) { .k-ozet { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  .k-kutu { border:1px solid var(--br); border-radius:8px; padding:10px 12px; background:#f8fafc; }
+  .k-kutu b { display:block; font-size:22px; }
+  .k-kutu span { font-size:12px; color:var(--m); }
+  .k-kutu.kirmizi { background:#FCEBEB; border-color:#F09595; } .k-kutu.kirmizi b { color:#A32D2D; }
+  .k-kutu.turuncu { background:#FAEEDA; border-color:#EF9F27; } .k-kutu.turuncu b { color:#854F0B; }
+  .k-kutu.mor { background:#EEEDFE; border-color:#AFA9EC; } .k-kutu.mor b { color:#3C3489; }
+  .k-kutu.yesil { background:#EAF3DE; border-color:#97C459; } .k-kutu.yesil b { color:#27500A; }
+  .k-bolum { margin-top:14px; }
+  .k-bolum h4 { margin:0 0 6px; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .k-bolum h4 i { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .k-tablo { width:100%; border-collapse:collapse; font-size:13px; }
+  .k-tablo td, .k-tablo th { padding:6px 6px; border-bottom:1px solid #e8edf2; text-align:left; vertical-align:top; }
+  .k-tablo th { font-size:11px; color:var(--m); font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
+  .k-tablo .s { white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .etiket { display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; background:#eef2f6; color:#3d4752; white-space:nowrap; }
+  .etiket.yemek { background:#FAEEDA; color:#633806; } .etiket.mola { background:#E6F1FB; color:#0C447C; }
+  .etiket.cagri { background:#EAF3DE; color:#27500A; } .etiket.hazir { background:#E1F5EE; color:#085041; } .etiket.diger { background:#EEEDFE; color:#3C3489; }
+  .k-not { font-size:12px; color:var(--m); }
+  details.k-acik summary { cursor:pointer; font-size:13px; color:var(--m); margin-top:12px; }
+  #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1d2733; color:#fff; padding:10px 16px; border-radius:8px; font-size:14px; display:none; z-index:9; max-width:92%; }
+  @media (max-width:640px) { .hafta { margin-right:0; width:100%; justify-content:space-between; } .hafta b { min-width:0; } }
+  @media print { .bar, .panel, #toast { display:none !important; } body { background:#fff; } .wrap { padding:0; max-width:none; } }
+</style>
+</head>
+<body>
+
+<div class="bar"><div class="bar-in">
+  <div class="hafta">
+    <button id="geri" aria-label="Önceki hafta">◀</button>
+    <b id="haftaAd">—</b>
+    <button id="ileri" aria-label="Sonraki hafta">▶</button>
+    <button id="buHafta">Bu hafta</button>
+  </div>
+  <span id="durum" class="durum" title=""><i></i><span>Yerel</span></span>
+  <input id="ara" placeholder="İsim ara" style="width:130px">
+  <button id="kontrolBtn">Mola kontrol</button>
+  <button id="duzenleBtn">Düzenle</button>
+  <button id="yapistirBtn">Yapıştır</button>
+  <button id="iceriBtn">İçeri aktar</button>
+  <button id="disariBtn">Dışarı aktar</button>
+  <button id="yazdirBtn">Yazdır</button>
+  <button id="baglantiBtn">Bağlantı</button>
+  <button id="kopyalaBtn" class="ana">Mail için kopyala</button>
+  <input type="file" id="dosya" accept=".xlsx,.xls" hidden>
+</div></div>
+
+<div class="wrap">
+  <div id="baglanti" class="kart panel" hidden></div>
+  <div id="kontrol" class="kart panel" hidden></div>
+  <div id="yukleme" class="kart panel" hidden></div>
+  <div id="duzenle" class="kart panel" hidden></div>
+  <div id="bilgi" class="not panel" style="margin:0 2px 10px"></div>
+  <div id="icerik"></div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ---------- ÇEKİRDEK ---------- */
+const RENK = [["185FA5","E6F1FB","0C447C"],["3B6D11","EAF3DE","27500A"],["854F0B","FAEEDA","633806"],["534AB7","EEEDFE","3C3489"],["0F6E56","E1F5EE","085041"],["993556","FBEAF0","72243E"]];
+const ORTA = [["B5D4F4","042C53"],["C0DD97","173404"],["FAC775","412402"],["CECBF6","26215C"],["9FE1CB","04342C"],["F4C0D1","4B1528"]];
+const GUN = 864e5;
+const renk = i => RENK[i % RENK.length];
+const pad = n => String(n).padStart(2, '0');
+function pzt(d) { const t = new Date(d); t.setHours(12,0,0,0); t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); return t; }
+function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+function isoTarih(s) { const [y,m,g] = s.split('-').map(Number); return new Date(y, m-1, g, 12); }
+function trTarih(d) { return pad(d.getDate()) + '.' + pad(d.getMonth()+1) + '.' + d.getFullYear(); }
+function haftaAralik(d) { const m = pzt(d); return trTarih(m) + ' – ' + trTarih(new Date(m.getTime() + 4 * GUN)); }
+const VARSAYILAN = { baslik: 'ALO-144 OSMANİYE', anaBaslik: 'Haftalık Mola Planı', ustNot: '', altNot: 'Gruplar her hafta bir üst grubun saatlerine geçer.' };
+const metin = (st, k) => (st && st[k] != null ? st[k] : VARSAYILAN[k]);
+const satirli = t => esc(t).replace(/\n/g, '<br>');
+function haftaFark(a, b) { return Math.round((pzt(a) - pzt(b)) / (7 * GUN)); }
+function mod(a, n) { return ((a % n) + n) % n; }
+function grupHafta(temel, ofs, N) { return mod(temel - 1 - ofs, N) + 1; }   // her hafta 2→1, 1→N
+function grupTemel(buHafta, ofs, N) { return mod(buHafta - 1 + ofs, N) + 1; }
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/** Excel satırlarından (dizi dizisi) planı çözer. Biçim: GRUP | İSİM SOYİSİM | MOLA 1 | ... (grup hücresi birleştirilmiş olabilir) */
+function planCoz(aoa) {
+  const norm = s => String(s ?? '').trim();
+  const ust = s => norm(s).toLocaleUpperCase('tr');
+  const isimRe = /İSİM|ISIM|AD SOYAD|ADI SOYADI/;
+  const hr = aoa.findIndex(r => (r || []).some(c => isimRe.test(ust(c))));
+  if (hr < 0) throw new Error('Başlık satırı bulunamadı. Dosyada "İSİM SOYİSİM" sütunu olmalı.');
+  const H = aoa[hr].map(ust);
+  const nc = H.findIndex(c => isimRe.test(c));
+  let gc = H.findIndex((c, i) => i !== nc && /GRUP/.test(c));
+  if (gc < 0) gc = nc - 1;
+  if (gc < 0) throw new Error('Grup sütunu bulunamadı. Grup sütunu isim sütununun solunda olmalı.');
+  const tc = [], basliklar = [];
+  for (let i = nc + 1; i < aoa[hr].length; i++) {
+    const b = norm(aoa[hr][i]).replace(/^[^\p{L}\p{N}]+/u, '');
+    if (b) { tc.push(i); basliklar.push(b.toLocaleUpperCase('tr')); }
+  }
+  if (!tc.length) throw new Error('Mola sütunları bulunamadı.');
+  let cur = 0; const kisiler = [], slots = {};
+  for (let r = hr + 1; r < aoa.length; r++) {
+    const row = aoa[r] || [];
+    const m = norm(row[gc]).match(/\d+/);
+    if (m) cur = +m[0];
+    const ad = norm(row[nc]);
+    if (!ad || isimRe.test(ust(ad))) continue;                     // boş satır veya tekrar eden başlık
+    const saat = tc.map(i => norm(row[i]).replace(/\s*-\s*/, ' - '));
+    if (!saat.some(s => /\d{1,2}[:.]\d{2}/.test(s))) continue;     // saati olmayan satır kişi değildir (not, toplam vb.)
+    if (!cur) throw new Error(`"${ad}" için grup bulunamadı.`);
+    if (!slots[cur] && saat.some(Boolean)) slots[cur] = saat;
+    kisiler.push({ ad, g: cur });
+  }
+  if (!kisiler.length) throw new Error('Personel bulunamadı.');
+  const N = Math.max(...kisiler.map(k => k.g));
+  const eksik = [];
+  for (let g = 1; g <= N; g++) if (!slots[g]) eksik.push(g);
+  if (eksik.length) throw new Error(`${eksik.join(', ')}. grubun saatleri yok. Her grupta en az bir kişinin saatleri dolu olmalı.`);
+  return { basliklar, saatler: Array.from({ length: N }, (_, i) => slots[i + 1]), kisiler };
+}
+
+function haftaPlani(st, monday) {
+  const N = st.saatler.length, ofs = haftaFark(monday, isoTarih(st.temelHafta));
+  const bol = st.saatler.map((saat, i) => ({ no: i + 1, saat, kisiler: [] }));
+  st.kisiler.forEach(k => { if (k.g >= 1 && k.g <= N) bol[grupHafta(k.g, ofs, N) - 1].kisiler.push(k.ad); });
+  return { ofs, N, bol, basliklar: st.basliklar, toplam: st.kisiler.length };
+}
+
+function ozet(p) {
+  const bas = s => (s || '').split(' - ')[0], son = s => (s || '').split(' - ').pop();
+  const ilk = p.bol.map(b => bas(b.saat[0])).filter(Boolean).sort()[0] || '—';
+  const yi = p.basliklar.findIndex(b => b.includes('YEMEK'));
+  let yemek = '—';
+  if (yi >= 0) {
+    const a = p.bol.map(b => bas(b.saat[yi])).filter(Boolean).sort();
+    const z = p.bol.map(b => son(b.saat[yi])).filter(Boolean).sort();
+    if (a.length) yemek = a[0] + ' – ' + z[z.length - 1];
+  }
+  return [['Toplam personel', p.toplam], ['Grup sayısı', p.N], ['İlk mola', ilk], ['Yemek aralığı', yemek]];
+}
+
+/** Mail ile aynı görünüm: tablo tabanlı, satır içi stil (Outlook'a yapıştırınca bozulmaz). */
+function mailHtml(p, monday, st, q, ek) {
+  const ekran = !!ek, secili = ek && ek.grup || 0;   // ekran: dashboard görünümü (mail kopyasında yok)
+  const F = 'font-family:Segoe UI,Arial,sans-serif';
+  const qq = (q || '').trim().toLocaleLowerCase('tr');
+  const kol = p.basliklar.length + 2;
+  let o = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f6"><tr><td align="center" style="padding:0">`;
+  o += `<table role="presentation" width="760" cellpadding="0" cellspacing="0" style="max-width:760px;width:100%;background:#ffffff;border:1px solid #d5dde6">`;
+  o += `<tr><td style="background:#185FA5;height:6px;line-height:6px;font-size:1px">&nbsp;</td></tr>`;
+  o += `<tr><td style="background:#E6F1FB;padding:18px 24px;border-bottom:1px solid #B5D4F4;${F}"><div style="font-size:12px;letter-spacing:.5px;color:#185FA5"><font color="#185FA5"><b>${esc(metin(st, 'baslik'))}</b></font></div><div style="font-size:22px;font-weight:bold;margin-top:2px;color:#042C53"><font color="#042C53"><b>${esc(metin(st, 'anaBaslik'))}</b></font></div><div style="font-size:14px;margin-top:2px;color:#0C447C"><font color="#0C447C">${haftaAralik(monday)}</font></div></td></tr>`;
+  if (metin(st, 'ustNot').trim()) o += `<tr><td style="padding:14px 22px 0;${F}"><div style="background:#FAEEDA;border:1px solid #EF9F27;padding:10px 12px;font-size:13px;color:#412402"><font color="#412402">${satirli(metin(st, 'ustNot'))}</font></div></td></tr>`;
+  o += `<tr><td style="padding:16px 16px 4px"><table role="presentation" width="100%" cellpadding="0" cellspacing="6"><tr>`;
+  ozet(p).forEach(([l, v]) => { o += `<td width="25%" style="background:#f4f6f9;border:1px solid #e1e7ee;padding:10px 12px;${F}"><div style="font-size:11px;color:#6b7785">${l}</div><div style="font-size:20px;font-weight:bold;color:#1d2733;margin-top:2px">${esc(v)}</div></td>`; });
+  o += `</tr></table></td></tr>`;
+  o += `<tr><td style="padding:12px 22px 4px;${F}"><div style="font-size:15px;font-weight:bold;color:#1d2733">Grup saatleri özeti</div></td></tr>`;
+  o += `<tr><td style="padding:6px 22px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">`;
+  const fc = (renk_, t, kalin) => `<font color="#${renk_}">${kalin ? '<b>' + t + '</b>' : t}</font>`;   // Outlook yazı rengini korusun diye
+  const th = `background:#D3DDE8;font-size:11px;font-weight:bold;padding:7px 4px;border:1px solid #9fb0c2;text-align:center;${F}`;
+  o += `<tr><td style="${th}">${fc('1d2733', 'GRUP', 1)}</td>` + p.basliklar.map(h => `<td style="${th}">${fc('1d2733', esc(h), 1)}</td>`).join('') + `</tr>`;
+  p.bol.forEach((b, i) => {
+    const [, bg, tx] = renk(i), [orta, koyu] = ORTA[i % ORTA.length];
+    const soluk = ekran && secili && secili !== b.no ? 'opacity:.4;' : '';
+    const grupHucre = ekran
+      ? `<td class="grup-btn${secili === b.no ? ' secili' : ''}" data-grup="${b.no}" role="button" tabindex="0" aria-pressed="${secili === b.no}" title="${secili === b.no ? 'Tüm grupları göster' : 'Sadece ' + b.no + '. grubu göster'}" style="background:#${orta};font-size:12px;padding:6px;border:1px solid #9fb0c2;text-align:center;white-space:nowrap;${soluk}${F}">${fc(koyu, (secili === b.no ? '✓ ' : '') + b.no + '. GRUP', 1)}<div class="grup-sayi">${b.kisiler.length} kişi</div></td>`
+      : `<td style="background:#${orta};font-size:12px;padding:6px;border:1px solid #9fb0c2;text-align:center;white-space:nowrap;${F}">${fc(koyu, b.no + '. GRUP', 1)}</td>`;
+    o += `<tr>` + grupHucre
+      + b.saat.map((t, j) => `<td style="${soluk}background:#${bg};font-size:11px;padding:6px 3px;border:1px solid #9fb0c2;text-align:center;${F}">${fc(tx, esc(t).replace(' - ', '<br>'), p.basliklar[j].includes('YEMEK'))}</td>`).join('') + `</tr>`;
+  });
+  o += `</table></td></tr>`;
+  o += `<tr><td style="padding:12px 22px 4px;${F}"><div style="font-size:15px;font-weight:bold;color:#1d2733">Personel listesi${secili ? ` · ${secili}. grup <button class="tumu-btn" data-grup="0">Tüm grupları göster</button>` : ''}</div></td></tr>`;
+  o += `<tr><td style="padding:6px 22px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">`;
+  const th2 = `background:#D3DDE8;font-size:11px;font-weight:bold;padding:7px 4px;border:1px solid #9fb0c2;text-align:center;${F}`;
+  o += `<tr><td style="${th2}">${fc('1d2733', 'GRUP', 1)}</td><td style="${th2};text-align:left">${fc('1d2733', 'İSİM SOYİSİM', 1)}</td>` + p.basliklar.map(h => `<td style="${th2}">${fc('1d2733', esc(h), 1)}</td>`).join('') + `</tr>`;
+  const kenar = 'border-top:1px solid #9fb0c2;border-bottom:1px solid #9fb0c2;border-left:2px solid #8597aa;border-right:2px solid #8597aa';
+  p.bol.forEach((b, i) => {
+    if (secili && secili !== b.no) return;
+    const [d, bg, tx] = renk(i), [orta, koyu] = ORTA[i % ORTA.length];
+    b.kisiler.forEach((ad, r) => {
+      const hit = qq && ad.toLocaleLowerCase('tr').includes(qq);
+      const z = hit ? '#FAC775' : (r % 2 ? '#' + bg : '#ffffff');
+      o += `<tr>` + (r === 0 ? `<td rowspan="${b.kisiler.length}" style="background:#${orta};font-size:12px;border:1px solid #9fb0c2;text-align:center;width:62px;${F}">${fc(koyu, b.no + '.<br>GRUP', 1)}</td>` : '')
+        + `<td ${hit ? 'data-hit="1"' : ''} style="background:${z};font-size:12px;padding:5px 6px;${kenar};white-space:nowrap;${F}">${fc('1d2733', esc(ad), 1)}</td>`
+        + b.saat.map((t, j) => `<td style="background:${z};font-size:11px;padding:5px 3px;${kenar};text-align:center;white-space:nowrap;${F}">${fc(p.basliklar[j].includes('YEMEK') ? '1d2733' : '3d4752', esc(t), p.basliklar[j].includes('YEMEK'))}</td>`).join('') + `</tr>`;
+    });
+    o += `<tr><td colspan="${kol}" style="background:#${d};height:6px;line-height:6px;font-size:1px">&nbsp;</td></tr>`;
+  });
+  o += `</table></td></tr>`;
+  o += `<tr><td style="padding:12px 22px;font-size:12px;color:#6b7785;${F}"><font color="#6b7785">${satirli(metin(st, 'altNot'))}</font></td></tr>`;
+  o += `</table></td></tr></table>`;
+  return o;
+}
+/* ---------- ÇEKİRDEK SONU ---------- */
+
+const ANAHTAR = 'molaPlani.v1', BAG_ANAHTAR = 'molaPlani.baglanti';
+let ST = null, goruntu = pzt(new Date()), duzenMod = false, bekleyen = null;
+const $ = id => document.getElementById(id);
+
+/* ---------- ORTAK KAYIT (Google Sheets) ---------- */
+let BAG = null;                  // { url, key, ad }
+let SURUM = null;                // sunucudaki son bilinen sürüm
+let META = { guncelleyen: '', guncelleme: '' };
+let islemler = [], gonderZ = null, gonderiliyor = false, bekleyenGonderim = false;
+
+function bagOku() { try { BAG = JSON.parse(localStorage.getItem(BAG_ANAHTAR) || 'null'); } catch (e) { BAG = null; } }
+function bagYaz() { try { BAG ? localStorage.setItem(BAG_ANAHTAR, JSON.stringify(BAG)) : localStorage.removeItem(BAG_ANAHTAR); } catch (e) {} }
+const bagli = () => !!(BAG && BAG.url && BAG.key);
+
+function durumGoster(tur, yazi, ipucu) {
+  const d = $('durum'); d.className = 'durum ' + (tur || '');
+  d.querySelector('span').textContent = yazi; d.title = ipucu || '';
+}
+function metaYazi() {
+  if (!META.guncelleme) return 'Ortak plan';
+  const t = new Date(META.guncelleme);
+  const bugun = t.toDateString() === new Date().toDateString();
+  return `Son değişiklik: ${META.guncelleyen || '—'}, ${bugun ? '' : trTarih(t) + ' '}${pad(t.getHours())}:${pad(t.getMinutes())}`;
+}
+function metaAl(r) { if (r.surum != null) SURUM = r.surum; META = { guncelleyen: r.guncelleyen || '', guncelleme: r.guncelleme || '' }; }
+
+async function sunucuGet(op) {
+  const u = BAG.url + (BAG.url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(BAG.key) + (op ? '&op=' + op : '') + '&t=' + Date.now();
+  const res = await fetch(u, { redirect: 'follow' });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || 'Sunucu hatası');
+  return j;
+}
+async function sunucuPost(govde) {
+  const res = await fetch(BAG.url, { method: 'POST', redirect: 'follow', body: JSON.stringify(govde) });
+  return res.json();
+}
+
+async function sunucudanYukle(sessiz) {
+  if (!bagli()) return false;
+  durumGoster('is', 'Yükleniyor…');
+  try {
+    const j = await sunucuGet();
+    metaAl(j);
+    if (j.state) { ST = j.state; yerelKaydet(); }
+    else if (ST && !sessiz && confirm('Ortak kayıt boş. Bu bilgisayardaki planı ortak kayda yükleyelim mi?')) { islem('Plan ilk kez ortak kayda yüklendi'); }
+    durumGoster('ok', metaYazi(), 'Ortak kayda bağlı');
+    ciz();
+    return true;
+  } catch (e) {
+    durumGoster('hata', 'Bağlantı hatası', e.message);
+    if (!sessiz) toast('Ortak kayda ulaşılamadı: ' + e.message);
+    return false;
+  }
+}
+
+/** Bir değişiklik yapıldığında çağrılır: kısa bir beklemeyle tek seferde gönderir. */
+function islem(aciklama) {
+  if (aciklama) islemler.push(aciklama);
+  yerelKaydet();
+  if (!bagli()) return;
+  durumGoster('is', 'Kaydediliyor…');
+  clearTimeout(gonderZ);
+  gonderZ = setTimeout(gonder, 700);
+}
+async function gonder() {
+  if (gonderiliyor) { bekleyenGonderim = true; return; }
+  if (!ST || !bagli()) return;
+  gonderiliyor = true;
+  const giden = islemler.splice(0);
+  try {
+    const j = await sunucuPost({ key: BAG.key, base: SURUM == null ? 0 : SURUM, state: ST, kim: BAG.ad || 'Adsız', islem: giden.join(' · ') || 'Plan güncellendi' });
+    if (j.ok) {
+      metaAl(j); durumGoster('ok', metaYazi(), 'Ortak kayda bağlı');
+    } else if (j.conflict) {
+      metaAl(j); if (j.state) ST = j.state; yerelKaydet(); ciz();
+      durumGoster('ok', metaYazi());
+      toast(`${j.guncelleyen || 'Başka biri'} az önce planı değiştirdi. Güncel hali yüklendi; son değişikliğini tekrar yap.`);
+    } else {
+      islemler.unshift(...giden);
+      durumGoster('hata', 'Kaydedilemedi', j.error);
+      toast('Kaydedilemedi: ' + (j.error || 'bilinmeyen hata'));
+    }
+  } catch (e) {
+    islemler.unshift(...giden);
+    bekleyenGonderim = true;
+    durumGoster('hata', 'Kaydedilemedi, tekrar denenecek', e.message);
+  } finally {
+    gonderiliyor = false;
+    if (bekleyenGonderim) { bekleyenGonderim = false; clearTimeout(gonderZ); gonderZ = setTimeout(gonder, islemler.length ? 700 : 15000); }
+  }
+}
+
+/** 30 sn'de bir: başkası değiştirdiyse planı yeniler (düzenleme sırasında yazı kutusundaysan bekler). */
+async function kontrolEt() {
+  if (!bagli() || gonderiliyor || islemler.length || document.hidden) return;
+  const odak = document.activeElement;
+  if (odak && odak.closest && odak.closest('#duzenle, #yukleme, #baglanti') && /INPUT|TEXTAREA|SELECT/.test(odak.tagName)) return;
+  try {
+    const j = await sunucuGet('surum');
+    if (SURUM == null || j.surum !== SURUM) {
+      const once = SURUM;
+      await sunucudanYukle(true);
+      if (once != null) toast(`${META.guncelleyen || 'Biri'} planı güncelledi.`);
+    } else { metaAl(j); durumGoster('ok', metaYazi(), 'Ortak kayda bağlı'); }
+  } catch (e) { durumGoster('hata', 'Bağlantı hatası', e.message); }
+}
+setInterval(kontrolEt, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) kontrolEt(); });
+
+/* Davet linki: ?d=... ile açılınca bağlantıyı kendiliğinden kurar (eski #baglan= linkleri de çalışır) */
+const b64u = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64uCoz = t => { t = t.replace(/-/g, '+').replace(/_/g, '/'); while (t.length % 4) t += '='; return decodeURIComponent(escape(atob(t))); };
+function davetOku() {
+  const q = new URLSearchParams(location.search);
+  let kod = q.get('d'), eski = false;
+  if (!kod) { const m = location.hash.match(/baglan=([^&]+)/); if (m) { kod = decodeURIComponent(m[1]); eski = true; } }
+  if (!kod) return;
+  try {
+    const d = JSON.parse(eski ? decodeURIComponent(escape(atob(kod))) : b64uCoz(kod));
+    const url = d.u || d.url, key = d.k || d.key;
+    if (url && key) { BAG = { url, key, ad: (BAG && BAG.ad) || '' }; bagYaz(); }
+  } catch (e) {}
+  history.replaceState(null, '', location.pathname);
+}
+function davetLinki() {
+  const id = (BAG.url.match(/\/macros\/s\/([^/]+)\/exec/) || [])[1];
+  const veri = id ? { u: 'https://script.google.com/macros/s/' + id + '/exec', k: BAG.key } : { u: BAG.url, k: BAG.key };
+  return location.origin + location.pathname + '?d=' + b64u(JSON.stringify(veri));
+}
+
+function baglantiCiz() {
+  const b = BAG || {};
+  $('baglanti').innerHTML = `<h3>Ortak kayıt bağlantısı</h3>
+    <div class="not">Bağlıyken yapılan her değişiklik Google Sheet'e kaydedilir ve dashboard'u kullanan herkes aynı planı görür. Açık sayfalar 30 saniyede bir kendini günceller.</div>
+    <div class="bag-form">
+      <label class="not" for="b_ad">Adın (kayıtta görünür)</label><input id="b_ad" value="${esc(b.ad || '')}" placeholder="Ad Soyad">
+      <label class="not" for="b_url">Web uygulaması adresi</label><input id="b_url" value="${esc(b.url || '')}" placeholder="https://script.google.com/macros/s/.../exec">
+      <label class="not" for="b_key">Erişim anahtarı</label><input id="b_key" type="password" value="${esc(b.key || '')}">
+    </div>
+    <div id="b_hata" class="not" style="color:#A32D2D;margin-top:6px"></div>
+    <div class="satir" style="margin-top:12px">
+      <button class="ana" onclick="baglantiKaydet()">Bağlan</button>
+      ${bagli() ? `<button onclick="davetKopyala()">Ekip için davet linki kopyala</button><button onclick="baglantiKes()">Bağlantıyı kes</button>` : ''}
+      <button onclick="$('baglanti').hidden=true">Kapat</button>
+    </div>`;
+}
+async function baglantiKaydet() {
+  const ad = $('b_ad').value.trim(), url = $('b_url').value.trim(), key = $('b_key').value.trim();
+  $('b_hata').textContent = '';
+  if (!ad) { $('b_hata').textContent = 'Adını yaz; değişiklik kaydında görünecek.'; return; }
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) { $('b_hata').textContent = 'Adres https://script.google.com/... ile başlamalı.'; return; }
+  if (!key) { $('b_hata').textContent = 'Erişim anahtarını yaz.'; return; }
+  const eski = BAG; BAG = { ad, url, key };
+  try { await sunucuGet('surum'); }
+  catch (e) { BAG = eski; $('b_hata').textContent = 'Bağlanılamadı: ' + e.message; return; }
+  bagYaz(); SURUM = null;
+  $('baglanti').hidden = true;
+  await sunucudanYukle(false);
+  toast('Ortak kayda bağlandı');
+}
+function baglantiKes() {
+  if (!confirm('Ortak kayıt bağlantısı kesilsin mi? Plan bu bilgisayarda kalır ama değişiklikler artık paylaşılmaz.')) return;
+  BAG = BAG && BAG.ad ? { ad: BAG.ad } : null; bagYaz(); SURUM = null;
+  durumGoster('', 'Yerel', 'Ortak kayda bağlı değil'); baglantiCiz();
+}
+async function davetKopyala() {
+  const link = davetLinki();
+  try { await navigator.clipboard.writeText(link); toast('Davet linki kopyalandı. Ekip bu linki açınca bağlantı kendiliğinden kurulur.'); }
+  catch (e) { prompt('Bu linki kopyala:', link); }
+}
+$('baglantiBtn').onclick = () => { const p = $('baglanti'); p.hidden = !p.hidden; if (!p.hidden) { baglantiCiz(); p.scrollIntoView({ behavior: 'smooth' }); } };
+
+function yukleDurum() { try { const s = localStorage.getItem(ANAHTAR); if (s) ST = JSON.parse(s); } catch (e) { ST = null; } }
+function yerelKaydet() {
+  try { localStorage.setItem(ANAHTAR, JSON.stringify(ST)); } catch (e) {}
+}
+function kaydet(aciklama) { islem(aciklama); }
+function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._z); t._z = setTimeout(() => t.style.display = 'none', 3500); }
+function xlsxVar() { if (window.XLSX) return true; toast('Excel kütüphanesi yüklenemedi. Sayfa internete erişebilmeli.'); return false; }
+
+function ciz() {
+  $('haftaAd').textContent = haftaAralik(goruntu);
+  const buMu = haftaFark(goruntu, new Date()) === 0;
+  $('buHafta').classList.toggle('aktif', buMu);
+  ['disariBtn', 'kopyalaBtn', 'yazdirBtn', 'duzenleBtn', 'ara'].forEach(id => $(id).disabled = !ST);
+  if (!ST) {
+    $('bilgi').textContent = '';
+    $('icerik').innerHTML = `<div class="kart bos">
+      <h3>Başlangıç planını yükle</h3>
+      <ol>
+        <li>Mevcut mola planını Excel olarak hazırla: <b>GRUP | İSİM SOYİSİM | MOLA 1 | MOLA 2 | …</b></li>
+        <li>Excel'de tabloyu kopyalayıp <b>Yapıştır</b>'a bas (ya da <b>İçeri aktar</b> ile dosyayı seç) ve planın hangi haftaya ait olduğunu seç.</li>
+        <li>Sonraki haftalar kendiliğinden döner: 2. grup 1. grubun saatlerine, 1. grup son grubun saatlerine geçer.</li>
+      </ol><br>
+      <div class="satir" style="justify-content:center">
+        <button class="ana" onclick="$('yapistirBtn').click()">Excel'den yapıştır</button>
+        <button onclick="$('dosya').click()">Dosyadan yükle</button>
+        <button onclick="sablonIndir()">Örnek şablon indir</button>
+      </div></div>`;
+    return;
+  }
+  const p = haftaPlani(ST, goruntu);
+  const fark = haftaFark(goruntu, isoTarih(ST.temelHafta));
+  $('bilgi').innerHTML = `Son yüklenen plan: <b>${haftaAralik(isoTarih(ST.temelHafta))}</b> haftası`
+    + (ST.yuklendi ? ` (${esc(ST.yuklendi)})` : '')
+    + ` · Gösterilen hafta bu plandan <b>${fark === 0 ? 'aynı hafta' : (fark > 0 ? fark + ' hafta sonra' : (-fark) + ' hafta önce')}</b>`;
+  if (seciliGrup > p.N) seciliGrup = 0;
+  $('icerik').innerHTML = `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value, { grup: seciliGrup })}</div>`;
+  const hit = $('icerik').querySelector('[data-hit]');
+  if (hit && $('ara').value.trim()) hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (duzenMod) duzenleCiz();
+}
+
+/* ---------- İÇERİ AKTAR ---------- */
+$('iceriBtn').onclick = () => { if (xlsxVar()) $('dosya').click(); };
+$('dosya').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f || !xlsxVar()) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    planOnizle(XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }), f.name);
+  } catch (err) { toast(err.message || 'Dosya okunamadı'); }
+};
+
+/* Excel'den kopyala → buraya yapıştır (dosya ve internet gerekmez) */
+$('yapistirBtn').onclick = () => {
+  $('yukleme').hidden = false;
+  $('yukleme').innerHTML = `<h3>Excel'den yapıştır</h3>
+    <div class="not">Excel'de başlık satırı dahil tabloyu seç (GRUP, İSİM SOYİSİM, MOLA… sütunları), <b>Ctrl+C</b> ile kopyala, aşağıdaki kutuya tıklayıp <b>Ctrl+V</b> yap.</div>
+    <textarea id="yapKutu" rows="5" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px" placeholder="Buraya yapıştır"></textarea>
+    <div class="satir" style="margin-top:8px"><button onclick="$('yukleme').hidden=true">Vazgeç</button></div>`;
+  const k = $('yapKutu'); k.focus();
+  k.addEventListener('paste', ev => {
+    ev.preventDefault();
+    const metin = (ev.clipboardData || window.clipboardData).getData('text/plain');
+    try { planOnizle(tsvCoz(metin), 'Yapıştırılan tablo'); }
+    catch (err) { toast(err.message || 'Tablo okunamadı'); }
+  });
+};
+function tsvCoz(t) {
+  const satirlar = [], s = t.replace(/\r\n?/g, '\n');
+  let row = [], hucre = '', tirnak = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (tirnak) { if (c === '"' && s[i + 1] === '"') { hucre += '"'; i++; } else if (c === '"') tirnak = false; else hucre += c; }
+    else if (c === '"' && hucre === '') tirnak = true;
+    else if (c === '\t') { row.push(hucre); hucre = ''; }
+    else if (c === '\n') { row.push(hucre); satirlar.push(row); row = []; hucre = ''; }
+    else hucre += c;
+  }
+  if (hucre || row.length) { row.push(hucre); satirlar.push(row); }
+  return satirlar;
+}
+
+function planOnizle(aoa, kaynak) {
+  const f = { name: kaynak };
+  try {
+    bekleyen = planCoz(aoa);
+    const sayim = bekleyen.saatler.map((_, i) => `${i + 1}. grup: ${bekleyen.kisiler.filter(k => k.g === i + 1).length}`).join(' · ');
+    $('yukleme').hidden = false;
+    $('yukleme').innerHTML = `<h3>Plan okundu: ${esc(f.name)}</h3>
+      <div class="not">${bekleyen.kisiler.length} personel, ${bekleyen.saatler.length} grup (${sayim})<br>Sütunlar: ${bekleyen.basliklar.map(esc).join(', ')}</div>
+      <div class="satir" style="margin-top:12px">
+        <label class="not" for="yHafta">Bu plan hangi haftaya ait?</label>
+        <input type="date" id="yHafta" value="${iso(goruntu)}">
+        <button class="ana" onclick="yuklemeyiOnayla()">Yükle</button>
+        <button onclick="$('yukleme').hidden=true;bekleyen=null">Vazgeç</button>
+      </div>
+      <div class="not" style="margin-top:8px">Mevcut plan bununla değiştirilecek. Sonraki haftalar bu plandan döner.</div>`;
+    $('yukleme').scrollIntoView({ behavior: 'smooth' });
+  } catch (err) { toast(err.message || 'Tablo okunamadı'); }
+}
+function yuklemeyiOnayla() {
+  const v = $('yHafta').value;
+  if (!v) { toast('Hafta seç'); return; }
+  const mon = pzt(isoTarih(v)), n = new Date();
+  if (ST && ST.kisiler) {   // CMS eşleştirmelerini isimden koru
+    const eski = new Map(ST.kisiler.filter(k => k.cms).map(k => [normAd(k.ad), k.cms]));
+    bekleyen.kisiler.forEach(k => { const c = eski.get(normAd(k.ad)); if (c) k.cms = c; });
+  }
+  const eskiDis = (ST && ST.planDisi) || [];
+  ST = { planDisi: eskiDis, baslik: metin(ST, 'baslik'), anaBaslik: metin(ST, 'anaBaslik'), ustNot: metin(ST, 'ustNot'), altNot: metin(ST, 'altNot'), basliklar: bekleyen.basliklar, saatler: bekleyen.saatler, kisiler: bekleyen.kisiler,
+         temelHafta: iso(mon), yuklendi: `${trTarih(n)} ${pad(n.getHours())}:${pad(n.getMinutes())} yüklendi` };
+  bekleyen = null; kaydet(`Yeni plan yüklendi (${ST.kisiler.length} kişi, ${haftaAralik(mon)} haftası)`); $('yukleme').hidden = true; goruntu = mon; ciz();
+  toast('Plan yüklendi');
+}
+
+/* ---------- DIŞARI AKTAR ---------- */
+function excelYaz(p, monday, dosyaAdi) {
+  const rows = [['GRUP', 'İSİM SOYİSİM', ...p.basliklar]], merges = [], tur = ['bas'], grupNo = [null];
+  p.bol.forEach((b, i) => {
+    const s = rows.length;
+    b.kisiler.forEach(ad => { rows.push([`${b.no}. GRUP`, ad, ...b.saat]); tur.push('kisi'); grupNo.push(i); });
+    if (b.kisiler.length > 1) merges.push({ s: { r: s, c: 0 }, e: { r: s + b.kisiler.length - 1, c: 0 } });
+    rows.push(new Array(rows[0].length).fill('')); tur.push('ayir'); grupNo.push(i);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges'] = merges;
+  ws['!cols'] = [{ wch: 10 }, { wch: 26 }, ...p.basliklar.map(() => ({ wch: 15 }))];
+  ws['!rows'] = tur.map(t => t === 'ayir' ? { hpt: 6 } : { hpt: 18 });
+  const kenar = { style: 'thin', color: { rgb: 'C9D3DE' } };
+  const border = { top: kenar, bottom: kenar, left: kenar, right: kenar };
+  for (let r = 0; r < rows.length; r++) for (let c = 0; c < rows[0].length; c++) {
+    const a = XLSX.utils.encode_cell({ r, c });
+    if (!ws[a]) ws[a] = { t: 's', v: '' };
+    const [d, bg, tx] = grupNo[r] == null ? [] : renk(grupNo[r]);
+    const yemek = c >= 2 && p.basliklar[c - 2].includes('YEMEK');
+    let s = { font: { name: 'Calibri', sz: 10, color: { rgb: '1D2733' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border };
+    if (tur[r] === 'bas') s = { ...s, fill: { fgColor: { rgb: '185FA5' } }, font: { ...s.font, bold: true, color: { rgb: 'FFFFFF' } } };
+    else if (tur[r] === 'ayir') s = { fill: { fgColor: { rgb: d } } };
+    else if (c === 0) s = { ...s, fill: { fgColor: { rgb: bg } }, font: { ...s.font, bold: true, color: { rgb: tx } } };
+    else if (c === 1) s = { ...s, font: { ...s.font, bold: true }, alignment: { ...s.alignment, horizontal: 'left' } };
+    else if (yemek) s = { ...s, font: { ...s.font, bold: true } };
+    ws[a].s = s;
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Mola Planı');
+  XLSX.writeFile(wb, dosyaAdi);
+}
+$('disariBtn').onclick = () => {
+  if (!ST || !xlsxVar()) return;
+  excelYaz(haftaPlani(ST, goruntu), goruntu, `Mola_Plani_${iso(goruntu).replace(/-/g, '')}.xlsx`);
+  toast('İndirildi. Değiştirip İçeri aktar ile bu haftaya yükleyebilirsin.');
+};
+function sablonIndir() {
+  if (!xlsxVar()) return;
+  const ornek = { baslik: '', temelHafta: iso(goruntu),
+    basliklar: ['MOLA 1', 'MOLA 2', 'MOLA 3', 'YEMEK', 'MOLA 4', 'MOLA 5', 'MOLA 6'],
+    saatler: [['08:30 - 08:40', '09:30 - 09:40', '10:30 - 10:40', '11:30 - 12:10', '13:30 - 13:40', '14:50 - 15:00', '16:20 - 16:30'],
+              ['08:40 - 08:50', '09:40 - 09:50', '10:40 - 10:50', '12:15 - 12:55', '13:50 - 14:00', '15:00 - 15:10', '16:30 - 16:40']],
+    kisiler: [{ ad: 'Örnek Kişi 1', g: 1 }, { ad: 'Örnek Kişi 2', g: 1 }, { ad: 'Örnek Kişi 3', g: 2 }, { ad: 'Örnek Kişi 4', g: 2 }] };
+  excelYaz(haftaPlani(ornek, goruntu), goruntu, 'Mola_Plani_Sablon.xlsx');
+}
+
+/* ---------- DÜZENLE ---------- */
+$('duzenleBtn').onclick = () => {
+  duzenMod = !duzenMod;
+  $('duzenleBtn').classList.toggle('aktif', duzenMod);
+  $('duzenle').hidden = !duzenMod;
+  if (duzenMod) duzenleCiz(); else $('duzenle').innerHTML = '';
+};
+let dAra = '', dGrup = 0;
+const trKucuk = t => String(t).toLocaleLowerCase('tr');
+function duzenleCiz() {
+  const N = ST.saatler.length;
+  if (!$('d_ara')) {
+    $('duzenle').innerHTML = `<h3 id="d_bas"></h3>
+      <details class="d-metin" id="d_metin">
+        <summary>Başlık ve notlar <span class="not">(maildeki üst/alt yazılar)</span></summary>
+        <div class="metinler">
+          <label class="not" for="m_baslik">Üst küçük başlık</label><input id="m_baslik" oninput="metinYaziyor('baslik',this.value)" onchange="metinKaydet('baslik',this.value)">
+          <label class="not" for="m_anaBaslik">Ana başlık</label><input id="m_anaBaslik" oninput="metinYaziyor('anaBaslik',this.value)" onchange="metinKaydet('anaBaslik',this.value)">
+          <label class="not" for="m_ustNot">Üst not (boş bırakılırsa görünmez; duyuru vb.)</label><textarea id="m_ustNot" rows="2" oninput="metinYaziyor('ustNot',this.value)" onchange="metinKaydet('ustNot',this.value)"></textarea>
+          <label class="not" for="m_altNot">Alt not</label><textarea id="m_altNot" rows="2" oninput="metinYaziyor('altNot',this.value)" onchange="metinKaydet('altNot',this.value)"></textarea>
+        </div>
+      </details>
+      <div class="d-baslik-liste">Personel</div>
+      <div class="d-filtre">
+        <input id="d_ara" type="search" placeholder="Personel ara (ad veya soyad)" autocomplete="off">
+        <select id="d_grup" aria-label="Grup filtresi"></select>
+        <button onclick="kisiEkle()">+ Kişi ekle</button>
+      </div>
+      <div id="d_sayac" class="not" style="margin:6px 2px 0"></div>
+      <table class="liste"><thead><tr><th>Ad soyad</th><th style="width:120px">Bu hafta</th><th style="width:36px"></th></tr></thead><tbody id="d_liste"></tbody></table>
+      <div class="not" style="margin-top:10px">Seçtiğin grup gösterilen hafta için geçerli olur, sonraki haftalar oradan döner. Saatleri değiştirmek için Dışarı aktar → Excel'de düzenle → İçeri aktar.</div>`;
+    const ust = $('ara').value.trim();
+    if (ust) dAra = ust;
+    $('d_ara').value = dAra;
+    $('d_ara').oninput = e => { dAra = e.target.value; listeCiz(); };
+    $('d_ara').onkeydown = e => {
+      if (e.key === 'Enter') { const ilk = $('d_liste').querySelector('select'); if (ilk) ilk.focus(); }
+      if (e.key === 'Escape') { dAra = ''; e.target.value = ''; listeCiz(); }
+    };
+    $('d_grup').onchange = e => { dGrup = +e.target.value; listeCiz(); };
+    let acik = true; try { acik = localStorage.getItem('molaPlani.notlarAcik') !== '0'; } catch (e) {}
+    $('d_metin').open = acik;
+    $('d_metin').addEventListener('toggle', () => { try { localStorage.setItem('molaPlani.notlarAcik', $('d_metin').open ? '1' : '0'); } catch (e) {} });
+    setTimeout(() => $('d_ara').focus(), 0);
+  }
+  $('d_bas').textContent = `Düzenle (${haftaAralik(goruntu)} haftasına göre)`;
+  $('d_grup').innerHTML = `<option value="0">Tüm gruplar</option>` + Array.from({ length: N }, (_, i) => `<option value="${i + 1}" ${dGrup === i + 1 ? 'selected' : ''}>${i + 1}. Grup</option>`).join('');
+  ['baslik', 'anaBaslik', 'ustNot', 'altNot'].forEach(k => { const el = $('m_' + k); if (el && document.activeElement !== el) el.value = metin(ST, k); });
+  listeCiz();
+}
+function listeCiz() {
+  const N = ST.saatler.length, ofs = ofsNow();
+  const q = trKucuk(dAra.trim());
+  const sec = g => Array.from({ length: N }, (_, i) => `<option value="${i + 1}" ${g === i + 1 ? 'selected' : ''}>${i + 1}. Grup</option>`).join('');
+  const satirlar = ST.kisiler.map((k, i) => ({ k, i, g: grupHafta(k.g, ofs, N) }))
+    .filter(x => (!q || trKucuk(x.k.ad).includes(q)) && (!dGrup || x.g === dGrup))
+    .sort((a, b) => a.g - b.g || a.k.ad.localeCompare(b.k.ad, 'tr'));
+  const tek = q && satirlar.length === 1;
+  $('d_liste').innerHTML = satirlar.length ? satirlar.map(({ k, i, g }) => `<tr${tek ? ' class="tek"' : ''}>
+      <td><input value="${esc(k.ad)}" aria-label="Ad soyad" onchange="adDegis(${i},this.value)"></td>
+      <td><select onchange="grupDegis(${i},+this.value)">${sec(g)}</select></td>
+      <td><button class="sil" aria-label="${esc(k.ad)} sil" onclick="kisiSil(${i})">×</button></td></tr>`).join('')
+    : `<tr><td colspan="3" class="not" style="padding:14px 4px">Eşleşen personel yok.${q ? ` <button onclick="kisiEkleIsimle()">“${esc(dAra.trim())}” olarak ekle</button>` : ''}</td></tr>`;
+  $('d_sayac').textContent = (q || dGrup) ? `${satirlar.length} / ${ST.kisiler.length} personel gösteriliyor` : `${ST.kisiler.length} personel`;
+}
+function kisiEkleIsimle() {
+  const ad = dAra.trim(); if (!ad) return;
+  const g = parseInt(prompt(`${ad} bu hafta hangi grupta? (1-${ST.saatler.length})`, dGrup || '1'), 10);
+  if (!(g >= 1 && g <= ST.saatler.length)) { toast('Geçersiz grup'); return; }
+  ST.kisiler.push({ ad, g: grupTemel(g, ofsNow(), ST.saatler.length) }); kaydet(`${ad} eklendi (${g}. grup, ${haftaAralik(goruntu)})`); ciz();
+}
+const METIN_AD = { baslik: 'Üst küçük başlık', anaBaslik: 'Ana başlık', ustNot: 'Üst not', altNot: 'Alt not' };
+let metinZ = {};
+function metinYaziyor(k, v) { clearTimeout(metinZ[k]); metinZ[k] = setTimeout(() => metinKaydet(k, v), 800); }
+function metinKaydet(k, v) {
+  clearTimeout(metinZ[k]);
+  if (metin(ST, k) === v) return; ST[k] = v; kaydet(METIN_AD[k] + ' değiştirildi'); ciz(); }
+const ofsNow = () => haftaFark(goruntu, isoTarih(ST.temelHafta));
+function adDegis(i, v) { v = v.trim(); if (!v) { toast('İsim boş olamaz'); duzenleCiz(); return; } const eski = ST.kisiler[i].ad; ST.kisiler[i].ad = v; kaydet(`${eski} → ${v} (isim düzeltildi)`); ciz(); }
+function grupDegis(i, g) { ST.kisiler[i].g = grupTemel(g, ofsNow(), ST.saatler.length); kaydet(`${ST.kisiler[i].ad} → ${g}. grup (${haftaAralik(goruntu)})`); ciz(); }
+function kisiSil(i) { if (!confirm(ST.kisiler[i].ad + ' listeden çıkarılsın mı?')) return; const ad = ST.kisiler[i].ad; ST.kisiler.splice(i, 1); kaydet(`${ad} silindi`); ciz(); }
+function kisiEkle() {
+  const ad = (prompt('Ad soyad') || '').trim(); if (!ad) return;
+  const g = parseInt(prompt(`Bu hafta hangi grupta? (1-${ST.saatler.length})`, '1'), 10);
+  if (!(g >= 1 && g <= ST.saatler.length)) { toast('Geçersiz grup'); return; }
+  ST.kisiler.push({ ad, g: grupTemel(g, ofsNow(), ST.saatler.length) }); kaydet(`${ad} eklendi (${g}. grup, ${haftaAralik(goruntu)})`); ciz();
+}
+
+/* ---------- MOLA KONTROL (CMS karşılaştırma) ----------
+   CMS "Anlık İzleme" sayfası Ctrl+A / Ctrl+C ile kopyalanıp yapıştırılır.
+   Metin sadece tarayıcıda okunur; vatandaş telefon numaraları atılır, hiçbir yere kaydedilmez. */
+let TOLERANS_DK = 2;            // geç çıkma / süre aşımı için tolerans (panelden değişir)
+try { const t = +localStorage.getItem('molaPlani.tolerans'); if (t >= 0 && t <= 15 && localStorage.getItem('molaPlani.tolerans') !== null) TOLERANS_DK = t; } catch (e) {}
+const ERKEN_DK = 5;             // planlı molaya bu kadar erken çıkış "planlı" sayılır
+const DURUM_TUR = s => {
+  const t = trKucuk(s);
+  if (t === 'yemek') return 'yemek';
+  if (t === 'ihtiyaç' || t === 'ihtiyac' || t === 'mola') return 'mola';
+  if (t === 'hazır' || t === 'hazir') return 'hazir';
+  if (t === 'görüşmede' || t === 'gelen' || t === 'giden') return 'cagri';
+  return 'diger';
+};
+const normAd = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleUpperCase('tr').replace(/İ/g, 'I').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+const sureSn = t => { const p = t.split(':').map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]; };
+const dk = t => { const m = String(t).match(/(\d{1,2})[:.](\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+const saatYaz = m => pad(Math.floor(((m % 1440) + 1440) % 1440 / 60)) + ':' + pad(((m % 60) + 60) % 60);
+const sureYaz = sn => { const m = Math.floor(sn / 60), s = sn % 60; return m >= 60 ? `${Math.floor(m / 60)} sa ${m % 60} dk` : `${m} dk ${pad(s)} sn`; };
+
+function cmsCoz(metin) {
+  const satir = metin.replace(/\r/g, '').split('\n').map(x => x.trim()).filter(Boolean);
+  let zaman = null;
+  for (const x of satir.slice(0, 40)) {
+    const m = x.match(/^(\d{2})[./](\d{2})[./](\d{4})\s+(\d{1,2}):(\d{2})/);
+    if (m) { zaman = new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]); break; }
+  }
+  const BOLUM = { 'gelen çağrı': 'cagri', 'giden çağrı': 'cagri', 'müsait': 'hazir', 'hazır değil': null };
+  const ajanlar = []; let bolum = null;
+  for (let i = 0; i < satir.length; i++) {
+    const x = satir[i], k = trKucuk(x);
+    if (k in BOLUM) { bolum = BOLUM[k]; continue; }
+    if (!/^\d{5}$/.test(x) || i === 0) continue;
+    const ad = satir[i - 1];
+    if (!/^[A-ZÇĞİIÖŞÜ][A-ZÇĞİIÖŞÜ .'-]+$/.test(ad)) continue;
+    let durumYazi = null, tur = null, sure = null;
+    for (let j = i + 1; j < Math.min(i + 8, satir.length); j++) {
+      const y = satir[j];
+      if (/^\d{5}$/.test(y)) break;
+      if (/^TG:/.test(y)) break;
+      if (!durumYazi && /^\+?\d[\d ]{6,}$/.test(y)) { durumYazi = 'Görüşmede'; tur = 'cagri'; continue; }   // telefon numarası: okunmaz, saklanmaz
+      if (!durumYazi && /^[A-Za-zÇĞİIÖŞÜçğıiöşü ]+$/.test(y)) { durumYazi = y; tur = DURUM_TUR(y); continue; }
+      if (sure == null && /^\d{1,2}:\d{2}(:\d{2})?$/.test(y)) { sure = sureSn(y); continue; }
+    }
+    if (!durumYazi && bolum) { tur = bolum; durumYazi = bolum === 'cagri' ? 'Görüşmede' : 'Hazır'; }
+    ajanlar.push({ ad, no: x, durum: durumYazi || '—', tur: tur || 'diger', sure: sure || 0 });
+  }
+  return { zaman, ajanlar };
+}
+
+/** CMS ajanını plandaki kişiyle eşleştirir: önce kayıtlı numara, sonra tam isim, sonra isim parçaları. */
+function eslestir(ajanlar) {
+  const kisiler = ST.kisiler.map((k, i) => ({ k, i, n: normAd(k.ad), t: normAd(k.ad).split(' ') }));
+  const noIle = new Map(kisiler.filter(x => x.k.cms).map(x => [String(x.k.cms), x]));
+  const kullanildi = new Set(), sonuc = [];
+  const ata = (a, x, nasil) => { kullanildi.add(x.i); sonuc.push({ a, x, nasil }); };
+  const kalan = [];
+  ajanlar.forEach(a => { const x = noIle.get(a.no); x && !kullanildi.has(x.i) ? ata(a, x, 'no') : kalan.push(a); });
+  const kalan2 = [];
+  kalan.forEach(a => {
+    const n = normAd(a.ad), adaylar = kisiler.filter(x => !kullanildi.has(x.i) && !x.k.cms && x.n === n);
+    adaylar.length === 1 ? ata(a, adaylar[0], 'isim') : kalan2.push(a);
+  });
+  const dis = (ST.planDisi || []).map(d => ({ ...d, n: normAd(d.ad) }));
+  const disMi = a => { const n = normAd(a.ad), t = n.split(' ');
+    return dis.some(d => (d.cms && d.cms === a.no) || (d.n && (d.n === n || (d.n.split(' ')[0] === t[0] && t.includes(d.n.split(' ').pop()))))); };
+  const planDisiCms = [];
+  const eslesmeyen = [];
+  kalan2.forEach(a => {
+    if (disMi(a)) { planDisiCms.push(a); return; }
+    const t = normAd(a.ad).split(' ');
+    const n = normAd(a.ad);
+    const adaylar = kisiler.filter(x => !kullanildi.has(x.i) && !x.k.cms && isimBenzer(x.n, n));
+    adaylar.length === 1 ? ata(a, adaylar[0], 'benzer') : eslesmeyen.push(a);
+  });
+  return { eslesen: sonuc, eslesmeyen, planDisiCms, cmsteYok: kisiler.filter(x => !kullanildi.has(x.i)) };
+}
+
+/** Bir kişinin o günkü planlı molaları: [{bas, bit, tur, ad}] (dakika) */
+function kisiDilimleri(k, gun) {
+  const N = ST.saatler.length, g = grupHafta(k.g, haftaFark(gun, isoTarih(ST.temelHafta)), N);
+  return { g, dilimler: ST.basliklar.map((b, j) => {
+    const parca = String(ST.saatler[g - 1][j] || '').split('-');
+    const bas = dk(parca[0]), bit = dk(parca[1] || '');
+    return bas == null || bit == null ? null : { bas, bit, ad: b, tur: b.includes('YEMEK') ? 'yemek' : 'mola' };
+  }).filter(Boolean) };
+}
+
+function karsilastir(cms) {
+  const ref = cms.zaman || new Date();
+  const simdi = ref.getHours() * 60 + ref.getMinutes();
+  const es = eslestir(cms.ajanlar);
+  const yokGecerli = YOK && YOK.tarih === iso(ref);
+  const gelmediMi = ad => { if (!yokGecerli) return false; const y = yoklamaBul(ad); return !!(y && y.gelmedi); };
+  const eslesen = es.eslesen.filter(e => !gelmediMi(e.x.k.ad));
+  const eslesmeyen = es.eslesmeyen.filter(a => !gelmediMi(a.ad));
+  const planDisiCms = es.planDisiCms;
+  const cmsteYok0 = es.cmsteYok.filter(x => !gelmediMi(x.k.ad));
+  const gizlenen = yokGecerli ? YOK.kisiler.filter(k => k.gelmedi) : [];
+  let mesaideYok = []; const vardiyaDisi = [];
+  if (yokGecerli) {
+    const cmsN = cms.ajanlar.map(a => normAd(a.ad));
+    const cmsteVar = k => cmsN.some(n => isimBenzer(n, k.n));
+    mesaideYok = YOK.kisiler.filter(k => !k.gelmedi && k.vardiya && simdi >= k.vardiya[0] && simdi < k.vardiya[1] && !cmsteVar(k));
+    // Son tur: soyadı değişmiş olabilir (evlilik vb.). Adı aynı olan, yoklamada karşılığı olmayan tek bir CMS kaydı varsa aynı kişi say.
+    const yoklamadaYok = cmsN.filter(n => !YOK.kisiler.some(k => isimBenzer(n, k.n)));
+    mesaideYok = mesaideYok.filter(k => { const ilk = k.n.split(' ')[0]; return yoklamadaYok.filter(n => n.split(' ')[0] === ilk).length !== 1; });
+    // CMS'te olmayıp nedeni vardiya saati olanlar: mesaisi bitmiş ya da henüz başlamamış
+    const cmsteVar2 = k => cmsteVar(k) || (() => { const ilk = k.n.split(' ')[0]; return yoklamadaYok.filter(n => n.split(' ')[0] === ilk).length === 1; })();
+    YOK.kisiler.filter(k => !k.gelmedi && k.vardiya && !cmsteVar2(k)).forEach(k => {
+      if (simdi < k.vardiya[0]) vardiyaDisi.push({ ...k, durum: 'baslamadi' });
+      else if (simdi >= k.vardiya[1]) vardiyaDisi.push({ ...k, durum: 'bitti' });
+    });
+  }
+  const cikmayan = [], planDisi = [], asim = [], dogru = [], digerDurum = [];
+  const planSimdi = { yemek: 0, mola: 0 }, cmsSimdi = { yemek: 0, mola: 0 };
+  cms.ajanlar.forEach(a => { if (a.tur in cmsSimdi) cmsSimdi[a.tur]++; });
+  eslesen.forEach(({ a, x }) => {
+    const { g, dilimler } = kisiDilimleri(x.k, ref);
+    const pl = dilimler.find(d => simdi >= d.bas && simdi < d.bit); if (pl) planSimdi[pl.tur]++;
+    const molada = a.tur === 'mola' || a.tur === 'yemek';
+    const satir = { ad: x.k.ad, no: a.no, g, durum: a.durum, tur: a.tur, sure: a.sure };
+    if (molada) {
+      const basladi = simdi - Math.round(a.sure / 60);
+      const d = dilimler.find(d => d.tur === a.tur && basladi >= d.bas - ERKEN_DK && basladi <= d.bit);
+      if (!d) {
+        const sonraki = dilimler.filter(d => d.tur === a.tur && d.bas > simdi).sort((p, q) => p.bas - q.bas)[0];
+        const onceki = dilimler.filter(d => d.tur === a.tur && d.bit <= simdi).sort((p, q) => q.bas - p.bas)[0];
+        planDisi.push({ ...satir, aciklama: `Çıkış ~${saatYaz(basladi)}` + (onceki ? ` · son planlı ${onceki.ad}: ${saatYaz(onceki.bas)}–${saatYaz(onceki.bit)}` : '') + (sonraki ? ` · sıradaki ${sonraki.ad}: ${saatYaz(sonraki.bas)}` : '') });
+        return;
+      }
+      const hak = (d.bit - d.bas) * 60;
+      if (a.sure > hak + TOLERANS_DK * 60) asim.push({ ...satir, aciklama: `${d.ad} ${saatYaz(d.bas)}–${saatYaz(d.bit)} · hakkı ${d.bit - d.bas} dk, ${Math.round((a.sure - hak) / 60)} dk fazla` });
+      else dogru.push({ ...satir, aciklama: `${d.ad} ${saatYaz(d.bas)}–${saatYaz(d.bit)}` });
+      return;
+    }
+    const simdiki = dilimler.find(d => simdi >= d.bas + TOLERANS_DK && simdi < d.bit);
+    if (simdiki) cikmayan.push({ ...satir, kTur: simdiki.tur, aciklama: `${simdiki.ad} ${saatYaz(simdiki.bas)}–${saatYaz(simdiki.bit)} · ${simdi - simdiki.bas} dk geçti` });
+    else if (a.tur === 'diger') digerDurum.push({ ...satir, aciklama: '' });
+  });
+  const vdN = vardiyaDisi.map(k => k.n);
+  const cmsteYok = cmsteYok0.filter(x => !vdN.some(n => isimBenzer(n, normAd(x.k.ad))));
+  return { ref, yokGecerli, gizlenen, mesaideYok, vardiyaDisi, planSimdi, cmsSimdi, cikmayan, planDisi, asim, dogru, digerDurum, eslesmeyen, planDisiCms, cmsteYok, toplam: cms.ajanlar.length };
+}
+
+/* İsim benzerliği: Türkçe karakter, eksik/fazla soyad, kısaltma (HANDE~HANDENUR) ve tek harf hatası (SELVHAN~SELVIHAN) toleranslı */
+function lev1(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, fark = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++fark > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return fark + (a.length - i) + (b.length - j) <= 1;
+}
+const kelimeBenzer = (a, b) => a === b || (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) || (a.length >= 5 && b.length >= 5 && lev1(a, b));
+function isimBenzer(n1, n2) {
+  if (n1 === n2) return true;
+  const t = n1.split(' '), u = n2.split(' ');
+  if (!kelimeBenzer(t[0], u[0])) return false;
+  const tSon = t.slice(1), uSon = u.slice(1);
+  if (!tSon.length || !uSon.length) return false;
+  return tSon.some(x => uSon.some(y => kelimeBenzer(x, y)));
+}
+/* ---------- GÜNLÜK YOKLAMA ----------
+   Yoklama Excel'i (her gün bir sayfa, altta AgentName | AgentId | Görevi | Vardiya | Login | Açıklama tablosu).
+   Sadece bu tarayıcıda, sadece o gün için tutulur; ortak Sheet'e gönderilmez. */
+const YOK_ANAHTAR = 'molaPlani.yoklama';
+let YOK = null;   // { tarih:'2026-10-09', sayfa, kisiler:[{ad, n, vardiya:[bas,bit]|null, gelmedi, neden}] }
+function yoklamaOku() {
+  try { YOK = JSON.parse(localStorage.getItem(YOK_ANAHTAR) || 'null'); } catch (e) { YOK = null; }
+  if (YOK && YOK.tarih !== iso(new Date())) { YOK = null; try { localStorage.removeItem(YOK_ANAHTAR); } catch (e) {} }
+}
+function yoklamaYaz() { try { YOK ? localStorage.setItem(YOK_ANAHTAR, JSON.stringify(YOK)) : localStorage.removeItem(YOK_ANAHTAR); } catch (e) {} }
+const DEVAMSIZLIK = /RAPOR|IZIN|IZNI|OFF|FESIH|EGITIM|BILDIRIMSIZ|DEVAMSIZ|DOGUM|BABALIK|UCRETSIZ|ISTIFA|MAZERET|\bUDI\b|\bDI\b|\bBI\b|GOREVLI|SEVK|TATIL/;
+const aralik = t => { const m = String(t || '').match(/(\d{1,2})[:.](\d{2})\s*-\s*(\d{1,2})[:.](\d{2})/); if (!m) return null; const b = +m[1] * 60 + +m[2]; let e = +m[3] * 60 + +m[4]; if (e <= b) e += 1440; return [b, e]; };
+
+/** Bir sayfanın satırlarından (dizi dizisi) personel tablosunu çıkarır. */
+function yoklamaTablo(aoa) {
+  const ust = v => String(v ?? '').replace(/ /g, ' ').trim().toLocaleUpperCase('tr');
+  const hr = aoa.findIndex(row => (row || []).some(c => normAd(c).replace(/ /g, '') === 'AGENTNAME'));
+  if (hr < 0) return null;
+  const H = aoa[hr].map(h => normAd(h).replace(/ /g, '')), col = ad => H.findIndex(h => h === ad), bas = ad => H.findIndex(h => h.startsWith(ad));
+  const cAd = col('AGENTNAME'), cV = bas('VARDIYA'), cL = bas('LOGIN'), cA = bas('ACIKLAMA'), cG = bas('GOREV');
+  if (cL < 0) throw new Error('Yoklama tablosunda Login sütunu bulunamadı.');
+  const kisiler = [];
+  for (let i = hr + 1; i < aoa.length; i++) {
+    const row = aoa[i] || [], ad = String(row[cAd] ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+    if (!ad) continue;
+    const login = ust(row[cL]), aciklama = ust(cA >= 0 ? row[cA] : ''), vardiyaYazi = ust(cV >= 0 ? row[cV] : '');
+    let vardiya = aralik(vardiyaYazi);
+    const acAralik = aralik(aciklama);
+    if (acAralik) vardiya = acAralik;                       // Açıklama'da farklı vardiya saati yazıyorsa o geçerli
+    const off = vardiyaYazi === 'OFF' || aciklama === 'OFF';
+    const girisVar = /\d{1,2}[:.]\d{2}/.test(login);
+    // Açıklamadaki devamsızlık sebebi (rapor, izin…) giriş saati olsa bile geçerli: gün içinde rapor alıp çıkan olabilir.
+    const yokSebebi = !acAralik && DEVAMSIZLIK.test(normAd(aciklama));
+    const gelmedi = off || yokSebebi;
+    // Login YOK + açıklama boş: vardiyasında gelmesi beklenir (yoklama erken alınmış olabilir).
+    kisiler.push({ ad, n: normAd(ad), vardiya: off ? null : vardiya, gelmedi, girisVar,
+      neden: gelmedi ? (off ? 'OFF' : aciklama) : '', not: !gelmedi && !acAralik && aciklama ? aciklama : '',
+      gorev: cG >= 0 ? String(row[cG] ?? '').trim() : '' });
+  }
+  return kisiler;
+}
+const simdiDk = d => d.getHours() * 60 + d.getMinutes();
+function sayfaTarihi(ad) { const m = String(ad).match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/); return m ? `${m[3]}-${pad(m[2])}-${pad(m[1])}` : null; }
+/** Ortak kayda/tarayıcıya gidecek hale getirir: kişi bazında devamsızlık sebebi atılır, sadece toplam sayılar kalır. */
+function yoklamaSade(kisiler, tarih, kaynak) {
+  const sayim = {};
+  kisiler.filter(k => k.gelmedi).forEach(k => { const n = guzelAd(String(k.neden || 'Diğer').replace(/\s*\(.*$/, '')); sayim[n] = (sayim[n] || 0) + 1; });
+  return { tarih, kaynak, sayim, kisiler: kisiler.map(k => ({ ad: k.ad, vardiya: k.vardiya, girisVar: !!k.girisVar, gelmedi: !!k.gelmedi, not: k.gelmedi ? '' : (k.not || '') })) };
+}
+function yoklamaAyarla(y, ortak) {
+  if (!y) { YOK = null; yoklamaYaz(); return; }
+  y.kisiler.forEach(k => { k.n = normAd(k.ad); });
+  y.ortak = !!ortak;
+  YOK = y; yoklamaYaz();
+}
+async function yoklamaKur(kisiler, tarih, kaynak) {
+  const y = yoklamaSade(kisiler, tarih, kaynak);
+  const gm = y.kisiler.filter(k => k.gelmedi).length;
+  if (bagli()) {
+    try {
+      const j = await sunucuPost({ key: BAG.key, op: 'yoklama', kim: BAG.ad || 'Adsız', yoklama: y });
+      if (!j.ok) throw new Error(j.error || 'kaydedilemedi');
+      yoklamaAyarla(j.yoklama || y, true);
+      toast(`Yoklama ortak kayda yüklendi (${y.kisiler.length} kişi, ${gm} bugün yok). Tüm takım liderleri görür.`);
+    } catch (e) {
+      y.yukleyen = BAG.ad || ''; yoklamaAyarla(y, false);
+      toast('Ortak kayda yüklenemedi, sadece bu tarayıcıda kullanılıyor: ' + e.message);
+    }
+  } else {
+    yoklamaAyarla(y, false);
+    toast(`Yoklama yüklendi: ${y.kisiler.length} kişi, ${gm} kişi bugün yok (ortak kayda bağlı değilsin, sadece bu tarayıcıda)`);
+  }
+  kontrolCiz();
+}
+/** Ortak kayıttaki yoklamayı alır (bugüne aitse kullanır). */
+let yokSonCekim = 0;
+async function yoklamaSunucudan(zorla) {
+  if (!bagli() || (!zorla && Date.now() - yokSonCekim < 60000)) return;
+  yokSonCekim = Date.now();
+  try {
+    const j = await sunucuGet('yoklama');
+    const y = j.yoklama;
+    if (y && y.tarih === iso(new Date())) { yoklamaAyarla(y, true); }
+    else if (YOK && YOK.ortak) { yoklamaAyarla(null); }
+    yoklamaSunucuTarih = y ? y.tarih : null;
+  } catch (e) {}
+}
+let yoklamaSunucuTarih = null;
+async function yoklamaDosya(f) {
+  if (!xlsxVar()) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const bugun = iso(new Date());
+    const sayfalar = wb.SheetNames.map(ad => ({ ad, tarih: sayfaTarihi(ad) }));
+    let sec = sayfalar.find(x => x.tarih === bugun);
+    if (!sec) {
+      const liste = sayfalar.map((x, i) => `${i + 1}) ${x.ad}`).join('\n');
+      const c = parseInt(prompt(`Dosyada bugünün (${trTarih(new Date())}) sayfası yok. Hangi sayfa kullanılsın?\n${liste}`, String(sayfalar.length)), 10);
+      sec = sayfalar[c - 1]; if (!sec) return;
+    }
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sec.ad], { header: 1, raw: false, defval: '' });
+    const kisiler = yoklamaTablo(aoa);
+    if (!kisiler || !kisiler.length) { toast(`"${sec.ad}" sayfasında personel tablosu (AgentName) bulunamadı.`); return; }
+    yoklamaKur(kisiler, bugun, `${f.name} › ${sec.ad}`);
+    if (sec.tarih && sec.tarih !== bugun) toast(`Dikkat: ${sec.ad} sayfası kullanıldı, bugünün tarihi değil.`);
+  } catch (e) { toast('Yoklama okunamadı: ' + (e.message || e)); }
+}
+function yoklamaYapistir(metin) {
+  const kisiler = yoklamaTablo(tsvCoz(metin));
+  if (!kisiler || !kisiler.length) { toast('Tablo okunamadı. AgentName başlık satırı dahil kopyala.'); return; }
+  yoklamaKur(kisiler, iso(new Date()), 'Yapıştırılan tablo');
+}
+function yoklamaYapistirAc() {
+  const t = prompt('Yoklama sayfasında AgentName başlığından son kişiye kadar seçip kopyala, buraya yapıştır:');
+  if (t) yoklamaYapistir(t);
+}
+async function yoklamaSil() {
+  if (YOK && YOK.ortak && bagli()) {
+    if (!confirm('Yoklama ortak kayıttan kaldırılsın mı? Tüm takım liderlerinde kalkar.')) return;
+    try { await sunucuPost({ key: BAG.key, op: 'yoklamaSil', kim: BAG.ad || 'Adsız' }); } catch (e) {}
+  }
+  yoklamaAyarla(null); kontrolCiz();
+}
+/** CMS/plan adı yoklamadaki kişiyle aynı mı (Türkçe karakter, eksik/fazla soyad toleranslı) */
+function yoklamaBul(ad) {
+  if (!YOK) return null;
+  const n = normAd(ad);
+  return YOK.kisiler.find(k => k.n === n) || YOK.kisiler.find(k => isimBenzer(k.n, n)) || null;
+}
+yoklamaOku();
+
+let sonCms = null, kFiltre = '';
+const kSuz = l => kFiltre ? l.filter(x => (x.kTur || x.tur) === kFiltre) : l;
+function kontrolCiz() {
+  const p = $('kontrol');
+  if (!ST) { p.innerHTML = '<h3>Mola kontrol</h3><div class="not">Önce planı yükle.</div>'; return; }
+  let rozet = '';
+  if (sonCms && YOK) { try { const t = karsilastir(sonCms); if (t.yokGecerli && t.mesaideYok.length) rozet = ` <span class="k-rozet" title="Mesaide ama CMS'te yok">⚠ ${t.mesaideYok.length} kişi CMS'te yok</span>`; } catch (e) {} }
+  let h = `<div class="k-bas"><h3>Mola kontrol${rozet}</h3><span class="satir">${sonCms ? `<button onclick="kontrolTemizle()">Temizle</button>` : ``}<button onclick="kontrolKapat()">✕ Kapat</button></span></div>
+    <div class="not">CMS'te <b>Anlık İzleme</b> sayfasında <b>Ctrl+A</b>, sonra <b>Ctrl+C</b> yap; aşağıdaki kutuya tıklayıp <b>Ctrl+V</b> yap. Metin sadece bu ekranda okunur, hiçbir yere kaydedilmez.</div>
+    <div class="satir" style="margin-top:8px"><label class="not" for="k_tol">Tolerans</label>
+      <select id="k_tol" onchange="TOLERANS_DK=+this.value;try{localStorage.setItem('molaPlani.tolerans',this.value)}catch(e){};kontrolCiz()">${[0,1,2,3,5,10].map(v => `<option value="${v}" ${v === TOLERANS_DK ? 'selected' : ''}>${v} dk</option>`).join('')}</select>
+      <span class="k-not">Molanın başlamasından bu kadar süre sonra çıkmayan ve süresini bu kadar aşan uyarılır.</span></div>
+    <div class="k-yok">${YOK
+      ? `<span>📋 <b>Yoklama:</b> ${trTarih(isoTarih(YOK.tarih))} · ${YOK.kisiler.length} kişi · <b>${YOK.kisiler.filter(k => k.gelmedi).length}</b> kişi bugün yok <span class="k-not">${YOK.ortak ? `· ortak${YOK.yukleyen ? ', yükleyen ' + esc(YOK.yukleyen) : ''}${YOK.zaman ? ' ' + esc(String(YOK.zaman).slice(-5)) : ''}` : '· sadece bu tarayıcıda'}</span></span><span class="satir"><button onclick="$('k_yokDosya').click()">Değiştir</button><button onclick="yoklamaSil()">Kaldır</button></span>`
+      : `<span>📋 <b>Bugünün yoklaması yüklü değil.</b> <span class="k-not">${yoklamaSunucuTarih ? `Ortak kayıttaki son yoklama ${trTarih(isoTarih(yoklamaSunucuTarih))} tarihli. ` : ''}Biri yüklediğinde herkes için geçerli olur: rapor/izinli olanlar gizlenir, mesaide olup CMS'te olmayanlar gösterilir.</span></span><span class="satir"><button class="ana" onclick="$('k_yokDosya').click()">Yoklama yükle</button><button onclick="yoklamaYapistirAc()">Tablo yapıştır</button></span>`}
+      <input type="file" id="k_yokDosya" accept=".xlsx,.xls" hidden onchange="if(this.files[0])yoklamaDosya(this.files[0]);this.value=''">
+    </div>
+    <textarea id="k_kutu" rows="2" placeholder="CMS ekranını buraya yapıştır" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px"></textarea>`;
+  if (sonCms) {
+    const s0 = karsilastir(sonCms);
+    const s = { ...s0, cikmayan: kSuz(s0.cikmayan), asim: kSuz(s0.asim), planDisi: kSuz(s0.planDisi), dogru: kSuz(s0.dogru) };
+    const fb = (v, y) => `<button class="${kFiltre === v ? 'aktif' : ''}" onclick="kFiltre='${v}';kontrolCiz()">${y}</button>`;
+    h += `<div class="satir" style="margin-top:10px">${fb('', 'Tümü')}${fb('yemek', 'Sadece yemek')}${fb('mola', 'Sadece mola')}</div>`;
+    const ozetSatir = (t, y) => `<span><b>${y}:</b> CMS'te şu an ${s0.cmsSimdi[t]} kişi · planda bu saatte ${s0.planSimdi[t]} kişi</span>`;
+    h += `<div class="not" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 18px">${kFiltre !== 'mola' ? ozetSatir('yemek', 'Yemek') : ''}${kFiltre !== 'yemek' ? ozetSatir('mola', 'Mola (İhtiyaç)') : ''}</div>`;
+    const gun = s.ref.getDay();
+    h += `<div class="not" style="margin-top:8px">CMS saati: <b>${trTarih(s.ref)} ${pad(s.ref.getHours())}:${pad(s.ref.getMinutes())}</b> · CMS'te ${s.toplam} kişi · Planla eşleşen ${s.toplam - s.eslesmeyen.length}</div>`;
+    if (s.yokGecerli) {
+      const N = ST.saatler.length, ofs = haftaFark(s.ref, isoTarih(ST.temelHafta));
+      const planGrubu = k => { const x = ST.kisiler.find(p => isimBenzer(normAd(p.ad), k.n)); return x ? grupHafta(x.g, ofs, N) + '. grup' : 'planda yok'; };
+      const kart = k => `<span class="k-kisi"><b>${esc(gorunurAd(k.ad))}</b><small>${saatYaz(k.vardiya[0])}–${saatYaz(k.vardiya[1])} · ${planGrubu(k)}${k.not ? ' · ' + esc(k.not) : ''}</small></span>`;
+      const dusen = s.mesaideYok.filter(k => k.girisVar), gelmemis = s.mesaideYok.filter(k => !k.girisVar);
+      if (s.mesaideYok.length) {
+        h += `<div class="k-alarm" role="alert">
+          <div class="k-alarm-bas"><span class="k-alarm-sayi">${s.mesaideYok.length}</span><div><b>Mesaide ama CMS'te yok</b><div class="k-alarm-alt">Vardiyası şu an devam ediyor, raporlu/izinli değil, ama CMS ekranında görünmüyor.</div></div></div>
+          ${dusen.length ? `<div class="k-alarm-grup">Giriş yapmış, CMS'te yok — hattan düşmüş olabilir (${dusen.length})</div><div class="k-alarm-liste">${dusen.map(kart).join('')}</div>` : ''}
+          ${gelmemis.length ? `<div class="k-alarm-grup">Vardiyası başladı, yoklamada giriş yok — geç kalmış / habersiz olabilir (${gelmemis.length})</div><div class="k-alarm-liste">${gelmemis.map(kart).join('')}</div>` : ''}
+        </div>`;
+      } else {
+        h += `<div class="k-tamam">✓ Mesaideki herkes CMS'te görünüyor.</div>`;
+      }
+      if (s.vardiyaDisi.length) {
+        const bitti = s.vardiyaDisi.filter(k => k.durum === 'bitti').sort((a, b) => b.vardiya[1] - a.vardiya[1]);
+        const baslamadi = s.vardiyaDisi.filter(k => k.durum === 'baslamadi').sort((a, b) => a.vardiya[0] - b.vardiya[0]);
+        const bilgi = (k, yazi) => `<span class="k-vd"><b>${esc(gorunurAd(k.ad))}</b> <small>${yazi}</small></span>`;
+        h += `<div class="k-vdisi"><div class="k-vdisi-bas">ℹ Vardiya saati nedeniyle hatta olmayanlar (${s.vardiyaDisi.length}) <span class="k-not">— bunlar hata değil</span></div>
+          ${bitti.length ? `<div class="k-vdisi-grup">Mesaisi bitti</div><div class="k-vdisi-liste">${bitti.map(k => bilgi(k, saatYaz(k.vardiya[1]) + "'de mesaisi bitti")).join('')}</div>` : ''}
+          ${baslamadi.length ? `<div class="k-vdisi-grup">Mesaisi henüz başlamadı</div><div class="k-vdisi-liste">${baslamadi.map(k => bilgi(k, saatYaz(k.vardiya[0]) + "'de başlayacak")).join('')}</div>` : ''}
+        </div>`;
+      }
+      if (s.gizlenen.length) {
+        const say = YOK.sayim || {};
+        h += `<div class="k-not" style="margin-top:6px">Yoklamaya göre bugün gelmeyen ${s.gizlenen.length} kişi kontrollerde gizlendi${Object.keys(say).length ? ': ' + Object.entries(say).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${esc(n)} ${c}`).join(' · ') : ''}</div>`;
+      }
+    } else if (YOK) h += `<div class="k-not" style="color:#854F0B;margin-top:6px">Yüklü yoklama ${trTarih(isoTarih(YOK.tarih))} tarihli, CMS saati farklı bir gün; yoklama bu kontrolde kullanılmadı.</div>`;
+    else h += `<div class="k-not" style="margin-top:6px">Hattan düşenleri görmek için bugünün yoklamasını yükle.</div>`;
+    if (gun === 0 || gun === 6) h += `<div class="not" style="color:#A32D2D">Hafta sonu: plan hafta içi için hazırlandı, sonuçlar yanıltıcı olabilir.</div>`;
+    h += `<div class="k-ozet">
+      <div class="k-kutu kirmizi"><b>${s.cikmayan.length}</b><span>Molaya çıkmamış</span></div>
+      <div class="k-kutu turuncu"><b>${s.asim.length}</b><span>Süresini aşmış</span></div>
+      <div class="k-kutu mor"><b>${s.planDisi.length}</b><span>Planı dışında molada</span></div>
+      <div class="k-kutu yesil"><b>${s.dogru.length}</b><span>Planına uygun molada</span></div></div>`;
+    const etk = (tur, yazi) => `<span class="etiket ${tur}">${esc(yazi)}</span>`;
+    const tablo = (baslik, renk, liste, bosYazi, sureGoster = true) => `<div class="k-bolum"><h4><i style="background:${renk}"></i>${baslik} (${liste.length})</h4>` +
+      (liste.length ? `<table class="k-tablo"><tr><th>Personel</th><th>Grup</th><th>CMS durumu</th><th>Plan</th></tr>` +
+        liste.sort((a, b) => b.sure - a.sure).map(x => `<tr><td><b>${esc(x.ad)}</b> <span class="k-not">${x.no}</span></td><td class="s">${x.g}. grup</td><td class="s">${etk(x.tur, x.durum)}${sureGoster ? ` <span class="k-not">${sureYaz(x.sure)}</span>` : ''}</td><td class="k-not">${esc(x.aciklama)}</td></tr>`).join('') + `</table>`
+        : `<div class="k-not">${bosYazi}</div>`) + `</div>`;
+    h += tablo('Molaya çıkmamış', '#E24B4A', s.cikmayan, 'Planda şu an molası olup çıkmayan yok.', false);
+    if (s.cikmayan.length) h += `<div class="k-not" style="margin-top:4px">CMS sadece anlık durumu gösterir: bu listedekilerden molasını erken bitirip dönmüş olan da olabilir.</div>`;
+    h += tablo('Süresini aşmış', '#EF9F27', s.asim, 'Süre aşımı yok.');
+    h += tablo('Planı dışında molada', '#7F77DD', s.planDisi, 'Planı dışında molada olan yok.');
+    h += `<details class="k-acik"><summary>Planına uygun molada olanlar (${s.dogru.length})</summary>${tablo('Planına uygun', '#639922', s.dogru, '—')}</details>`;
+    if (s.digerDurum.length) h += `<details class="k-acik"><summary>Diğer durumlar (İç Hizmet vb.) (${s.digerDurum.length})</summary>${tablo('Diğer durumlar', '#888780', s.digerDurum, '—')}</details>`;
+    if (s.eslesmeyen.length) {
+      const secenek = s.cmsteYok.slice().sort((a, b) => a.k.ad.localeCompare(b.k.ad, 'tr')).map(x => `<option value="${x.i}">${esc(x.k.ad)}</option>`).join('');
+      h += `<div class="k-bolum"><h4><i style="background:#B4B2A9"></i>CMS'te var, mola listende bulunamadı (${s.eslesmeyen.length})</h4>
+        <div class="k-not" style="margin-bottom:6px">Plana hiç eklenmemişse <b>+ Plana ekle</b>'yi seç. Planda farklı yazılmışsa doğru kişiyi seç; eşleşme kaydedilir ve bir dahaki sefere otomatik tanınır. Uzman, sosyal medya gibi plana girmeyecek biriyse <b>Plan dışı</b>'nı seç; bir daha sorulmaz.</div>
+        <table class="k-tablo">${s.eslesmeyen.map(a => `<tr><td><b>${esc(a.ad)}</b> <span class="k-not">${a.no}</span></td><td>${etk(a.tur, a.durum)}</td>
+          <td><select onchange="cmsBagla('${a.no}', this.value, '${esc(a.ad).replace(/'/g, '')}')"><option value="">Seç…</option><option value="yeni">+ Plana yeni kişi olarak ekle</option><option value="dis">Plan dışı (uzman, sosyal medya vb.) — bir daha sorma</option>${secenek ? `<optgroup label="Plandaki kişiyle eşleştir">${secenek}</optgroup>` : ''}</select></td></tr>`).join('')}</table></div>`;
+    }
+    const disTum = ST.planDisi || [];
+    if (disTum.length) h += `<details class="k-acik"><summary>Plan dışı tutulanlar (${disTum.length}${s.planDisiCms.length ? `, şu an CMS'te ${s.planDisiCms.length}` : ''})</summary>
+      <div class="k-not" style="margin:6px 0">Bu kişiler mola kontrolüne girmez. Listeyi Sheet'teki <b>Plan Dışı</b> sayfasından da düzenleyebilirsin.</div>
+      <table class="k-tablo">${disTum.map((d, i) => `<tr><td><b>${esc(d.ad)}</b> <span class="k-not">${esc(d.cms || '')}</span></td><td class="k-not">${esc(d.not || '')}</td><td style="text-align:right"><button class="sil" title="Plan dışından çıkar" onclick="disCikar(${i})">×</button></td></tr>`).join('')}</table></details>`;
+    if (s.cmsteYok.length) h += `<details class="k-acik"><summary>Planda olup CMS'te görünmeyenler (${s.cmsteYok.length}) — oturum açmamış / izinli olabilir</summary><div class="k-not" style="margin-top:6px;line-height:1.8">${s.cmsteYok.map(x => esc(x.k.ad)).join(' · ')}</div></details>`;
+  }
+  p.innerHTML = h;
+  const k = $('k_kutu');
+  k.addEventListener('paste', ev => {
+    ev.preventDefault();
+    const metin = (ev.clipboardData || window.clipboardData).getData('text/plain');
+    const c = cmsCoz(metin);
+    if (!c.ajanlar.length) { toast('CMS listesi okunamadı. Anlık İzleme sayfasında Ctrl+A ile tümünü seçip kopyala.'); return; }
+    sonCms = c; kontrolCiz();
+    yoklamaSunucudan(false).then(() => { if (sonCms === c) kontrolCiz(); });
+    toast(`${c.ajanlar.length} kişi okundu`);
+  });
+  k.addEventListener('input', () => { if (k.value.length > 200) { const c = cmsCoz(k.value); k.value = ''; if (c.ajanlar.length) { sonCms = c; kontrolCiz(); } } });
+}
+function disCikar(i) {
+  const d = (ST.planDisi || [])[i]; if (!d) return;
+  if (!confirm(`${d.ad} plan dışı listesinden çıkarılsın mı? Mola kontrolde tekrar sorulur.`)) return;
+  ST.planDisi.splice(i, 1); kaydet(`${d.ad} plan dışı listesinden çıkarıldı`); kontrolCiz();
+}
+const guzelAd = s => { const t = String(s); const tr = /[ÇĞİıÖŞÜçğöşü]/.test(t); return t.split(/\s+/).filter(Boolean).map(w => { const k = tr ? w.toLocaleLowerCase('tr') : w.toLowerCase(); return (tr ? k.charAt(0).toLocaleUpperCase('tr') : k.charAt(0).toUpperCase()) + k.slice(1); }).join(' '); };
+/** Ekranda gösterilecek ad: planda varsa plandaki (doğru Türkçe) yazım */
+const gorunurAd = ad => { const n = normAd(ad); const x = ST && ST.kisiler.find(k => normAd(k.ad) === n) || ST && ST.kisiler.find(k => isimBenzer(normAd(k.ad), n)); return x ? x.ad : guzelAd(ad); };
+function cmsBagla(no, i, cmsAd) {
+  if (i === '') return;
+  if (i === 'dis') {
+    const ad = guzelAd(cmsAd || '');
+    const not = (prompt(`${ad} plan dışı tutulacak. Not eklemek ister misin? (örn. Uzman, Sosyal medya)`, '') || '').trim();
+    ST.planDisi = (ST.planDisi || []).filter(d => d.cms !== no);
+    ST.planDisi.push({ ad, cms: no, not });
+    kaydet(`${ad} plan dışı olarak işaretlendi${not ? ' (' + not + ')' : ''}`);
+    kontrolCiz(); return;
+  }
+  if (i === 'yeni') {
+    const ad = (prompt('Plana eklenecek ad soyad (Türkçe karakterleri düzeltebilirsin):', guzelAd(cmsAd || '')) || '').trim();
+    if (!ad) { kontrolCiz(); return; }
+    const ref = (sonCms && sonCms.zaman) || new Date();
+    const N = ST.saatler.length;
+    const g = parseInt(prompt(`${ad} bu hafta hangi grupta? (1-${N})`, '1'), 10);
+    if (!(g >= 1 && g <= N)) { toast('Geçersiz grup'); kontrolCiz(); return; }
+    ST.kisiler.forEach(x => { if (String(x.cms) === no) delete x.cms; });
+    ST.kisiler.push({ ad, g: grupTemel(g, haftaFark(ref, isoTarih(ST.temelHafta)), N), cms: no });
+    kaydet(`${ad} plana eklendi (${g}. grup, CMS ${no})`);
+    ciz(); kontrolCiz(); toast(`${ad} plana eklendi`);
+    return;
+  }
+  const k = ST.kisiler[+i];
+  ST.kisiler.forEach(x => { if (String(x.cms) === no) delete x.cms; });
+  k.cms = no;
+  kaydet(`${k.ad} ↔ CMS ${no} eşleştirildi`);
+  kontrolCiz();
+}
+$('kontrolBtn').onclick = () => {
+  if (!$('kontrol').hidden) { kontrolKapat(); return; }
+  const p = $('kontrol'); p.hidden = false;
+  $('kontrolBtn').classList.add('aktif');
+  kontrolCiz(); p.scrollIntoView({ behavior: 'smooth' }); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50);
+  yoklamaSunucudan(true).then(() => { if (!$('kontrol').hidden) { kontrolCiz(); if (!sonCms && $('k_kutu')) $('k_kutu').focus(); } });
+};
+function kontrolKapat() { sonCms = null; $('kontrol').hidden = true; $('kontrol').innerHTML = ''; $('kontrolBtn').classList.remove('aktif'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function kontrolTemizle() { sonCms = null; kontrolCiz(); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('kontrol').hidden && !(document.activeElement && document.activeElement.closest('#duzenle'))) kontrolKapat(); });
+
+/* ---------- KOPYALA / YAZDIR / GEZİNME ---------- */
+$('kopyalaBtn').onclick = async () => {
+  if (!ST) return;
+  const p = haftaPlani(ST, goruntu), html = mailHtml(p, goruntu, ST, '');
+  const duz = `${metin(ST, 'anaBaslik')} - ${haftaAralik(goruntu)}\n\n` + p.bol.map(b => `${b.no}. GRUP (${b.saat.join(' | ')})\n` + b.kisiler.join('\n')).join('\n\n');
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([duz], { type: 'text/plain' }) })]);
+      toast('Kopyalandı. Outlook\'ta yeni maile Ctrl+V ile yapıştır.'); return;
+    }
+  } catch (e) {}
+  const d = document.createElement('div');
+  d.contentEditable = 'true'; d.style.cssText = 'position:fixed;left:-99999px;top:0';
+  d.innerHTML = html; document.body.appendChild(d);
+  const r = document.createRange(); r.selectNodeContents(d);
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  const ok = document.execCommand('copy'); s.removeAllRanges(); d.remove();
+  toast(ok ? 'Kopyalandı. Outlook\'ta yeni maile Ctrl+V ile yapıştır.' : 'Kopyalanamadı. Sayfayı seçip elle kopyala.');
+};
+$('yazdirBtn').onclick = () => window.print();
+$('geri').onclick = () => { goruntu = new Date(goruntu.getTime() - 7 * GUN); ciz(); };
+$('ileri').onclick = () => { goruntu = new Date(goruntu.getTime() + 7 * GUN); ciz(); };
+$('buHafta').onclick = () => { goruntu = pzt(new Date()); ciz(); };
+let seciliGrup = 0;
+function grupSec(g) { seciliGrup = seciliGrup === g ? 0 : g; ciz(); }
+$('icerik').addEventListener('click', e => { const t = e.target.closest('[data-grup]'); if (t) grupSec(+t.dataset.grup); });
+$('icerik').addEventListener('keydown', e => { const t = e.target.closest('.grup-btn'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); grupSec(+t.dataset.grup); } });
+let araZ; $('ara').oninput = () => { clearTimeout(araZ); araZ = setTimeout(ciz, 200); };
+
+const barH = () => document.documentElement.style.setProperty('--barH', document.querySelector('.bar').offsetHeight + 'px');
+barH(); addEventListener('resize', barH);
+bagOku(); davetOku(); yukleDurum(); ciz();
+if (bagli()) sunucudanYukle(true); else durumGoster('', 'Yerel', 'Ortak kayda bağlı değil — Bağlantı butonundan bağlan');
+if (bagli() && !BAG.ad) { $('baglanti').hidden = false; baglantiCiz(); }
+</script>
+</body>
+</html>
