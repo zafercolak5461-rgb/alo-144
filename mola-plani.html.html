@@ -51,6 +51,9 @@
   .durum.ok i { background:#639922; } .durum.is i { background:#EF9F27; } .durum.hata i { background:#E24B4A; }
   .bag-form { display:grid; grid-template-columns:170px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
   @media (max-width:640px) { .bag-form { grid-template-columns:1fr; } }
+  .k-bas { display:flex; justify-content:space-between; align-items:center; gap:8px; position:sticky; top:var(--barH, 58px); z-index:3; background:var(--c); margin:-16px -16px 0; padding:12px 16px; border-bottom:1px solid #e8edf2; border-radius:10px 10px 0 0; }
+  .panel { scroll-margin-top:calc(var(--barH, 58px) + 8px); }
+  .k-bas h3 { margin:0; }
   .k-ozet { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:12px 0; }
   @media (max-width:640px) { .k-ozet { grid-template-columns:repeat(2,minmax(0,1fr)); } }
   .k-kutu { border:1px solid var(--br); border-radius:8px; padding:10px 12px; background:#f8fafc; }
@@ -752,8 +755,11 @@ function karsilastir(cms) {
   const simdi = ref.getHours() * 60 + ref.getMinutes();
   const { eslesen, eslesmeyen, cmsteYok } = eslestir(cms.ajanlar);
   const cikmayan = [], planDisi = [], asim = [], dogru = [], digerDurum = [];
+  const planSimdi = { yemek: 0, mola: 0 }, cmsSimdi = { yemek: 0, mola: 0 };
+  cms.ajanlar.forEach(a => { if (a.tur in cmsSimdi) cmsSimdi[a.tur]++; });
   eslesen.forEach(({ a, x }) => {
     const { g, dilimler } = kisiDilimleri(x.k, ref);
+    const pl = dilimler.find(d => simdi >= d.bas && simdi < d.bit); if (pl) planSimdi[pl.tur]++;
     const molada = a.tur === 'mola' || a.tur === 'yemek';
     const satir = { ad: x.k.ad, no: a.no, g, durum: a.durum, tur: a.tur, sure: a.sure };
     if (molada) {
@@ -771,24 +777,30 @@ function karsilastir(cms) {
       return;
     }
     const simdiki = dilimler.find(d => simdi >= d.bas + TOLERANS_DK && simdi < d.bit);
-    if (simdiki) cikmayan.push({ ...satir, aciklama: `${simdiki.ad} ${saatYaz(simdiki.bas)}–${saatYaz(simdiki.bit)} · ${simdi - simdiki.bas} dk geçti` });
+    if (simdiki) cikmayan.push({ ...satir, kTur: simdiki.tur, aciklama: `${simdiki.ad} ${saatYaz(simdiki.bas)}–${saatYaz(simdiki.bit)} · ${simdi - simdiki.bas} dk geçti` });
     else if (a.tur === 'diger') digerDurum.push({ ...satir, aciklama: '' });
   });
-  return { ref, cikmayan, planDisi, asim, dogru, digerDurum, eslesmeyen, cmsteYok, toplam: cms.ajanlar.length };
+  return { ref, planSimdi, cmsSimdi, cikmayan, planDisi, asim, dogru, digerDurum, eslesmeyen, cmsteYok, toplam: cms.ajanlar.length };
 }
 
-let sonCms = null;
+let sonCms = null, kFiltre = '';
+const kSuz = l => kFiltre ? l.filter(x => (x.kTur || x.tur) === kFiltre) : l;
 function kontrolCiz() {
   const p = $('kontrol');
   if (!ST) { p.innerHTML = '<h3>Mola kontrol</h3><div class="not">Önce planı yükle.</div>'; return; }
-  let h = `<h3>Mola kontrol</h3>
+  let h = `<div class="k-bas"><h3>Mola kontrol</h3><span class="satir">${sonCms ? `<button onclick="kontrolTemizle()">Temizle</button>` : ``}<button onclick="kontrolKapat()">✕ Kapat</button></span></div>
     <div class="not">CMS'te <b>Anlık İzleme</b> sayfasında <b>Ctrl+A</b>, sonra <b>Ctrl+C</b> yap; aşağıdaki kutuya tıklayıp <b>Ctrl+V</b> yap. Metin sadece bu ekranda okunur, hiçbir yere kaydedilmez.</div>
     <div class="satir" style="margin-top:8px"><label class="not" for="k_tol">Tolerans</label>
       <select id="k_tol" onchange="TOLERANS_DK=+this.value;try{localStorage.setItem('molaPlani.tolerans',this.value)}catch(e){};kontrolCiz()">${[0,1,2,3,5,10].map(v => `<option value="${v}" ${v === TOLERANS_DK ? 'selected' : ''}>${v} dk</option>`).join('')}</select>
       <span class="k-not">Molanın başlamasından bu kadar süre sonra çıkmayan ve süresini bu kadar aşan uyarılır.</span></div>
     <textarea id="k_kutu" rows="2" placeholder="CMS ekranını buraya yapıştır" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px"></textarea>`;
   if (sonCms) {
-    const s = karsilastir(sonCms);
+    const s0 = karsilastir(sonCms);
+    const s = { ...s0, cikmayan: kSuz(s0.cikmayan), asim: kSuz(s0.asim), planDisi: kSuz(s0.planDisi), dogru: kSuz(s0.dogru) };
+    const fb = (v, y) => `<button class="${kFiltre === v ? 'aktif' : ''}" onclick="kFiltre='${v}';kontrolCiz()">${y}</button>`;
+    h += `<div class="satir" style="margin-top:10px">${fb('', 'Tümü')}${fb('yemek', 'Sadece yemek')}${fb('mola', 'Sadece mola')}</div>`;
+    const ozetSatir = (t, y) => `<span><b>${y}:</b> CMS'te şu an ${s0.cmsSimdi[t]} kişi · planda bu saatte ${s0.planSimdi[t]} kişi</span>`;
+    h += `<div class="not" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 18px">${kFiltre !== 'mola' ? ozetSatir('yemek', 'Yemek') : ''}${kFiltre !== 'yemek' ? ozetSatir('mola', 'Mola (İhtiyaç)') : ''}</div>`;
     const gun = s.ref.getDay();
     h += `<div class="not" style="margin-top:8px">CMS saati: <b>${trTarih(s.ref)} ${pad(s.ref.getHours())}:${pad(s.ref.getMinutes())}</b> · CMS'te ${s.toplam} kişi · Planla eşleşen ${s.toplam - s.eslesmeyen.length}</div>`;
     if (gun === 0 || gun === 6) h += `<div class="not" style="color:#A32D2D">Hafta sonu: plan hafta içi için hazırlandı, sonuçlar yanıltıcı olabilir.</div>`;
@@ -838,11 +850,14 @@ function cmsBagla(no, i) {
   kontrolCiz();
 }
 $('kontrolBtn').onclick = () => {
-  const p = $('kontrol'); p.hidden = !p.hidden;
-  $('kontrolBtn').classList.toggle('aktif', !p.hidden);
-  if (!p.hidden) { kontrolCiz(); p.scrollIntoView({ behavior: 'smooth' }); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50); }
-  else sonCms = null;
+  if (!$('kontrol').hidden) { kontrolKapat(); return; }
+  const p = $('kontrol'); p.hidden = false;
+  $('kontrolBtn').classList.add('aktif');
+  kontrolCiz(); p.scrollIntoView({ behavior: 'smooth' }); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50);
 };
+function kontrolKapat() { sonCms = null; $('kontrol').hidden = true; $('kontrol').innerHTML = ''; $('kontrolBtn').classList.remove('aktif'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function kontrolTemizle() { sonCms = null; kontrolCiz(); setTimeout(() => $('k_kutu') && $('k_kutu').focus(), 50); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('kontrol').hidden && !(document.activeElement && document.activeElement.closest('#duzenle'))) kontrolKapat(); });
 
 /* ---------- KOPYALA / YAZDIR / GEZİNME ---------- */
 $('kopyalaBtn').onclick = async () => {
