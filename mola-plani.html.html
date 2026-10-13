@@ -874,11 +874,15 @@ const aralik = t => { const m = String(t || '').match(/(\d{1,2})[:.](\d{2})\s*-\
 /** Bir sayfanın satırlarından (dizi dizisi) personel tablosunu çıkarır. */
 function yoklamaTablo(aoa) {
   const ust = v => String(v ?? '').replace(/ /g, ' ').trim().toLocaleUpperCase('tr');
-  const hr = aoa.findIndex(row => (row || []).some(c => normAd(c).replace(/ /g, '') === 'AGENTNAME'));
+  // Başlık adları dosyadan dosyaya değişebiliyor (AgentName / Ad Soyad, Login / Giriş Saati …)
+  const AD_B = ['AGENTNAME', 'ADSOYAD', 'ADISOYADI', 'ISIMSOYISIM', 'PERSONEL', 'PERSONELADI'];
+  const GIRIS_B = ['LOGIN', 'GIRISSAATI', 'GIRIS', 'GIRISZAMANI', 'OTURUMACMA'];
+  const kucuk = c => normAd(c).replace(/ /g, '');
+  const hr = aoa.findIndex(row => { const h = (row || []).map(kucuk); return h.some(x => AD_B.includes(x)) && h.some(x => GIRIS_B.some(g => x.startsWith(g))); });
   if (hr < 0) return null;
-  const H = aoa[hr].map(h => normAd(h).replace(/ /g, '')), col = ad => H.findIndex(h => h === ad), bas = ad => H.findIndex(h => h.startsWith(ad));
-  const cAd = col('AGENTNAME'), cV = bas('VARDIYA'), cL = bas('LOGIN'), cA = bas('ACIKLAMA'), cG = bas('GOREV');
-  if (cL < 0) throw new Error('Yoklama tablosunda Login sütunu bulunamadı.');
+  const H = aoa[hr].map(kucuk), bas = ad => H.findIndex(h => h.startsWith(ad));
+  const cAd = H.findIndex(h => AD_B.includes(h)), cV = bas('VARDIYA'), cA = bas('ACIKLAMA'), cG = bas('GOREV');
+  const cL = H.findIndex(h => GIRIS_B.some(g => h.startsWith(g)));
   const kisiler = [];
   for (let i = hr + 1; i < aoa.length; i++) {
     const row = aoa[i] || [], ad = String(row[cAd] ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
@@ -961,7 +965,7 @@ async function yoklamaDosya(f) {
     }
     const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sec.ad], { header: 1, raw: false, defval: '' });
     const kisiler = yoklamaTablo(aoa);
-    if (!kisiler || !kisiler.length) { toast(`"${sec.ad}" sayfasında personel tablosu (AgentName) bulunamadı.`); return; }
+    if (!kisiler || !kisiler.length) { toast(`"${sec.ad}" sayfasında personel tablosu bulunamadı (Ad Soyad / AgentName ve Giriş Saati / Login başlıkları aranıyor).`); return; }
     yoklamaKur(kisiler, bugun, `${f.name} › ${sec.ad}`);
   } catch (e) { toast('Yoklama okunamadı: ' + (e.message || e)); }
 }
@@ -977,11 +981,11 @@ function yokSayfaYazi() {
 }
 function yoklamaYapistir(metin) {
   const kisiler = yoklamaTablo(tsvCoz(metin));
-  if (!kisiler || !kisiler.length) { toast('Tablo okunamadı. AgentName başlık satırı dahil kopyala.'); return; }
+  if (!kisiler || !kisiler.length) { toast('Tablo okunamadı. Ad Soyad (AgentName) başlık satırı dahil kopyala.'); return; }
   yoklamaKur(kisiler, iso(new Date()), 'Yapıştırılan tablo');
 }
 function yoklamaYapistirAc() {
-  const t = prompt('Yoklama sayfasında AgentName başlığından son kişiye kadar seçip kopyala, buraya yapıştır:');
+  const t = prompt('Yoklama sayfasında Ad Soyad (AgentName) başlığından son kişiye kadar seçip kopyala, buraya yapıştır:');
   if (t) yoklamaYapistir(t);
 }
 async function yoklamaSil() {
