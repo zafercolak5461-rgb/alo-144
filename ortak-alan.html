@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ortak Alan</title>
+<style>
+  :root { --b:#185FA5; --bd:#0C447C; --bg:#eef2f6; --c:#fff; --t:#1d2733; --m:#6b7785; --br:#d5dde6; --soft:#E6F1FB; --side:#16324f; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body { background:var(--bg); color:var(--t); font-family:"Segoe UI",Arial,sans-serif; display:flex; flex-direction:column; }
+  button { font:inherit; font-size:13px; border:1px solid var(--br); background:var(--c); color:var(--t); padding:7px 12px; border-radius:7px; cursor:pointer; }
+  button:hover { background:#f4f6f9; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ana { background:var(--b); border-color:var(--b); color:#fff; }
+  button.ana:hover { background:var(--bd); }
+  button.kucuk { font-size:12px; padding:4px 9px; }
+  button.tehlike { color:#A32D2D; }
+  button.link { border:0; background:none; color:var(--b); padding:2px 4px; text-decoration:underline; }
+  input, select, textarea { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; background:#fff; color:var(--t); }
+  .not { color:var(--m); font-size:13px; line-height:1.5; }
+
+  .bar { background:var(--c); border-bottom:1px solid var(--br); padding:10px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .bar h1 { font-size:17px; margin:0 auto 0 0; display:flex; align-items:center; gap:8px; }
+  .bar h1 small { font-weight:normal; color:var(--m); font-size:12px; }
+  .durum { font-size:12px; color:var(--m); display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .durum i { width:8px; height:8px; border-radius:50%; background:#B4B2A9; display:inline-block; }
+  .durum.ok i { background:#639922; } .durum.is i { background:#EF9F27; } .durum.hata i { background:#E24B4A; }
+
+  .govde { flex:1; display:flex; min-height:0; }
+  .yan { width:240px; flex-shrink:0; background:var(--side); color:#dce7f3; display:flex; flex-direction:column; overflow-y:auto; }
+  .yan-bas { padding:14px 16px 6px; font-size:11px; letter-spacing:.6px; text-transform:uppercase; color:#8fb0d1; }
+  .sekme { display:flex; align-items:center; gap:8px; width:100%; text-align:left; border:0; border-radius:0; background:none; color:inherit; padding:10px 16px; font-size:14px; border-left:3px solid transparent; }
+  .sekme:hover { background:rgba(255,255,255,.07); }
+  .sekme.secili { background:rgba(255,255,255,.13); border-left-color:#85B7EB; color:#fff; font-weight:600; }
+  .sekme span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sekme em { font-style:normal; font-size:11px; background:rgba(255,255,255,.15); border-radius:9px; padding:1px 7px; }
+  .yan-ara { border-top:1px solid rgba(255,255,255,.1); margin-top:8px; padding-top:6px; }
+  .kota { margin:auto 16px 14px; padding-top:14px; font-size:12px; color:#a9c2dc; }
+  .kota-cubuk { height:6px; background:rgba(255,255,255,.15); border-radius:3px; margin-top:6px; overflow:hidden; }
+  .kota-cubuk i { display:block; height:100%; background:#97C459; }
+  .kota.uyari .kota-cubuk i { background:#EF9F27; } .kota.dolu .kota-cubuk i { background:#E24B4A; }
+
+  .ana-alan { flex:1; overflow-y:auto; padding:18px; min-width:0; }
+  .icerik { max-width:1050px; margin:auto; }
+  .kart { background:var(--c); border:1px solid var(--br); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .kart h2 { margin:0; font-size:19px; }
+  .kart h3 { margin:0 0 6px; font-size:16px; }
+  .rozet { display:inline-block; font-size:11px; font-weight:600; border-radius:10px; padding:2px 9px; vertical-align:middle; margin-left:8px; background:var(--soft); color:var(--bd); border:1px solid #B5D4F4; }
+  .rozet.son { background:#FAEEDA; color:#633806; border-color:#EF9F27; }
+
+  .birak { margin-top:14px; border:2px dashed #9fb6cc; border-radius:10px; padding:20px; text-align:center; background:#f8fafc; transition:background .15s, border-color .15s; }
+  .birak.uzerinde { background:var(--soft); border-color:var(--b); }
+  .birak b { font-size:15px; }
+  .birak .satir { justify-content:center; margin-top:10px; }
+  .satir { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .kuyruk { margin-top:10px; font-size:13px; }
+  .kuyruk div { padding:4px 0; }
+  .kuyruk .tamam { color:#27500A; } .kuyruk .hata { color:#A32D2D; }
+
+  .araclar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  .araclar input[type=search] { flex:1; min-width:200px; font-size:14px; padding:8px 10px; }
+  table.liste { width:100%; border-collapse:collapse; }
+  .liste th { text-align:left; font-size:12px; color:var(--m); font-weight:600; padding:8px 6px; border-bottom:2px solid #e1e7ee; white-space:nowrap; }
+  .liste td { padding:9px 6px; border-bottom:1px solid #e8edf2; font-size:13px; vertical-align:top; }
+  .liste tr.ay td { background:#f3f6fa; font-weight:600; font-size:12px; color:#3d4752; padding:6px; letter-spacing:.3px; }
+  .liste tr.surum td { background:#fbfcfd; color:#4a5663; font-size:12px; }
+  .liste tr.surum td:first-child { padding-left:26px; }
+  .dad { font-weight:600; word-break:break-word; display:flex; gap:8px; align-items:flex-start; }
+  .dad .tur { flex-shrink:0; font-size:10px; font-weight:700; color:#fff; border-radius:4px; padding:2px 5px; margin-top:1px; min-width:36px; text-align:center; }
+  .dnot { color:var(--m); font-size:12px; margin-top:3px; font-weight:normal; cursor:pointer; }
+  .dnot:hover { color:var(--b); }
+  .islemler { white-space:nowrap; text-align:right; }
+  .bos { text-align:center; padding:34px 16px; color:var(--m); }
+
+  .yonet td { vertical-align:middle; }
+  .yonet input[type=text] { width:100%; }
+  .gizli { display:none !important; }
+
+  .modal { position:fixed; inset:0; background:rgba(20,30,45,.45); display:flex; align-items:flex-start; justify-content:center; padding:60px 16px; z-index:20; overflow-y:auto; }
+  .modal .kart { width:100%; max-width:560px; }
+  .bag-form { display:grid; grid-template-columns:150px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#1d2733; color:#fff; padding:10px 18px; border-radius:8px; font-size:13px; z-index:30; display:none; max-width:90vw; }
+
+  @media (max-width:760px) {
+    .govde { flex-direction:column; }
+    .yan { width:100%; flex-direction:row; overflow-x:auto; overflow-y:hidden; flex-shrink:0; }
+    .yan-bas, .kota, .yan-ara { display:none; }
+    .sekme { width:auto; white-space:nowrap; border-left:0; border-bottom:3px solid transparent; padding:10px 14px; }
+    .sekme.secili { border-bottom-color:#85B7EB; }
+    .sekme span { overflow:visible; }
+    .ana-alan { padding:12px; }
+    .liste .gizle-m { display:none; }
+    .bar h1 small { display:none; }
+    .bag-form { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>📁 Ortak Alan <small>ALO 144 Osmaniye</small></h1>
+  <div class="durum" id="durum"><i></i><span>Bağlı değil</span></div>
+  <button id="baglantiBtn">Bağlantı</button>
+</div>
+
+<div class="govde">
+  <nav class="yan" id="yan"></nav>
+  <main class="ana-alan"><div class="icerik" id="icerik"></div></main>
+</div>
+
+<div class="modal gizli" id="modal"><div class="kart" id="modalIc"></div></div>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const BAG_ANAHTAR = 'ortakAlan.baglanti', ONBELLEK = 'ortakAlan.liste', SEKME_ANAHTAR = 'ortakAlan.sekme';
+let BAG = null, VERI = null, SURUM = null, GORUNUM = null, ARAMA = '', ACIK_SURUM = new Set();
+let yukleniyor = 0;
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const AYLAR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+function tarihSaat(iso) { const t = new Date(iso); if (isNaN(t)) return ''; return `${pad(t.getDate())}.${pad(t.getMonth() + 1)}.${t.getFullYear()} ${pad(t.getHours())}:${pad(t.getMinutes())}`; }
+function boyutYazi(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(0) + ' KB'; if (b < 1073741824) return (b / 1048576).toFixed(1).replace('.', ',') + ' MB'; return (b / 1073741824).toFixed(2).replace('.', ',') + ' GB'; }
+const kucuk = s => String(s || '').toLocaleLowerCase('tr');
+function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._z); t._z = setTimeout(() => t.style.display = 'none', 4000); }
+function durumGoster(tur, yazi, ipucu) { const d = $('durum'); d.className = 'durum ' + (tur || ''); d.querySelector('span').textContent = yazi; d.title = ipucu || ''; }
+
+function turEtiket(ad) {
+  const u = (String(ad).match(/\.([a-z0-9]{1,5})$/i) || [, ''])[1].toLowerCase();
+  const renk = { xlsx: '#1D6F42', xls: '#1D6F42', xlsm: '#1D6F42', csv: '#1D6F42', docx: '#2B579A', doc: '#2B579A', pdf: '#B7472A', pptx: '#C43E1C', ppt: '#C43E1C', zip: '#6b7785', rar: '#6b7785', png: '#7B4FA0', jpg: '#7B4FA0', jpeg: '#7B4FA0' }[u] || '#8a96a3';
+  return `<span class="tur" style="background:${renk}">${esc((u || 'DOSYA').toUpperCase())}</span>`;
+}
+
+/* ===================== BAĞLANTI ===================== */
+function bagOku() { try { BAG = JSON.parse(localStorage.getItem(BAG_ANAHTAR) || 'null'); } catch (e) { BAG = null; } }
+function bagYaz() { try { BAG ? localStorage.setItem(BAG_ANAHTAR, JSON.stringify(BAG)) : localStorage.removeItem(BAG_ANAHTAR); } catch (e) {} }
+const bagli = () => !!(BAG && BAG.url && BAG.key);
+
+async function sunucuGet(params) {
+  const q = new URLSearchParams(Object.assign({ key: BAG.key, t: Date.now() }, params || {}));
+  const res = await fetch(BAG.url + (BAG.url.includes('?') ? '&' : '?') + q, { redirect: 'follow' });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || 'Sunucu hatası');
+  return j;
+}
+async function sunucuPost(govde) {
+  const res = await fetch(BAG.url, { method: 'POST', redirect: 'follow', body: JSON.stringify(Object.assign({ key: BAG.key, kim: BAG.ad || 'Adsız' }, govde)) });
+  const j = await res.json();
+  if (!j.ok) throw new Error(j.error || 'Sunucu hatası');
+  return j;
+}
+
+const b64u = t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64uCoz = t => { t = t.replace(/-/g, '+').replace(/_/g, '/'); while (t.length % 4) t += '='; return decodeURIComponent(escape(atob(t))); };
+function davetOku() {
+  const kod = new URLSearchParams(location.search).get('d');
+  if (!kod) return;
+  try { const d = JSON.parse(b64uCoz(kod)); if (d.u && d.k) { BAG = { url: d.u, key: d.k, ad: (BAG && BAG.ad) || '' }; bagYaz(); } } catch (e) {}
+  history.replaceState(null, '', location.pathname);
+}
+function davetLinki() {
+  const id = (BAG.url.match(/\/macros\/s\/([^/]+)\/exec/) || [])[1];
+  const u = id ? 'https://script.google.com/macros/s/' + id + '/exec' : BAG.url;
+  return location.origin + location.pathname + '?d=' + b64u(JSON.stringify({ u, k: BAG.key }));
+}
+
+function modalAc(html) { $('modalIc').innerHTML = html; $('modal').classList.remove('gizli'); const i = $('modalIc').querySelector('input:not([type=password]):not([value]), input'); if (i) setTimeout(() => i.focus(), 30); }
+function modalKapat() { $('modal').classList.add('gizli'); }
+$('modal').addEventListener('mousedown', e => { if (e.target === $('modal')) modalKapat(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') modalKapat(); });
+
+function baglantiAc() {
+  const b = BAG || {};
+  modalAc(`<h3>Ortak Alan bağlantısı</h3>
+    <div class="not">Dosyalar merkez hesabın (ALO 144 Osmaniye) Google Drive'ında durur; şirket değişse de kaybolmaz. Ekip arkadaşların en kolay "davet linki" ile bağlanır.</div>
+    <div class="bag-form">
+      <label class="not" for="b_ad">Adın</label><input id="b_ad" value="${esc(b.ad || '')}" placeholder="Ad Soyad (yüklemelerde görünür)">
+      <label class="not" for="b_url">Web uygulaması adresi</label><input id="b_url" value="${esc(b.url || '')}" placeholder="https://script.google.com/macros/s/.../exec">
+      <label class="not" for="b_key">Erişim anahtarı</label><input id="b_key" type="password" value="${esc(b.key || '')}">
+    </div>
+    <div id="b_hata" class="not" style="color:#A32D2D;margin-top:6px"></div>
+    <div class="satir" style="margin-top:14px">
+      <button class="ana" id="b_kaydet">Bağlan</button>
+      ${bagli() ? `<button id="b_davet">Ekip için davet linki kopyala</button><button id="b_kes" class="tehlike">Bağlantıyı kes</button>` : ''}
+      <button onclick="modalKapat()">Kapat</button>
+    </div>`);
+  $('b_kaydet').onclick = baglantiKaydet;
+  if ($('b_davet')) $('b_davet').onclick = davetKopyala;
+  if ($('b_kes')) $('b_kes').onclick = baglantiKes;
+}
+async function baglantiKaydet() {
+  const ad = $('b_ad').value.trim(), url = $('b_url').value.trim(), key = $('b_key').value.trim();
+  const h = $('b_hata'); h.textContent = '';
+  if (!ad) { h.textContent = 'Adını yaz; yüklediğin dosyalarda görünecek.'; return; }
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) { h.textContent = 'Adres https://script.google.com/... ile başlamalı.'; return; }
+  if (!key) { h.textContent = 'Erişim anahtarını yaz.'; return; }
+  const eski = BAG; BAG = { ad, url, key };
+  try { await sunucuGet({ op: 'surum' }); } catch (e) { BAG = eski; h.textContent = 'Bağlanılamadı: ' + e.message; return; }
+  bagYaz(); SURUM = null; modalKapat();
+  await yenile(false); toast('Ortak Alan\'a bağlandı');
+}
+function baglantiKes() {
+  if (!confirm('Bu bilgisayarda bağlantı kesilsin mi? Dosyalar silinmez, sadece bu tarayıcı artık görmez.')) return;
+  BAG = BAG && BAG.ad ? { ad: BAG.ad } : null; bagYaz(); VERI = null; SURUM = null;
+  try { localStorage.removeItem(ONBELLEK); } catch (e) {}
+  modalKapat(); durumGoster('', 'Bağlı değil'); ciz();
+}
+async function davetKopyala() {
+  const link = davetLinki();
+  try { await navigator.clipboard.writeText(link); toast('Davet linki kopyalandı. Linki açan kişi adını yazıp bağlanır.'); }
+  catch (e) { prompt('Bu linki kopyala:', link); }
+}
+$('baglantiBtn').onclick = baglantiAc;
+
+/* ===================== VERİ ===================== */
+async function yenile(sessiz) {
+  if (!bagli()) return;
+  durumGoster('is', 'Yükleniyor…');
+  try {
+    const j = await sunucuGet({ op: 'liste' });
+    VERI = j; SURUM = j.surum;
+    try { localStorage.setItem(ONBELLEK, JSON.stringify(j)); } catch (e) {}
+    durumGoster('ok', 'Güncel', 'Ortak Alan\'a bağlı');
+    ciz();
+  } catch (e) {
+    durumGoster('hata', 'Bağlantı hatası', e.message);
+    if (!sessiz) toast('Ortak Alan\'a ulaşılamadı: ' + e.message);
+  }
+}
+async function kontrolEt() {
+  if (!bagli() || yukleniyor || document.hidden) return;
+  const odak = document.activeElement;
+  if (odak && /INPUT|TEXTAREA|SELECT/.test(odak.tagName) && odak.type !== 'search') return;
+  if (!$('modal').classList.contains('gizli')) return;
+  try {
+    const j = await sunucuGet({ op: 'surum' });
+    if (j.surum !== SURUM) await yenile(true); else durumGoster('ok', 'Güncel', 'Ortak Alan\'a bağlı');
+  } catch (e) { durumGoster('hata', 'Bağlantı hatası', e.message); }
+}
+setInterval(kontrolEt, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) kontrolEt(); });
+
+async function islemYap(govde, basari) {
+  durumGoster('is', 'Kaydediliyor…');
+  try { await sunucuPost(govde); if (basari) toast(basari); await yenile(true); return true; }
+  catch (e) { durumGoster('hata', 'Kaydedilemedi', e.message); toast('Olmadı: ' + e.message); return false; }
+}
+
+const aktifSekmeler = () => (VERI ? VERI.sekmeler.filter(s => s.durum === 'AKTİF') : []);
+const sekmeBul = id => VERI && VERI.sekmeler.find(s => s.id === id);
+const dosyaBul = id => VERI && VERI.dosyalar.find(d => d.id === id);
+const yeniOnce = (a, b) => String(b.zaman).localeCompare(String(a.zaman));
+
+/* ===================== ÇİZİM ===================== */
+function ciz() { yanCiz(); icerikCiz(); }
+
+function yanCiz() {
+  const y = $('yan');
+  if (!VERI) { y.innerHTML = `<div class="yan-bas">Sekmeler</div><div class="not" style="padding:0 16px;color:#8fb0d1">Bağlantı kurulunca sekmeler burada görünür.</div>`; return; }
+  const sek = aktifSekmeler();
+  if (!GORUNUM || (GORUNUM.tur === 'sekme' && !sek.some(s => s.id === GORUNUM.id))) GORUNUM = sek[0] ? { tur: 'sekme', id: sek[0].id } : { tur: 'yonet' };
+  const sayi = id => VERI.dosyalar.filter(d => d.sekmeId === id && d.durum === 'AKTİF').length;
+  const arsivSayi = VERI.dosyalar.filter(d => d.durum === 'ARŞİV').length;
+  const sec = (tur, id) => GORUNUM.tur === tur && (!id || GORUNUM.id === id) ? ' secili' : '';
+  let h = `<div class="yan-bas">Sekmeler</div>`;
+  h += sek.map(s => `<button class="sekme${sec('sekme', s.id)}" data-git="sekme" data-id="${esc(s.id)}"><span>${esc(s.ad)}</span><em>${sayi(s.id)}</em></button>`).join('');
+  h += `<div class="yan-ara"></div>`;
+  h += `<button class="sekme${sec('arsiv')}" data-git="arsiv"><span>🗄 Arşiv</span>${arsivSayi ? `<em>${arsivSayi}</em>` : ''}</button>`;
+  h += `<button class="sekme${sec('kayit')}" data-git="kayit"><span>🕘 Değişiklik kaydı</span></button>`;
+  h += `<button class="sekme${sec('yonet')}" data-git="yonet"><span>⚙ Sekmeleri düzenle</span></button>`;
+  if (VERI.kota && VERI.kota.limit) {
+    const o = VERI.kota.kullanilan / VERI.kota.limit, yuzde = Math.min(100, o * 100);
+    h += `<div class="kota${o > .95 ? ' dolu' : o > .8 ? ' uyari' : ''}" title="Merkez hesabın Google Drive alanı">Depolama: ${boyutYazi(VERI.kota.kullanilan)} / ${boyutYazi(VERI.kota.limit)}
+      <div class="kota-cubuk"><i style="width:${yuzde.toFixed(1)}%"></i></div>${o > .8 ? '<div style="margin-top:4px">Alan dolmak üzere; arşivdeki büyük dosyalar Drive\'dan temizlenebilir.</div>' : ''}</div>`;
+  }
+  y.innerHTML = h;
+  y.querySelectorAll('[data-git]').forEach(b => b.onclick = () => {
+    GORUNUM = { tur: b.dataset.git, id: b.dataset.id }; ARAMA = ''; ACIK_SURUM.clear();
+    try { localStorage.setItem(SEKME_ANAHTAR, JSON.stringify(GORUNUM)); } catch (e) {}
+    ciz(); document.querySelector('.ana-alan').scrollTop = 0;
+  });
+}
+
+function icerikCiz() {
+  const c = $('icerik');
+  if (!bagli()) {
+    c.innerHTML = `<div class="kart bos"><h3 style="color:var(--t)">Ortak Alan'a hoş geldin</h3>
+      <p>Günlük veri, puantaj, performans gibi dosyaları ekipçe tek yerde saklamak için.<br>Başlamak için ekipten aldığın davet linkini aç ya da bağlantı bilgilerini gir.</p>
+      <button class="ana" onclick="baglantiAc()">Bağlantı kur</button></div>`;
+    return;
+  }
+  if (!VERI) { c.innerHTML = `<div class="kart bos">Yükleniyor…</div>`; return; }
+  if (BAG && !BAG.ad) { c.innerHTML = `<div class="kart bos"><h3 style="color:var(--t)">Adını yazar mısın?</h3><p>Yüklediğin dosyaların yanında görünecek.</p><button class="ana" onclick="baglantiAc()">Adımı yaz</button></div>`; return; }
+  if (GORUNUM.tur === 'sekme') return sekmeCiz(c, sekmeBul(GORUNUM.id));
+  if (GORUNUM.tur === 'arsiv') return arsivCiz(c);
+  if (GORUNUM.tur === 'kayit') return kayitCiz(c);
+  return yonetCiz(c);
+}
+
+/* ---------- Sekme görünümü ---------- */
+function sekmeCiz(c, s) {
+  const tum = VERI.dosyalar.filter(d => d.sekmeId === s.id);
+  const aktif = tum.filter(d => d.durum === 'AKTİF').sort(yeniOnce);
+  const eskiler = ad => tum.filter(d => d.durum === 'ESKİ SÜRÜM' && kucuk(d.ad) === kucuk(ad)).sort(yeniOnce);
+  const q = kucuk(ARAMA.trim());
+  const gorunen = q ? aktif.filter(d => kucuk(d.ad + ' ' + d.not + ' ' + d.yukleyen).includes(q)) : aktif;
+  const son = s.saklama === 'SON';
+
+  let satirlar = '', sonAy = '';
+  gorunen.forEach(d => {
+    const t = new Date(d.zaman), ay = isNaN(t) ? '' : `${AYLAR[t.getMonth()]} ${t.getFullYear()}`;
+    if (ay !== sonAy && !son) { satirlar += `<tr class="ay"><td colspan="5">${esc(ay)} yüklemeleri</td></tr>`; sonAy = ay; }
+    const es = eskiler(d.ad), acik = ACIK_SURUM.has(d.id);
+    satirlar += `<tr>
+      <td><div class="dad">${turEtiket(d.ad)}<div>${esc(d.ad)}
+        <div class="dnot" data-not="${esc(d.id)}" title="Notu düzenle">${d.not ? '📝 ' + esc(d.not) : '+ not ekle'}</div>
+        ${es.length ? `<button class="link kucuk" data-surum="${esc(d.id)}">${acik ? '▾' : '▸'} ${es.length} eski sürüm</button>` : ''}</div></div></td>
+      <td>${esc(d.yukleyen)}</td>
+      <td class="gizle-m" style="white-space:nowrap">${tarihSaat(d.zaman)}</td>
+      <td class="gizle-m" style="white-space:nowrap">${boyutYazi(d.boyut)}</td>
+      <td class="islemler"><button class="kucuk ana" data-indir="${esc(d.id)}">İndir</button> <button class="kucuk" data-arsivle="${esc(d.id)}" title="Arşive al (silinmez, Arşiv'den geri alınabilir)">Arşive al</button></td></tr>`;
+    if (acik) es.forEach(e => {
+      satirlar += `<tr class="surum"><td>↳ ${esc(e.ad)}${e.not ? ` <span class="not">· ${esc(e.not)}</span>` : ''}</td><td>${esc(e.yukleyen)}</td>
+        <td class="gizle-m">${tarihSaat(e.zaman)}</td><td class="gizle-m">${boyutYazi(e.boyut)}</td>
+        <td class="islemler"><button class="kucuk" data-indir="${esc(e.id)}">İndir</button> <button class="kucuk" data-geri="${esc(e.id)}" title="Bu sürümü güncel yap; şu anki güncel sürüm eski sürümlere geçer">Bunu güncel yap</button></td></tr>`;
+    });
+  });
+
+  c.innerHTML = `
+    <div class="kart">
+      <h2>${esc(s.ad)}<span class="rozet${son ? ' son' : ''}" title="${son ? 'Yeni dosya yüklenince öncekiler arşive gider' : 'Her yüklenen dosya ayrı saklanır'}">${son ? 'Sadece son dosya' : 'Tüm dosyalar saklanır'}</span></h2>
+      ${s.aciklama ? `<div class="not" style="margin-top:6px">${esc(s.aciklama)}</div>` : ''}
+      <div class="birak" id="birak">
+        <b>Dosyaları buraya sürükle bırak</b>
+        <div class="not">ya da seç · tek dosya en fazla ${boyutYazi(VERI.maksBayt || 26214400)}${son ? ' · bu sekmede yeni dosya öncekini arşive alır' : ' · farklı adlı dosyalar (Ocak 2026, Şubat 2026…) ayrı ayrı saklanır'}</div>
+        <div class="satir"><input id="yNot" placeholder="Not (isteğe bağlı), örn. 2. hafta düzeltilmiş" style="min-width:260px"><button class="ana" id="secBtn">Dosya seç</button><input type="file" id="dosyaInput" multiple hidden></div>
+        <div class="kuyruk" id="kuyruk"></div>
+      </div>
+    </div>
+    <div class="kart">
+      <div class="araclar"><input type="search" id="ara" placeholder="Bu sekmede ara: dosya adı, not, yükleyen…" value="${esc(ARAMA)}"><span class="not">${aktif.length} dosya</span></div>
+      ${gorunen.length ? `<table class="liste"><thead><tr><th>Dosya</th><th>Yükleyen</th><th class="gizle-m">Tarih</th><th class="gizle-m">Boyut</th><th></th></tr></thead><tbody>${satirlar}</tbody></table>`
+        : `<div class="bos">${q ? 'Aramaya uyan dosya yok.' : 'Bu sekmede henüz dosya yok. Yukarıdan ilk dosyayı yükle.'}</div>`}
+    </div>`;
+
+  const ara = $('ara');
+  ara.oninput = () => { ARAMA = ara.value; const p = ara.selectionStart; sekmeCiz(c, s); const a = $('ara'); a.focus(); a.setSelectionRange(p, p); };
+  const birak = $('birak'), inp = $('dosyaInput');
+  $('secBtn').onclick = () => inp.click();
+  inp.onchange = () => { yuklemeBaslat(s, [...inp.files]); inp.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => birak.addEventListener(ev, e => { e.preventDefault(); birak.classList.add('uzerinde'); }));
+  ['dragleave', 'drop'].forEach(ev => birak.addEventListener(ev, e => { e.preventDefault(); birak.classList.remove('uzerinde'); }));
+  birak.addEventListener('drop', e => yuklemeBaslat(s, [...e.dataTransfer.files]));
+  baglaIslemler(c);
+}
+
+function baglaIslemler(c) {
+  c.querySelectorAll('[data-indir]').forEach(b => b.onclick = () => indir(b.dataset.indir, b));
+  c.querySelectorAll('[data-arsivle]').forEach(b => b.onclick = () => {
+    const d = dosyaBul(b.dataset.arsivle);
+    if (confirm(`"${d.ad}" arşive alınsın mı?\nSilinmez; Arşiv bölümünden istediğin zaman geri alabilirsin.`)) islemYap({ op: 'arsivle', id: d.id }, 'Arşive alındı');
+  });
+  c.querySelectorAll('[data-geri]').forEach(b => b.onclick = () => {
+    const d = dosyaBul(b.dataset.geri), s = sekmeBul(d.sekmeId);
+    if (s && s.durum !== 'AKTİF') { toast(`Önce "${s.ad}" sekmesini Sekmeleri düzenle bölümünden geri getir.`); return; }
+    islemYap({ op: 'geriAl', id: d.id }, `"${d.ad}" geri alındı`);
+  });
+  c.querySelectorAll('[data-surum]').forEach(b => b.onclick = () => { const id = b.dataset.surum; ACIK_SURUM.has(id) ? ACIK_SURUM.delete(id) : ACIK_SURUM.add(id); icerikCiz(); });
+  c.querySelectorAll('[data-not]').forEach(b => b.onclick = () => {
+    const d = dosyaBul(b.dataset.not);
+    const yeni = prompt(`"${d.ad}" için not:`, d.not || '');
+    if (yeni !== null && yeni.trim() !== (d.not || '')) islemYap({ op: 'notKaydet', id: d.id, not: yeni.trim() }, 'Not kaydedildi');
+  });
+}
+
+/* ---------- Yükleme ---------- */
+function dosyaB64(f) {
+  return new Promise((ok, hata) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => hata(r.error); r.readAsDataURL(f); });
+}
+async function yuklemeBaslat(s, dosyalar) {
+  if (!dosyalar.length) return;
+  const maks = VERI.maksBayt || 26214400, not = ($('yNot') && $('yNot').value.trim()) || '';
+  const buyuk = dosyalar.filter(f => f.size > maks);
+  if (buyuk.length) toast(`${buyuk.map(f => f.name).join(', ')} çok büyük (en fazla ${boyutYazi(maks)}).`);
+  dosyalar = dosyalar.filter(f => f.size <= maks && f.size > 0);
+  if (!dosyalar.length) return;
+  const aktif = VERI.dosyalar.filter(d => d.sekmeId === s.id && d.durum === 'AKTİF');
+  if (s.saklama === 'SON' && aktif.length) {
+    if (!confirm(`"${s.ad}" sekmesi sadece son dosyayı gösterir.\nŞu anki ${aktif.length} dosya arşive gidecek (silinmez). Devam edilsin mi?`)) return;
+  } else {
+    const ayni = dosyalar.filter(f => aktif.some(d => kucuk(d.ad) === kucuk(f.name)));
+    if (ayni.length && !confirm(`Bu adla zaten dosya var:\n${ayni.map(f => '• ' + f.name).join('\n')}\n\nYenisi güncel olur, eskisi "eski sürüm" olarak saklanır (silinmez). Devam edilsin mi?`)) return;
+  }
+  const k = $('kuyruk');
+  yukleniyor++;
+  let basarili = 0;
+  for (const f of dosyalar) {
+    const satir = document.createElement('div');
+    satir.textContent = `⏳ ${f.name} yükleniyor…`;
+    k && k.appendChild(satir);
+    try {
+      const b64 = await dosyaB64(f);
+      await sunucuPost({ op: 'yukle', sekmeId: s.id, ad: f.name, tip: f.type || 'application/octet-stream', b64, not });
+      satir.className = 'tamam'; satir.textContent = `✓ ${f.name}`; basarili++;
+    } catch (e) { satir.className = 'hata'; satir.textContent = `✗ ${f.name}: ${e.message}`; }
+  }
+  yukleniyor--;
+  if (basarili) { toast(`${basarili} dosya yüklendi`); await yenile(true); }
+}
+
+/* ---------- İndirme ---------- */
+function b64Blob(b64, tip) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type: tip || 'application/octet-stream' }); }
+async function indir(id, btn) {
+  const eski = btn && btn.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'İndiriliyor…'; }
+  try {
+    const j = await sunucuGet({ op: 'indir', id });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b64Blob(j.dosya.b64, j.dosya.tip));
+    a.download = j.dosya.ad; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 20000);
+  } catch (e) { toast('İndirilemedi: ' + e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = eski; } }
+}
+
+/* ---------- Arşiv ---------- */
+function arsivCiz(c) {
+  const ars = VERI.dosyalar.filter(d => d.durum === 'ARŞİV');
+  const q = kucuk(ARAMA.trim());
+  const gorunen = q ? ars.filter(d => kucuk(d.ad + ' ' + d.not + ' ' + d.yukleyen + ' ' + ((sekmeBul(d.sekmeId) || {}).ad || '')).includes(q)) : ars;
+  const gruplar = {};
+  gorunen.forEach(d => (gruplar[d.sekmeId] = gruplar[d.sekmeId] || []).push(d));
+  const sirali = Object.keys(gruplar).sort((a, b) => ((sekmeBul(a) || {}).sira || 999) - ((sekmeBul(b) || {}).sira || 999));
+  let satirlar = '';
+  sirali.forEach(sid => {
+    const s = sekmeBul(sid) || { ad: '?' };
+    satirlar += `<tr class="ay"><td colspan="5">${esc(s.ad)}${s.durum === 'ARŞİV' ? ' (kaldırılmış sekme)' : ''}</td></tr>`;
+    gruplar[sid].sort((a, b) => String(b.islemZamani).localeCompare(String(a.islemZamani))).forEach(d => {
+      satirlar += `<tr><td><div class="dad">${turEtiket(d.ad)}<div>${esc(d.ad)}${d.not ? `<div class="dnot">📝 ${esc(d.not)}</div>` : ''}</div></div></td>
+        <td>${esc(d.yukleyen)}<div class="not">${tarihSaat(d.zaman)}</div></td>
+        <td class="gizle-m">${esc(d.isleyen || '')}<div class="not">${tarihSaat(d.islemZamani)}</div></td>
+        <td class="gizle-m">${boyutYazi(d.boyut)}</td>
+        <td class="islemler"><button class="kucuk" data-indir="${esc(d.id)}">İndir</button> <button class="kucuk ana" data-geri="${esc(d.id)}">Geri al</button></td></tr>`;
+    });
+  });
+  c.innerHTML = `<div class="kart"><h2>🗄 Arşiv</h2>
+      <div class="not" style="margin-top:6px">Arşive alınan dosyalar silinmez, burada bekler. "Geri al" ile ait olduğu sekmeye döner.</div></div>
+    <div class="kart">
+      <div class="araclar"><input type="search" id="ara" placeholder="Arşivde ara…" value="${esc(ARAMA)}"><span class="not">${ars.length} dosya</span></div>
+      ${gorunen.length ? `<table class="liste"><thead><tr><th>Dosya</th><th>Yükleyen</th><th class="gizle-m">Arşive alan</th><th class="gizle-m">Boyut</th><th></th></tr></thead><tbody>${satirlar}</tbody></table>` : `<div class="bos">${q ? 'Aramaya uyan dosya yok.' : 'Arşiv boş.'}</div>`}
+    </div>`;
+  const ara = $('ara');
+  ara.oninput = () => { ARAMA = ara.value; const p = ara.selectionStart; arsivCiz(c); const a = $('ara'); a.focus(); a.setSelectionRange(p, p); };
+  baglaIslemler(c);
+}
+
+/* ---------- Değişiklik kaydı ---------- */
+async function kayitCiz(c) {
+  c.innerHTML = `<div class="kart"><h2>🕘 Değişiklik kaydı</h2><div class="not" style="margin-top:6px">Kim, ne zaman, ne yükledi / arşive aldı. Son 200 işlem.</div><div id="kayitIc" class="bos">Yükleniyor…</div></div>`;
+  try {
+    const j = await sunucuGet({ op: 'gecmis', n: 200 });
+    if (GORUNUM.tur !== 'kayit') return;
+    $('kayitIc').className = '';
+    $('kayitIc').innerHTML = j.kayit.length ? `<table class="liste" style="margin-top:10px"><thead><tr><th>Zaman</th><th>Kim</th><th>İşlem</th></tr></thead><tbody>${j.kayit.map(k => `<tr><td style="white-space:nowrap">${tarihSaat(k.zaman)}</td><td>${esc(k.kim)}</td><td>${esc(k.islem)}</td></tr>`).join('')}</tbody></table>` : '<div class="bos">Henüz kayıt yok.</div>';
+  } catch (e) { $('kayitIc').textContent = 'Kayıt alınamadı: ' + e.message; }
+}
+
+/* ---------- Sekme yönetimi ---------- */
+function yonetCiz(c) {
+  const sek = aktifSekmeler(), kaldirilan = VERI.sekmeler.filter(s => s.durum !== 'AKTİF');
+  const sayi = id => VERI.dosyalar.filter(d => d.sekmeId === id && d.durum !== 'ARŞİV').length;
+  const sakSec = (v) => `<select data-alan="saklama"><option value="GEÇMİŞ"${v !== 'SON' ? ' selected' : ''}>Tüm dosyalar saklanır</option><option value="SON"${v === 'SON' ? ' selected' : ''}>Sadece son dosya</option></select>`;
+  c.innerHTML = `<div class="kart"><h2>⚙ Sekmeleri düzenle</h2>
+      <div class="not" style="margin-top:6px">Sol menüdeki sekmeler buradan yönetilir. Sekme kaldırılınca içindeki dosyalar silinmez; aşağıdan geri getirilebilir.<br>
+      <b>Tüm dosyalar saklanır:</b> Ocak, Şubat… her dosya ayrı durur (puantaj, performans için). <b>Sadece son dosya:</b> yeni yükleme öncekini arşive alır (ör. güncel liste).</div></div>
+    <div class="kart">
+      <table class="liste yonet"><thead><tr><th style="width:70px">Sıra</th><th>Sekme adı</th><th class="gizle-m">Açıklama</th><th>Saklama</th><th></th></tr></thead><tbody>
+      ${sek.map((s, i) => `<tr data-id="${esc(s.id)}">
+        <td style="white-space:nowrap"><button class="kucuk" data-yukari="${i}" ${i ? '' : 'disabled'} title="Yukarı">↑</button><button class="kucuk" data-asagi="${i}" ${i < sek.length - 1 ? '' : 'disabled'} title="Aşağı">↓</button></td>
+        <td><input type="text" data-alan="ad" value="${esc(s.ad)}"><div class="not">${sayi(s.id)} dosya</div></td>
+        <td class="gizle-m"><input type="text" data-alan="aciklama" value="${esc(s.aciklama)}" placeholder="İsteğe bağlı"></td>
+        <td>${sakSec(s.saklama)}</td>
+        <td class="islemler"><button class="kucuk ana" data-kaydet>Kaydet</button> <button class="kucuk tehlike" data-kaldir>Kaldır</button></td></tr>`).join('')}
+      <tr data-id="">
+        <td class="not">Yeni</td>
+        <td><input type="text" data-alan="ad" placeholder="ör. Vardiya Listesi"></td>
+        <td class="gizle-m"><input type="text" data-alan="aciklama" placeholder="İsteğe bağlı"></td>
+        <td>${sakSec('GEÇMİŞ')}</td>
+        <td class="islemler"><button class="kucuk ana" data-kaydet>+ Ekle</button></td></tr>
+      </tbody></table>
+    </div>
+    ${kaldirilan.length ? `<div class="kart"><h3>Kaldırılan sekmeler</h3><table class="liste">${kaldirilan.map(s => `<tr><td>${esc(s.ad)} <span class="not">· ${sayi(s.id)} dosya korunuyor</span></td><td class="islemler"><button class="kucuk" data-sgeri="${esc(s.id)}">Geri getir</button></td></tr>`).join('')}</table></div>` : ''}`;
+
+  c.querySelectorAll('tr[data-id]').forEach(tr => {
+    const al = a => tr.querySelector(`[data-alan="${a}"]`).value;
+    const kb = tr.querySelector('[data-kaydet]');
+    kb.onclick = async () => {
+      const ad = al('ad').trim();
+      if (!ad) { toast('Sekme adı boş olamaz.'); return; }
+      const id = tr.dataset.id;
+      if (id) {
+        const s = sekmeBul(id);
+        if (s.saklama !== 'SON' && al('saklama') === 'SON' && !confirm('"Sadece son dosya" seçildi. Mevcut dosyalar yerinde kalır; bir sonraki yüklemede öncekiler arşive gider. Devam?')) return;
+      }
+      const ok = await islemYap({ op: 'sekmeKaydet', sekme: { id: id || undefined, ad, aciklama: al('aciklama').trim(), saklama: al('saklama') } }, id ? 'Sekme kaydedildi' : `"${ad}" sekmesi eklendi`);
+      if (ok && !id) { const y = aktifSekmeler().find(s => kucuk(s.ad) === kucuk(ad)); if (y) { GORUNUM = { tur: 'yonet' }; } }
+    };
+    tr.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') kb.click(); }));
+    const kal = tr.querySelector('[data-kaldir]');
+    if (kal) kal.onclick = () => {
+      const s = sekmeBul(tr.dataset.id);
+      if (confirm(`"${s.ad}" sekmesi kaldırılsın mı?\nİçindeki dosyalar silinmez; "Kaldırılan sekmeler"den geri getirebilirsin.`)) islemYap({ op: 'sekmeKaldir', id: s.id }, 'Sekme kaldırıldı');
+    };
+  });
+  const tasi = (i, yon) => { const ids = sek.map(s => s.id); [ids[i], ids[i + yon]] = [ids[i + yon], ids[i]]; islemYap({ op: 'sekmeSirala', sira: ids }); };
+  c.querySelectorAll('[data-yukari]').forEach(b => b.onclick = () => tasi(+b.dataset.yukari, -1));
+  c.querySelectorAll('[data-asagi]').forEach(b => b.onclick = () => tasi(+b.dataset.asagi, 1));
+  c.querySelectorAll('[data-sgeri]').forEach(b => b.onclick = () => islemYap({ op: 'sekmeGeriAl', id: b.dataset.sgeri }, 'Sekme geri getirildi'));
+}
+
+/* ===================== BAŞLAT ===================== */
+bagOku();
+davetOku();
+try { GORUNUM = JSON.parse(localStorage.getItem(SEKME_ANAHTAR) || 'null'); } catch (e) {}
+if (bagli()) { try { VERI = JSON.parse(localStorage.getItem(ONBELLEK) || 'null'); } catch (e) {} }
+ciz();
+if (bagli()) {
+  if (!BAG.ad) baglantiAc();
+  yenile(false);
+} else if (BAG && BAG.url) baglantiAc();
+</script>
+</body>
+</html>
