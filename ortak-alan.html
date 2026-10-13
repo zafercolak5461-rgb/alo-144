@@ -115,7 +115,7 @@
 const $ = id => document.getElementById(id);
 const BAG_ANAHTAR = 'ortakAlan.baglanti', ONBELLEK = 'ortakAlan.liste', SEKME_ANAHTAR = 'ortakAlan.sekme';
 let BAG = null, VERI = null, SURUM = null, GORUNUM = null, ARAMA = '', ACIK_SURUM = new Set();
-let yukleniyor = 0;
+let yukleniyor = 0, YONETICI = '';   // yönetici şifresi sadece sayfa açıkken hafızada tutulur
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = n => String(n).padStart(2, '0');
@@ -323,7 +323,7 @@ function sekmeCiz(c, s) {
     if (acik) es.forEach(e => {
       satirlar += `<tr class="surum"><td>↳ ${esc(e.ad)}${e.not ? ` <span class="not">· ${esc(e.not)}</span>` : ''}</td><td>${esc(e.yukleyen)}</td>
         <td class="gizle-m">${tarihSaat(e.zaman)}</td><td class="gizle-m">${boyutYazi(e.boyut)}</td>
-        <td class="islemler"><button class="kucuk" data-indir="${esc(e.id)}">İndir</button> <button class="kucuk" data-geri="${esc(e.id)}" title="Bu sürümü güncel yap; şu anki güncel sürüm eski sürümlere geçer">Bunu güncel yap</button></td></tr>`;
+        <td class="islemler"><button class="kucuk" data-indir="${esc(e.id)}">İndir</button> <button class="kucuk" data-geri="${esc(e.id)}" title="Bu sürümü güncel yap; şu anki güncel sürüm eski sürümlere geçer">Bunu güncel yap</button> <button class="kucuk" data-arsivle="${esc(e.id)}">Arşive al</button></td></tr>`;
     });
   });
 
@@ -365,6 +365,13 @@ function baglaIslemler(c) {
     const d = dosyaBul(b.dataset.geri), s = sekmeBul(d.sekmeId);
     if (s && s.durum !== 'AKTİF') { toast(`Önce "${s.ad}" sekmesini Sekmeleri düzenle bölümünden geri getir.`); return; }
     islemYap({ op: 'geriAl', id: d.id }, `"${d.ad}" geri alındı`);
+  });
+  c.querySelectorAll('[data-sil]').forEach(b => b.onclick = async () => {
+    const d = dosyaBul(b.dataset.sil);
+    if (!confirm(`"${d.ad}" KALICI olarak silinsin mi?\nListeden kalkar; dosya Drive çöp kutusuna gider (30 gün sonra tamamen silinir).`)) return;
+    if (!YONETICI) { const y = prompt('Yönetici şifresi:'); if (!y) return; YONETICI = y; }
+    const ok = await islemYap({ op: 'sil', id: d.id, yonetici: YONETICI }, `"${d.ad}" silindi`);
+    if (!ok) YONETICI = '';
   });
   c.querySelectorAll('[data-surum]').forEach(b => b.onclick = () => { const id = b.dataset.surum; ACIK_SURUM.has(id) ? ACIK_SURUM.delete(id) : ACIK_SURUM.add(id); icerikCiz(); });
   c.querySelectorAll('[data-not]').forEach(b => b.onclick = () => {
@@ -441,11 +448,11 @@ function arsivCiz(c) {
         <td>${esc(d.yukleyen)}<div class="not">${tarihSaat(d.zaman)}</div></td>
         <td class="gizle-m">${esc(d.isleyen || '')}<div class="not">${tarihSaat(d.islemZamani)}</div></td>
         <td class="gizle-m">${boyutYazi(d.boyut)}</td>
-        <td class="islemler"><button class="kucuk" data-indir="${esc(d.id)}">İndir</button> <button class="kucuk ana" data-geri="${esc(d.id)}">Geri al</button></td></tr>`;
+        <td class="islemler"><button class="kucuk" data-indir="${esc(d.id)}">İndir</button> <button class="kucuk ana" data-geri="${esc(d.id)}">Geri al</button> <button class="kucuk tehlike" data-sil="${esc(d.id)}" title="Sadece yönetici">Kalıcı sil</button></td></tr>`;
     });
   });
   c.innerHTML = `<div class="kart"><h2>🗄 Arşiv</h2>
-      <div class="not" style="margin-top:6px">Arşive alınan dosyalar silinmez, burada bekler. "Geri al" ile ait olduğu sekmeye döner.</div></div>
+      <div class="not" style="margin-top:6px">Arşive alınan dosyalar silinmez, burada bekler. "Geri al" ile ait olduğu sekmeye döner. "Kalıcı sil" yönetici şifresi ister.</div></div>
     <div class="kart">
       <div class="araclar"><input type="search" id="ara" placeholder="Arşivde ara…" value="${esc(ARAMA)}"><span class="not">${ars.length} dosya</span></div>
       ${gorunen.length ? `<table class="liste"><thead><tr><th>Dosya</th><th>Yükleyen</th><th class="gizle-m">Arşive alan</th><th class="gizle-m">Boyut</th><th></th></tr></thead><tbody>${satirlar}</tbody></table>` : `<div class="bos">${q ? 'Aramaya uyan dosya yok.' : 'Arşiv boş.'}</div>`}
