@@ -883,6 +883,7 @@ function yoklamaTablo(aoa) {
   const H = aoa[hr].map(kucuk), bas = ad => H.findIndex(h => h.startsWith(ad));
   const cAd = H.findIndex(h => AD_B.includes(h)), cV = bas('VARDIYA'), cA = bas('ACIKLAMA'), cG = bas('GOREV');
   const cL = H.findIndex(h => GIRIS_B.some(g => h.startsWith(g)));
+  const cD = H.findIndex(h => h === 'DURUM'), cN = H.findIndex(h => h === 'NOT');   // dashboard'un dışa aktardığı biçim
   const kisiler = [];
   for (let i = hr + 1; i < aoa.length; i++) {
     const row = aoa[i] || [], ad = String(row[cAd] ?? '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
@@ -892,13 +893,17 @@ function yoklamaTablo(aoa) {
     const acAralik = aralik(aciklama);
     if (acAralik) vardiya = acAralik;                       // Açıklama'da farklı vardiya saati yazıyorsa o geçerli
     const off = vardiyaYazi === 'OFF' || aciklama === 'OFF';
-    const girisVar = /\d{1,2}[:.]\d{2}/.test(login);
+    const girisVar = /\d{1,2}[:.]\d{2}/.test(login) || normAd(login) === 'VAR';
     // Açıklamadaki devamsızlık sebebi (rapor, izin…) giriş saati olsa bile geçerli: gün içinde rapor alıp çıkan olabilir.
     const yokSebebi = !acAralik && DEVAMSIZLIK.test(normAd(aciklama));
-    const gelmedi = off || yokSebebi;
+    const durum = cD >= 0 ? normAd(row[cD]) : '';
+    const durumYok = !!durum && /YOK|GELMEDI|IZIN|IZNI|RAPOR|DEVAMSIZ/.test(durum);
+    const gelmedi = off || yokSebebi || durumYok;
+    const notYazi = cN >= 0 ? String(row[cN] ?? '').trim() : '';
     // Login YOK + açıklama boş: vardiyasında gelmesi beklenir (yoklama erken alınmış olabilir).
     kisiler.push({ ad, n: normAd(ad), vardiya: off ? null : vardiya, gelmedi, girisVar,
-      neden: gelmedi ? (off ? 'OFF' : aciklama) : '', not: !gelmedi && !acAralik && aciklama ? aciklama : '',
+      neden: gelmedi ? (off ? 'OFF' : (aciklama || (durumYok && !/^BUGUN YOK$/.test(durum) ? ust(row[cD]) : 'Bugün yok'))) : '',
+      not: gelmedi ? '' : (notYazi || (!acAralik && aciklama ? aciklama : '')),
       gorev: cG >= 0 ? String(row[cG] ?? '').trim() : '' });
   }
   return kisiler;
@@ -917,12 +922,13 @@ function yoklamaAyarla(y, ortak) {
   y.ortak = !!ortak;
   YOK = y; yoklamaYaz();
 }
-async function yoklamaKur(kisiler, tarih, kaynak) {
+async function yoklamaKur(kisiler, tarih, kaynak, dosya) {
   const y = yoklamaSade(kisiler, tarih, kaynak);
+  yokDosyaYerelYaz(dosya ? { ...dosya, tarih } : null);
   const gm = y.kisiler.filter(k => k.gelmedi).length;
   if (bagli()) {
     try {
-      const j = await sunucuPost({ key: BAG.key, op: 'yoklama', kim: BAG.ad || 'Adsız', yoklama: y });
+      const j = await sunucuPost({ key: BAG.key, op: 'yoklama', kim: BAG.ad || 'Adsız', yoklama: y, dosya: dosya || null });
       if (!j.ok) throw new Error(j.error || 'kaydedilemedi');
       yoklamaAyarla(j.yoklama || y, true);
       toast(`Yoklama ortak kayda yüklendi (${y.kisiler.length} kişi, ${gm} bugün yok). Tüm takım liderleri görür.`);
@@ -953,7 +959,8 @@ let yoklamaSunucuTarih = null;
 async function yoklamaDosya(f) {
   if (!xlsxVar()) return;
   try {
-    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const buf = await f.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
     const bugun = iso(new Date());
     const sayfalar = wb.SheetNames.map(ad => ({ ad, tarih: sayfaTarihi(ad) }));
     let sec = sayfalar.find(x => x.tarih === bugun);
@@ -966,8 +973,26 @@ async function yoklamaDosya(f) {
     const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sec.ad], { header: 1, raw: false, defval: '' });
     const kisiler = yoklamaTablo(aoa);
     if (!kisiler || !kisiler.length) { toast(`"${sec.ad}" sayfasında personel tablosu bulunamadı (Ad Soyad / AgentName ve Giriş Saati / Login başlıkları aranıyor).`); return; }
-    yoklamaKur(kisiler, bugun, `${f.name} › ${sec.ad}`);
+    yoklamaKur(kisiler, bugun, `${f.name} › ${sec.ad}`, { ad: f.name, tip: f.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', b64: abB64(buf) });
   } catch (e) { toast('Yoklama okunamadı: ' + (e.message || e)); }
+}
+/* Orijinal yoklama dosyası: yüklenen Excel olduğu gibi saklanır, "Dışarı aktar" ile aynısı indirilir. */
+const YOK_DOSYA_ANAHTAR = 'molaPlani.yoklamaDosya';
+function abB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function b64Blob(b64, tip) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Blob([u], { type: tip || 'application/octet-stream' }); }
+function yokDosyaYerelYaz(d) { try { d ? localStorage.setItem(YOK_DOSYA_ANAHTAR, JSON.stringify(d)) : localStorage.removeItem(YOK_DOSYA_ANAHTAR); } catch (e) {} }
+function yokDosyaYerelOku() { try { const d = JSON.parse(localStorage.getItem(YOK_DOSYA_ANAHTAR) || 'null'); return d && YOK && d.tarih === YOK.tarih ? d : null; } catch (e) { return null; } }
+async function yoklamaDisari() {
+  if (!YOK) return;
+  let d = yokDosyaYerelOku();
+  if (!d && bagli()) {
+    try { toast('Dosya hazırlanıyor…'); const j = await sunucuGet('yoklamaDosya'); d = j.dosya; } catch (e) { toast('Dosya alınamadı: ' + e.message); return; }
+  }
+  if (!d || !d.b64) { toast(/Yapıştırılan/.test(String(YOK.kaynak || '')) ? 'Bu yoklama tablo yapıştırılarak yüklenmiş; indirilecek bir dosyası yok.' : 'Yüklenen dosya bulunamadı. Yoklamayı dosyadan bir kez daha yüklersen indirilebilir olur.'); return; }
+  const url = URL.createObjectURL(b64Blob(d.b64, d.tip));
+  const a = document.createElement('a'); a.href = url; a.download = d.ad || 'yoklama.xlsx';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 /** Yoklama satırında gösterilecek sayfa bilgisi: sayfa adı ve (adındaki) tarih; bugünden farklıysa uyarı */
 function yokSayfaYazi() {
@@ -993,7 +1018,7 @@ async function yoklamaSil() {
     if (!confirm('Yoklama ortak kayıttan kaldırılsın mı? Tüm takım liderlerinde kalkar.')) return;
     try { await sunucuPost({ key: BAG.key, op: 'yoklamaSil', kim: BAG.ad || 'Adsız' }); } catch (e) {}
   }
-  yoklamaAyarla(null); kontrolCiz();
+  yokDosyaYerelYaz(null); yoklamaAyarla(null); kontrolCiz();
 }
 /** CMS/plan adı yoklamadaki kişiyle aynı mı (Türkçe karakter, eksik/fazla soyad toleranslı) */
 function yoklamaBul(ad) {
@@ -1016,7 +1041,7 @@ function kontrolCiz() {
       <select id="k_tol" onchange="TOLERANS_DK=+this.value;try{localStorage.setItem('molaPlani.tolerans',this.value)}catch(e){};kontrolCiz()">${[0,1,2,3,5,10].map(v => `<option value="${v}" ${v === TOLERANS_DK ? 'selected' : ''}>${v} dk</option>`).join('')}</select>
       <span class="k-not">Molanın başlamasından bu kadar süre sonra çıkmayan ve süresini bu kadar aşan uyarılır.</span></div>
     <div class="k-yok">${YOK
-      ? `<span>📋 <b>Yoklama:</b> ${yokSayfaYazi()} · ${YOK.kisiler.length} kişi · <b>${YOK.kisiler.filter(k => k.gelmedi).length}</b> kişi bugün yok <span class="k-not">${YOK.ortak ? `· ortak${YOK.yukleyen ? ', yükleyen ' + esc(YOK.yukleyen) : ''}${YOK.zaman ? ' ' + esc(String(YOK.zaman).slice(-5)) : ''}` : '· sadece bu tarayıcıda'}</span></span><span class="satir"><button onclick="$('k_yokDosya').click()">Değiştir</button><button onclick="yoklamaSil()">Kaldır</button></span>`
+      ? `<span>📋 <b>Yoklama:</b> ${yokSayfaYazi()} · ${YOK.kisiler.length} kişi · <b>${YOK.kisiler.filter(k => k.gelmedi).length}</b> kişi bugün yok <span class="k-not">${YOK.ortak ? `· ortak${YOK.yukleyen ? ', yükleyen ' + esc(YOK.yukleyen) : ''}${YOK.zaman ? ' ' + esc(String(YOK.zaman).slice(-5)) : ''}` : '· sadece bu tarayıcıda'}</span></span><span class="satir"><button onclick="yoklamaDisari()">Dışarı aktar</button><button onclick="$('k_yokDosya').click()">Değiştir</button><button onclick="yoklamaSil()">Kaldır</button></span>`
       : `<span>📋 <b>Bugünün yoklaması yüklü değil.</b> <span class="k-not">${yoklamaSunucuTarih ? `Ortak kayıttaki son yoklama ${trTarih(isoTarih(yoklamaSunucuTarih))} tarihli. ` : ''}Biri yüklediğinde herkes için geçerli olur: rapor/izinli olanlar gizlenir, mesaide olup CMS'te olmayanlar gösterilir.</span></span><span class="satir"><button class="ana" onclick="$('k_yokDosya').click()">Yoklama yükle</button><button onclick="yoklamaYapistirAc()">Tablo yapıştır</button></span>`}
       <input type="file" id="k_yokDosya" accept=".xlsx,.xls" hidden onchange="if(this.files[0])yoklamaDosya(this.files[0]);this.value=''">
     </div>
@@ -1054,7 +1079,7 @@ function kontrolCiz() {
         </div>`;
       }
       if (s.gizlenen.length) {
-        const say = YOK.sayim || {};
+        const say = Object.fromEntries(Object.entries(YOK.sayim || {}).filter(([n]) => normAd(n) !== 'BUGUN YOK'));
         h += `<div class="k-not" style="margin-top:6px">Yoklamaya göre bugün gelmeyen ${s.gizlenen.length} kişi kontrollerde gizlendi${Object.keys(say).length ? ': ' + Object.entries(say).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${esc(n)} ${c}`).join(' · ') : ''}</div>`;
       }
     } else if (YOK) h += `<div class="k-not" style="color:#854F0B;margin-top:6px">Yüklü yoklama ${trTarih(isoTarih(YOK.tarih))} tarihli, CMS saati farklı bir gün; yoklama bu kontrolde kullanılmadı.</div>`;
