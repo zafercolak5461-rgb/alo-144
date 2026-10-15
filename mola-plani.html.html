@@ -62,8 +62,11 @@
   .d-liste { margin-top:8px; border:1px solid var(--br); border-left:4px solid var(--r); border-radius:8px; padding:10px 12px; background:#fff; }
   .d-liste-bas { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:6px; }
   .d-liste-bas button { margin-left:auto; font-size:12px; padding:3px 10px; }
-  .d-satirlar { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0 18px; }
-  .d-satir { display:flex; justify-content:space-between; gap:8px; padding:5px 0; border-bottom:1px solid #eef1f5; font-size:13px; }
+  .d-tablo { width:100%; max-width:640px; border-collapse:collapse; }
+  .d-tablo th { text-align:left; font-size:11px; color:var(--m); font-weight:600; text-transform:uppercase; letter-spacing:.3px; padding:4px 8px; border-bottom:2px solid #e1e7ee; }
+  .d-tablo td { padding:6px 8px; border-bottom:1px solid #eef1f5; font-size:13px; }
+  .d-tablo tr:nth-child(even) td { background:#fafbfd; }
+  .d-tablo .sag { text-align:right; }
   .d-sure { font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--t); font-weight:600; }
   .k-yok { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; padding:8px 10px; border:1px dashed #b9c5d2; border-radius:8px; background:#f8fafc; font-size:13px; }
   .k-alarm { margin-top:12px; border:2px solid #E24B4A; background:#FCEBEB; border-radius:10px; padding:14px 16px; }
@@ -1061,7 +1064,8 @@ function durumKutulari(cms) {
     const N = ST.saatler.length, ofs = haftaFark(cms.zaman || new Date(), isoTarih(ST.temelHafta));
     const grup = a => { const x = ST.kisiler.find(p => (p.cms && String(p.cms) === a.no) || isimBenzer(normAd(p.ad), normAd(a.ad))); return x ? grupHafta(x.g, ofs, N) + '. grup' : ''; };
     h += `<div class="d-liste" style="--r:${DURUM_RENK[kDurumAcik] || '#888780'}"><div class="d-liste-bas"><b>${esc(kDurumAcik)} (${liste.length})</b><span class="k-not">en uzun süredir olan üstte · CMS'i yapıştırdığın andaki süreler</span><button class="kucuk" onclick="kDurumAcik='';kontrolCiz()">Kapat</button></div>
-      <div class="d-satirlar">${liste.map(a => `<div class="d-satir"><span><b>${esc(guzelAd(a.ad))}</b> <span class="k-not">${a.no}${grup(a) ? ' · ' + grup(a) : ''}</span></span><span class="d-sure">${a.sure ? sureYaz(a.sure) : '—'}</span></div>`).join('')}</div></div>`;
+      <table class="d-tablo"><tr><th>#</th><th>Personel</th><th>CMS no</th><th>Grup</th><th class="sag">Süre</th></tr>
+      ${liste.map((a, i) => `<tr><td class="k-not">${i + 1}</td><td><b>${esc(guzelAd(a.ad))}</b></td><td class="k-not">${a.no}</td><td class="k-not">${grup(a) || '—'}</td><td class="d-sure sag">${a.sure ? sureYaz(a.sure) : '—'}</td></tr>`).join('')}</table></div>`;
   }
   return h;
 }
