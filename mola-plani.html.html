@@ -72,6 +72,18 @@
   .e-ozet-k { display:flex; flex-direction:column; gap:2px; padding:9px 12px; border:1px solid var(--br); border-radius:8px; background:#fff; font-size:13px; }
   .e-ozet-k span { color:var(--m); font-size:12px; }
   .e-ozet-k.simdi { border-color:#EF9F27; background:#FFF8EC; }
+  button.e-ozet-k { text-align:left; cursor:pointer; font:inherit; color:var(--t); }
+  button.e-ozet-k:hover { filter:brightness(.97); }
+  .e-ozet-k.secili { box-shadow:inset 0 0 0 2px var(--b); background:var(--soft); }
+  .e-plan { margin-top:10px; border:1px solid var(--br); border-left:4px solid var(--b); border-radius:8px; padding:10px 12px; background:#fff; }
+  .e-plan-bas { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-bottom:6px; font-size:14px; }
+  .e-zaman { display:flex; flex-wrap:wrap; gap:6px; margin-left:auto; }
+  .e-dilim { font-size:12px; padding:3px 9px; border-radius:12px; background:#FDEBD4; color:#633806; border:1px solid #F5C98A; }
+  .e-dilim.mola { background:#FBE4DC; color:#712B13; border-color:#EFA98F; }
+  .e-dilim.simdi { box-shadow:0 0 0 2px #EF9F27; }
+  .e-rozet { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; }
+  .e-rozet.kirmizi { background:#FCEBEB; color:#791F1F; } .e-rozet.turuncu { background:#FAEEDA; color:#633806; }
+  .e-rozet.mor { background:#EEEDFE; color:#3C3489; } .e-rozet.yesil { background:#EAF3DE; color:#27500A; }
   .d-kutular { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:8px; margin-top:10px; }
   .d-kutu { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:9px 12px; border:1px solid var(--br); border-top:4px solid var(--r); border-radius:8px; background:#fff; text-align:left; }
   .d-kutu b { font-size:24px; line-height:1.1; color:var(--t); }
@@ -1071,7 +1083,8 @@ yoklamaOku();
 
 let sonCms = null, kFiltre = '', kDurumAcik = '';
 /* ---------- EKİBİM: ana plandan ayrı, sabit yemek saatli ekip ---------- */
-let kGorunum = 'salon', EKIP_TASLAK = null;
+let kGorunum = 'salon', EKIP_TASLAK = null, EKIP_SECILI = new Set();
+function ekipGrupSec(ad) { EKIP_SECILI.has(ad) ? EKIP_SECILI.delete(ad) : EKIP_SECILI.add(ad); kontrolCiz(); }
 try { kGorunum = localStorage.getItem('molaPlani.gorunum') || 'salon'; } catch (e) {}
 const ekipTanimli = () => !!(ST && ST.ekip && ST.ekip.length);
 const ekipVar = () => ekipTanimli() && !ST.ekip[0].pasif;   // takip açık mı (kapalıyken liste saklanır, ana plan normal çalışır)
@@ -1090,7 +1103,7 @@ function ekipMolalari(metin) {
     const n = normAd(etiket);
     const tur = !etiket || /YEMEK/.test(n) ? 'yemek' : 'mola';
     return { ad: etiket ? guzelAd(etiket) : 'Yemek', tur, bas: r[0], bit: r[1] };
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => a.bas - b.bas);
 }
 const molaYazi = d => `${d.ad} ${saatYaz(d.bas)}-${saatYaz(d.bit)}`;
 function gorunumSec(g) { kGorunum = g; kDurumAcik = ''; try { localStorage.setItem('molaPlani.gorunum', g); } catch (e) {} kontrolCiz(); }
@@ -1224,14 +1237,30 @@ function ekipKarsilastir(cms) {
   return { ref, uyeler, cikmayan, asim, disinda, uygun, yok, bugunYok, yokGecerli };
 }
 function ekipCiz(cms) {
-  const s = ekipKarsilastir(cms);
-  let h = `<div class="not" style="margin-top:8px">CMS saati: <b>${trTarih(s.ref)} ${pad(s.ref.getHours())}:${pad(s.ref.getMinutes())}</b> · Ekipten CMS'te ${s.uyeler.filter(u => u.a).length} / ${s.uyeler.length} kişi</div>`;
+  const cmsVar = !!cms;
+  const s = ekipKarsilastir(cms || { zaman: null, ajanlar: [] });
   const simdi = s.ref.getHours() * 60 + s.ref.getMinutes();
-  h += `<div class="e-ozet">${ekipGruplari(ST.ekip).map(g => {
+  let h = cmsVar ? `<div class="not" style="margin-top:8px">CMS saati: <b>${trTarih(s.ref)} ${pad(s.ref.getHours())}:${pad(s.ref.getMinutes())}</b> · Ekipten CMS'te ${s.uyeler.filter(u => u.a).length} / ${s.uyeler.length} kişi</div>` : '';
+  const gruplar = ekipGruplari(ST.ekip);
+  [...EKIP_SECILI].forEach(ad => { if (!gruplar.some(g => g.ad === ad)) EKIP_SECILI.delete(ad); });
+  h += `<div class="k-not" style="margin-top:8px">Grubun mola planını görmek için kartına bas (birden fazla seçebilirsin).</div>`;
+  h += `<div class="e-ozet">${gruplar.map(g => {
     const dl = ekipMolalari(g.yemek), us = s.uyeler.filter(u => u.e.grup === g.ad);
     const molada = us.filter(u => u.a && (u.a.tur === 'yemek' || u.a.tur === 'mola')).length, simdiki = dl.find(d => simdi >= d.bas && simdi < d.bit);
-    return `<div class="e-ozet-k${simdiki ? ' simdi' : ''}"><b>${esc(g.ad)}</b><span>${dl.map(d => d === simdiki ? `<b>${esc(molaYazi(d))} · şu an</b>` : esc(molaYazi(d))).join(' · ')}</span><span>${us.length} kişi · CMS'te ${us.filter(u => u.a).length} · molada ${molada}</span></div>`;
+    return `<button class="e-ozet-k${simdiki ? ' simdi' : ''}${EKIP_SECILI.has(g.ad) ? ' secili' : ''}" onclick="ekipGrupSec(${esc(JSON.stringify(g.ad))})"><b>${esc(g.ad)} ${EKIP_SECILI.has(g.ad) ? '▾' : '▸'}</b><span>${dl.map(d => d === simdiki ? `<b>${esc(molaYazi(d))} · şu an</b>` : esc(molaYazi(d))).join(' · ')}</span><span>${us.length} kişi${cmsVar ? ` · CMS'te ${us.filter(u => u.a).length} · molada ${molada}` : ''}</span></button>`;
   }).join('')}</div>`;
+  // Seçili grupların mola planı
+  const durumOf = u => s.cikmayan.includes(u) ? ['kirmizi', 'Molaya çıkmamış'] : s.asim.includes(u) ? ['turuncu', 'Süresini aşmış'] : s.disinda.includes(u) ? ['mor', 'Saati dışında molada'] : s.uygun.includes(u) ? ['yesil', 'Saatinde molada'] : null;
+  const esle = new Map([...s.cikmayan, ...s.asim, ...s.disinda, ...s.uygun].map(x => [x.e, x]));
+  gruplar.filter(g => EKIP_SECILI.has(g.ad)).forEach(g => {
+    const dl = ekipMolalari(g.yemek), us = s.uyeler.filter(u => u.e.grup === g.ad).sort((a, b) => a.e.ad.localeCompare(b.e.ad, 'tr'));
+    h += `<div class="e-plan"><div class="e-plan-bas"><b>${esc(g.ad)}</b> · ${us.length} kişi
+      <span class="e-zaman">${dl.map(d => `<span class="e-dilim ${d.tur}${simdi >= d.bas && simdi < d.bit ? ' simdi' : ''}">${esc(d.ad)} <b>${saatYaz(d.bas)}–${saatYaz(d.bit)}</b></span>`).join('')}</span></div>
+      <table class="d-tablo" style="max-width:none"><tr><th>#</th><th>Personel</th>${cmsVar ? '<th>CMS durumu</th><th>Plana göre</th>' : ''}</tr>
+      ${us.map((u, i) => { const x = esle.get(u.e), d = x && durumOf(x);
+        return `<tr><td class="k-not">${i + 1}</td><td><b>${esc(u.e.ad)}</b>${u.gelmedi ? ' <span class="k-not">· bugün yok</span>' : ''}</td>${cmsVar ? `<td>${u.a ? `<span class="etiket ${u.a.tur}">${esc(u.a.durum)}</span> <span class="k-not">${u.a.sure ? sureYaz(u.a.sure) : ''}</span>` : `<span class="k-not">${u.gelmedi ? '—' : "CMS'te yok"}</span>`}</td><td>${d ? `<span class="e-rozet ${d[0]}">${d[1]}</span> <span class="k-not">${esc(x.not || '')}</span>` : ''}</td>` : ''}</tr>`; }).join('')}</table></div>`;
+  });
+  if (!cmsVar) return h + `<div class="k-not" style="margin-top:8px">Ekibin anlık durumunu görmek için CMS ekranını yukarıdaki kutuya yapıştır.</div>`;
   h += durumKutulari({ zaman: cms.zaman, ajanlar: s.uyeler.filter(u => u.a).map(u => u.a) }, a => { const u = s.uyeler.find(x => x.a === a); return u ? u.e.grup : ''; });
   const satir = u => `<tr><td><b>${esc(u.e.ad)}</b> <span class="k-not">${u.a ? u.a.no : ''}</span></td><td class="s">${esc(u.e.grup)}</td><td class="s">${u.a ? `<span class="etiket ${u.a.tur}">${esc(u.a.durum)}</span> <span class="k-not">${u.a.tur === 'yemek' || u.a.tur === 'mola' ? sureYaz(u.a.sure) : ''}</span>` : ''}</td><td class="k-not">${esc(u.not || '')}</td></tr>`;
   const tablo = (bas, renk, l, bos) => `<div class="k-bolum"><h4><i style="background:${renk}"></i>${bas} (${l.length})</h4>${l.length ? `<table class="k-tablo"><tr><th>Personel</th><th>Grup</th><th>CMS durumu</th><th>Açıklama</th></tr>${l.sort((a, b) => ((b.a && b.a.sure) || 0) - ((a.a && a.a.sure) || 0)).map(satir).join('')}</table>` : `<div class="k-not">${bos}</div>`}</div>`;
@@ -1292,7 +1321,7 @@ function kontrolCiz() {
     </div>
     <textarea id="k_kutu" rows="2" placeholder="CMS ekranını buraya yapıştır" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px"></textarea>`;
   h += gorunumSatiri();
-  if (sonCms && kGorunum === 'ekip' && ekipVar() && !EKIP_TASLAK) h += ekipCiz(sonCms);
+  if (kGorunum === 'ekip' && ekipVar() && !EKIP_TASLAK) h += ekipCiz(sonCms);
   else if (sonCms) {
     const s0 = karsilastir(sonCms);
     const s = { ...s0, cikmayan: kSuz(s0.cikmayan), asim: kSuz(s0.asim), planDisi: kSuz(s0.planDisi), dogru: kSuz(s0.dogru) };
