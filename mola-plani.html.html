@@ -59,7 +59,14 @@
   .e-bas { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; margin-bottom:8px; }
   .e-gruplar { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; align-items:start; }
   .e-grup { background:#fff; border:1px solid var(--br); border-radius:8px; padding:8px; }
-  .e-grup textarea { width:100%; margin-top:6px; font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--br); border-radius:6px; resize:vertical; }
+  .e-say { font-size:12px; font-weight:600; color:var(--bd); background:var(--soft); border-radius:10px; padding:2px 8px; white-space:nowrap; }
+  .e-sec { margin-top:10px; background:#fff; border:1px solid var(--br); border-radius:8px; padding:8px; }
+  .e-liste { max-height:380px; overflow-y:auto; margin-top:8px; border-top:1px solid #eef1f5; }
+  .e-kisi { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 4px; border-bottom:1px solid #f1f4f7; font-size:13px; }
+  .e-kisi:hover { background:#f8fafc; }
+  .e-dugmeler { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
+  .e-gb { font-size:12px; padding:3px 9px; color:var(--m); }
+  .e-gb.secili { background:var(--b); border-color:var(--b); color:#fff; font-weight:600; }
   .e-ekle { min-height:60px; border-style:dashed; color:var(--m); }
   .e-ozet { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:8px; margin-top:10px; }
   .e-ozet-k { display:flex; flex-direction:column; gap:2px; padding:9px 12px; border:1px solid var(--br); border-radius:8px; background:#fff; font-size:13px; }
@@ -1094,41 +1101,84 @@ function ekipGruplari(liste) {
 }
 function ekipDuzenAc() {
   const g = ekipGruplari(ST.ekip);
-  EKIP_TASLAK = g.length ? g.map(x => ({ ad: x.ad, yemek: x.yemek, isimler: x.kisiler.map(k => k.ad).join('\n') }))
-    : [{ ad: '1. Grup', yemek: 'Yemek 12:30-13:30', isimler: '' }, { ad: '2. Grup', yemek: 'Yemek 13:30-14:30', isimler: '' }];
-  kontrolCiz(); setTimeout(() => { const t = document.querySelector('#ekipDuzen textarea'); t && t.focus(); }, 50);
+  const gruplar = g.length ? g.map(x => ({ ad: x.ad, yemek: x.yemek })) : [{ ad: '1. Grup', yemek: 'Yemek 12:30-13:30' }, { ad: '2. Grup', yemek: 'Yemek 13:30-14:30' }];
+  const atama = {};
+  g.forEach((x, gi) => x.kisiler.forEach(k => { atama[normAd(k.ad)] = gi; }));
+  // Seçim listesi: mola planındaki herkes (+ planda olmayan eski ekip üyeleri), alfabetik
+  const adlar = new Map();
+  ST.kisiler.forEach(k => adlar.set(normAd(k.ad), k.ad));
+  (ST.ekip || []).forEach(k => { if (!adlar.has(normAd(k.ad))) adlar.set(normAd(k.ad), k.ad); });
+  const kisiler = [...adlar.entries()].map(([n, ad]) => ({ n, ad })).sort((x, y) => x.ad.localeCompare(y.ad, 'tr'));
+  EKIP_TASLAK = { gruplar, atama, kisiler, ara: '', sadeceSecili: false };
+  kontrolCiz(); setTimeout(() => { const t = $('e_ara'); t && t.focus(); }, 50);
 }
 function ekipDuzenHtml() {
-  return `<div id="ekipDuzen" class="e-duzen"><div class="e-bas"><b>Ekibimi düzenle</b><span class="k-not">Her grubun molalarını virgülle yaz (örn. <b>Mola 10:30-10:40, Yemek 12:30-13:30, Mola 15:30-15:40</b>), isimleri alt alta yapıştır (Excel'den sütun kopyalayabilirsin).</span></div>
-    <div class="e-gruplar">${EKIP_TASLAK.map((g, i) => `<div class="e-grup">
-      <div class="satir"><input value="${esc(g.ad)}" oninput="EKIP_TASLAK[${i}].ad=this.value" placeholder="Grup adı" style="flex:1;min-width:90px">
-        ${EKIP_TASLAK.length > 1 ? `<button class="sil" title="Grubu kaldır" onclick="EKIP_TASLAK.splice(${i},1);kontrolCiz()">×</button>` : ''}</div>
-      <input value="${esc(g.yemek)}" oninput="EKIP_TASLAK[${i}].yemek=this.value" placeholder="Yemek 12:30-13:30, Mola 15:30-15:40" style="width:100%;margin-top:6px" title="Molalar: virgülle ayır. Ad + saat aralığı (Yemek, Mola, İhtiyaç…)">
-      <textarea rows="8" oninput="EKIP_TASLAK[${i}].isimler=this.value;this.nextElementSibling.textContent=this.value.split('\\n').filter(x=>x.trim()).length+' kişi'" placeholder="Ad Soyad (her satıra bir kişi)">${esc(g.isimler)}</textarea><div class="k-not">${g.isimler.split('\n').filter(x => x.trim()).length} kişi</div></div>`).join('')}
-      <button class="e-ekle" onclick="EKIP_TASLAK.push({ad:(EKIP_TASLAK.length+1)+'. Grup',yemek:'',isimler:''});kontrolCiz()">+ Grup ekle</button></div>
+  const T = EKIP_TASLAK, sayi = gi => Object.values(T.atama).filter(v => v === gi).length;
+  return `<div id="ekipDuzen" class="e-duzen"><div class="e-bas"><b>Ekibimi düzenle</b><span class="k-not">Grupların molalarını yaz, aşağıdaki listeden kişileri gruplara ata.</span></div>
+    <div class="e-gruplar">${T.gruplar.map((g, i) => `<div class="e-grup">
+      <div class="satir"><input value="${esc(g.ad)}" oninput="ekipGrupAd(${i},this.value)" placeholder="Grup adı" style="flex:1;min-width:90px"><span class="e-say" id="e_say_${i}">${sayi(i)} kişi</span>
+        ${T.gruplar.length > 1 ? `<button class="sil" title="Grubu kaldır" onclick="ekipGrupSil(${i})">×</button>` : ''}</div>
+      <input value="${esc(g.yemek)}" oninput="EKIP_TASLAK.gruplar[${i}].yemek=this.value" placeholder="Yemek 12:30-13:30, Mola 15:30-15:40" style="width:100%;margin-top:6px" title="Molalar: virgülle ayır. Ad + saat aralığı (Yemek, Mola, İhtiyaç…)"></div>`).join('')}
+      <button class="e-ekle" onclick="EKIP_TASLAK.gruplar.push({ad:(EKIP_TASLAK.gruplar.length+1)+'. Grup',yemek:''});kontrolCiz()">+ Grup ekle</button></div>
+    <div class="k-not" style="margin-top:6px">Mola örneği: <b>Mola 10:30-10:40, Yemek 12:30-13:30, İhtiyaç 15:30-15:40</b> · sadece saat yazarsan yemek sayılır.</div>
+    <div class="e-sec">
+      <div class="satir"><input id="e_ara" type="search" placeholder="İsim ara…" value="${esc(T.ara)}" oninput="EKIP_TASLAK.ara=this.value;ekipListeSuz()" style="flex:1;min-width:180px">
+        <label class="k-not"><input type="checkbox" ${T.sadeceSecili ? 'checked' : ''} onchange="EKIP_TASLAK.sadeceSecili=this.checked;ekipListeSuz()"> Sadece seçilenler</label>
+        <span class="k-not" id="e_toplam">Toplam seçili: ${Object.keys(T.atama).length}</span></div>
+      <div class="e-liste" id="e_liste">${T.kisiler.map(k => `<div class="e-kisi" data-n="${esc(k.n)}"><span>${esc(k.ad)}</span><span class="e-dugmeler">${T.gruplar.map((g, gi) => `<button class="e-gb${T.atama[k.n] === gi ? ' secili' : ''}" data-g="${gi}" onclick="ekipAta('${esc(k.n)}',${gi},this)">${esc(g.ad)}</button>`).join('')}</span></div>`).join('')}</div>
+    </div>
     <div id="e_hata" class="k-not" style="color:#A32D2D"></div>
     <div class="satir" style="margin-top:8px"><button class="ana" onclick="ekipKaydet()">Kaydet</button><button onclick="EKIP_TASLAK=null;kontrolCiz()">Vazgeç</button>
       ${ekipTanimli() ? `<button class="sil" style="font-size:13px;margin-left:auto" onclick="ekipSil()">Listeyi tamamen sil</button>` : ''}</div></div>`;
 }
+function ekipSayaclar() {
+  const T = EKIP_TASLAK;
+  T.gruplar.forEach((_, gi) => { const e = $('e_say_' + gi); if (e) e.textContent = Object.values(T.atama).filter(v => v === gi).length + ' kişi'; });
+  const t = $('e_toplam'); if (t) t.textContent = 'Toplam seçili: ' + Object.keys(T.atama).length;
+}
+function ekipAta(n, gi, btn) {
+  const T = EKIP_TASLAK;
+  if (T.atama[n] === gi) delete T.atama[n]; else T.atama[n] = gi;
+  btn.parentNode.querySelectorAll('.e-gb').forEach(b => b.classList.toggle('secili', T.atama[n] === +b.dataset.g));
+  ekipSayaclar(); if (T.sadeceSecili) ekipListeSuz();
+}
+function ekipListeSuz() {
+  const T = EKIP_TASLAK, q = normAd(T.ara || '');
+  document.querySelectorAll('#e_liste .e-kisi').forEach(r => {
+    const n = r.dataset.n;
+    r.style.display = (!q || n.includes(q)) && (!T.sadeceSecili || n in T.atama) ? '' : 'none';
+  });
+}
+function ekipGrupAd(i, v) {
+  EKIP_TASLAK.gruplar[i].ad = v;
+  document.querySelectorAll(`#e_liste .e-gb[data-g="${i}"]`).forEach(b => { b.textContent = v || '?'; });
+}
+function ekipGrupSil(i) {
+  const T = EKIP_TASLAK, kac = Object.values(T.atama).filter(v => v === i).length;
+  if (kac && !confirm(`"${T.gruplar[i].ad}" grubundaki ${kac} kişinin seçimi kaldırılacak. Devam?`)) return;
+  T.gruplar.splice(i, 1);
+  Object.keys(T.atama).forEach(n => { if (T.atama[n] === i) delete T.atama[n]; else if (T.atama[n] > i) T.atama[n]--; });
+  kontrolCiz();
+}
 function ekipKaydet() {
-  const hata = m => { $('e_hata').textContent = m; };
+  const hata = m => { $('e_hata').textContent = m; $('e_hata').scrollIntoView({ block: 'nearest' }); };
+  const T = EKIP_TASLAK;
   const eski = new Map((ST.ekip || []).filter(e => e.cms).map(e => [normAd(e.ad), e.cms]));
-  const liste = [], gorulen = new Set();
-  for (const g of EKIP_TASLAK) {
+  const planCms = new Map(ST.kisiler.filter(k => k.cms).map(k => [normAd(k.ad), String(k.cms)]));
+  const liste = [];
+  for (let gi = 0; gi < T.gruplar.length; gi++) {
+    const g = T.gruplar[gi], uyeler = T.kisiler.filter(k => T.atama[k.n] === gi);
+    if (!uyeler.length) continue;
     const ad = String(g.ad || '').trim(), parcalar = String(g.yemek || '').split(/[,;\n]+/).map(x => x.trim()).filter(Boolean);
-    const isimler = String(g.isimler || '').split('\n').map(x => x.split('\t')[0].replace(/\s+/g, ' ').trim()).filter(Boolean);
-    if (!isimler.length) continue;
     if (!ad) return hata('Grup adı boş olamaz.');
+    if (T.gruplar.some((x, j) => j !== gi && String(x.ad).trim().toLocaleLowerCase('tr') === ad.toLocaleLowerCase('tr'))) return hata(`"${ad}" adında iki grup var; adları farklı olmalı.`);
     const bozuk = parcalar.find(x => !aralik(x.replace(/(\d)\.(\d)/g, '$1:$2')));
     if (!parcalar.length) return hata(`"${ad}" için en az bir mola yaz (örn. Yemek 12:30-13:30).`);
     if (bozuk) return hata(`"${ad}" grubunda "${bozuk}" okunamadı. Örnek: Mola 15:30-15:40`);
     const yemek = ekipMolalari(parcalar.join(', ')).map(molaYazi).join(', ');
-    for (const i of isimler) {
-      const n = normAd(i); if (gorulen.has(n)) return hata(`${i} iki kez yazılmış.`); gorulen.add(n);
-      const k = { ad: i, grup: ad, yemek }; if (eski.get(n)) k.cms = eski.get(n); liste.push(k);   // kaydedince takip açılır
-    }
+    uyeler.forEach(k => { const e = { ad: k.ad, grup: ad, yemek }, c = eski.get(k.n) || planCms.get(k.n); if (c) e.cms = c; liste.push(e); });
   }
-  if (!liste.length) return hata('En az bir kişi yaz.');
+  if (!liste.length) return hata('Listeden en az bir kişiyi bir gruba ata.');
   ST.ekip = liste; EKIP_TASLAK = null; kGorunum = 'ekip'; try { localStorage.setItem('molaPlani.gorunum', 'ekip'); } catch (e) {}
   kaydet(`Ekip güncellendi (${liste.length} kişi, ${ekipGruplari(liste).length} grup)`); kontrolCiz(); toast('Ekip kaydedildi');
 }
