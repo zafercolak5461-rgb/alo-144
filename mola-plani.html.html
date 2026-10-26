@@ -84,6 +84,12 @@
   .e-rozet { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; }
   .e-rozet.kirmizi { background:#FCEBEB; color:#791F1F; } .e-rozet.turuncu { background:#FAEEDA; color:#633806; }
   .e-rozet.mor { background:#EEEDFE; color:#3C3489; } .e-rozet.yesil { background:#EAF3DE; color:#27500A; }
+  .ek-ozet summary { cursor:pointer; list-style:none; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .ek-ozet { display:block; }
+  .ek-bos { margin-top:14px; padding:10px 14px; border:1px dashed #b9c5d2; border-radius:10px; background:#fff; font-size:13px; color:var(--m); display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  #ekKart, #ekDuzen { margin-top:14px; }
+  .ek-ust { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:12px; font-size:13px; color:var(--m); }
+  .ek-ust label { display:flex; align-items:center; gap:6px; }
   .d-kutular { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:8px; margin-top:10px; }
   .d-kutu { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:9px 12px; border:1px solid var(--br); border-top:4px solid var(--r); border-radius:8px; background:#fff; text-align:left; }
   .d-kutu b { font-size:24px; line-height:1.1; color:var(--t); }
@@ -409,7 +415,7 @@ async function gonder() {
 async function kontrolEt() {
   if (!bagli() || gonderiliyor || islemler.length || document.hidden) return;
   const odak = document.activeElement;
-  if (odak && odak.closest && odak.closest('#duzenle, #yukleme, #baglanti, #ekipDuzen') && /INPUT|TEXTAREA|SELECT/.test(odak.tagName)) return;
+  if (odak && odak.closest && odak.closest('#duzenle, #yukleme, #baglanti, #ekipDuzen, #ekDuzen') && /INPUT|TEXTAREA|SELECT/.test(odak.tagName)) return;
   try {
     const j = await sunucuGet('surum');
     if (SURUM == null || j.surum !== SURUM) {
@@ -520,7 +526,9 @@ function ciz() {
     + (ST.yuklendi ? ` (${esc(ST.yuklendi)})` : '')
     + ` · Gösterilen hafta bu plandan <b>${fark === 0 ? 'aynı hafta' : (fark > 0 ? fark + ' hafta sonra' : (-fark) + ' hafta önce')}</b>`;
   if (seciliGrup > p.N) seciliGrup = 0;
-  $('icerik').innerHTML = `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value, { grup: seciliGrup })}</div>`;
+  $('icerik').innerHTML = `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value, { grup: seciliGrup })}</div>` + ekMolaKart();
+  if (EK_TASLAK) ekListeSuz();
+  const ey = $('ekYap'); if (ey) ey.addEventListener('paste', ev => { ev.preventDefault(); ekMolaYapistir((ev.clipboardData || window.clipboardData).getData('text/plain')); });
   const hit = $('icerik').querySelector('[data-hit]');
   if (hit && $('ara').value.trim()) hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
   if (duzenMod) duzenleCiz();
@@ -594,8 +602,8 @@ function yuklemeyiOnayla() {
     const eski = new Map(ST.kisiler.filter(k => k.cms).map(k => [normAd(k.ad), k.cms]));
     bekleyen.kisiler.forEach(k => { const c = eski.get(normAd(k.ad)); if (c) k.cms = c; });
   }
-  const eskiDis = (ST && ST.planDisi) || [], eskiEkip = (ST && ST.ekip) || [];
-  ST = { planDisi: eskiDis, ekip: eskiEkip, baslik: metin(ST, 'baslik'), anaBaslik: metin(ST, 'anaBaslik'), ustNot: metin(ST, 'ustNot'), altNot: metin(ST, 'altNot'), basliklar: bekleyen.basliklar, saatler: bekleyen.saatler, kisiler: bekleyen.kisiler,
+  const eskiDis = (ST && ST.planDisi) || [], eskiEkip = (ST && ST.ekip) || [], eskiEk = (ST && ST.ekMola) || null;
+  ST = { planDisi: eskiDis, ekip: eskiEkip, ekMola: eskiEk, baslik: metin(ST, 'baslik'), anaBaslik: metin(ST, 'anaBaslik'), ustNot: metin(ST, 'ustNot'), altNot: metin(ST, 'altNot'), basliklar: bekleyen.basliklar, saatler: bekleyen.saatler, kisiler: bekleyen.kisiler,
          temelHafta: iso(mon), yuklendi: `${trTarih(n)} ${pad(n.getHours())}:${pad(n.getMinutes())} yüklendi` };
   bekleyen = null; kaydet(`Yeni plan yüklendi (${ST.kisiler.length} kişi, ${haftaAralik(mon)} haftası)`); $('yukleme').hidden = true; goruntu = mon; ciz();
   toast('Plan yüklendi');
@@ -820,6 +828,187 @@ function eslestir(ajanlar) {
   return { eslesen: sonuc, eslesmeyen, planDisiCms, cmsteYok: kisiler.filter(x => !kullanildi.has(x.i)) };
 }
 
+/* ---------- AKŞAM EK MOLASI: belirli tarihlerde plana eklenen ek mola (ör. 18:10 / 18:20 / 18:30 / 18:40) ---------- */
+const ekMolaGecerli = gun => { const e = ST && ST.ekMola; if (!e || !e.kisiler || !e.kisiler.length) return false; const t = iso(gun); return (!e.bas || t >= e.bas) && (!e.bit || t <= e.bit); };
+/** Sıkı isim eşleşmesi: ad aynı/benzer VE soyadı (ya da ikinci adı) tutmalı. "Döndü Nur Işık" ≠ "Döndü Nur Gök". */
+function adSoyadBenzer(a, b) {
+  if (a === b || a.replace(/ /g, '') === b.replace(/ /g, '')) return true;
+  const t = a.split(' '), u = b.split(' ');
+  if (t.length < 2 || u.length < 2 || !kelimeBenzer(t[0], u[0])) return false;
+  return u.slice(1).some(x => kelimeBenzer(t[t.length - 1], x)) || t.slice(1).some(x => kelimeBenzer(u[u.length - 1], x));
+}
+function ekMolaKisi(ad) {
+  const n = normAd(ad), l = ST.ekMola.kisiler;
+  return l.find(k => normAd(k.ad) === n) || (() => { const a = l.filter(k => adSoyadBenzer(normAd(k.ad), n)); return a.length === 1 ? a[0] : null; })();
+}
+function ekMolaDilim(ad, gun) {
+  if (!ekMolaGecerli(gun)) return [];
+  const k = ekMolaKisi(ad), bas = k && dk(k.saat);
+  return bas == null ? [] : [{ bas, bit: bas + (Number(ST.ekMola.sure) || 10), ad: (ST.ekMola.ad || 'Akşam ek molası').toLocaleUpperCase('tr'), tur: 'mola' }];
+}
+/** Mailden / Excel'den kopyalanan tabloyu okur: başlıkta saatler (18:10 18:20 …), altında her saatin sütununda isimler. */
+function ekMolaCoz(metin) {
+  const saatMi = x => /^\s*\d{1,2}[:.]\d{2}\s*$/.test(x);
+  const saatNorm = x => { const m = x.match(/(\d{1,2})[:.](\d{2})/); return pad(+m[1]) + ':' + m[2]; };
+  const satirlar = String(metin).replace(/\r/g, '').split('\n');
+  const sonuc = [];
+  // 1) Sekmeli tablo (Excel / Outlook tablosu)
+  const bi = satirlar.findIndex(l => l.includes('\t') && l.split('\t').filter(saatMi).length >= 2);
+  if (bi >= 0) {
+    const h = satirlar[bi].split('\t'), kol = h.map((x, i) => saatMi(x) ? i : -1).filter(i => i >= 0);
+    satirlar.slice(bi + 1).forEach(l => { const c = l.split('\t'); kol.forEach(i => { const ad = String(c[i] || '').trim(); if (ad && /[A-Za-zÇĞİIÖŞÜçğıöşü]{2}/.test(ad)) sonuc.push({ ad, saat: saatNorm(h[i]) }); }); });
+    return { saatler: kol.map(i => saatNorm(h[i])), kisiler: sonuc };
+  }
+  // 2) Alt alta düşmüş metin: önce saatler, sonra her sıra numarasının altında saat sayısı kadar hücre (boş hücre = boş satır)
+  const saatler = satirlar.filter(saatMi).map(saatNorm);
+  if (saatler.length < 1) return { saatler: [], kisiler: [] };
+  const ilkSaat = satirlar.findIndex(saatMi);
+  let i = ilkSaat + saatler.length;
+  while (i < satirlar.length) {
+    if (/^\s*\d{1,3}\s*$/.test(satirlar[i])) {
+      for (let j = 0; j < saatler.length; j++) {
+        const ad = String(satirlar[i + 1 + j] || '').trim();
+        if (/^\s*\d{1,3}\s*$/.test(satirlar[i + 1 + j] || '')) break;
+        if (ad && /[A-Za-zÇĞİIÖŞÜçğıöşü]{2}/.test(ad)) sonuc.push({ ad, saat: saatler[j] });
+      }
+      i += 1 + saatler.length;
+    } else i++;
+  }
+  return { saatler, kisiler: sonuc };
+}
+let EK_TASLAK = null;
+function ekMolaDuzenAc() {
+  const e = ST.ekMola, buPzt = pzt(new Date()), cuma = new Date(buPzt.getTime() + 4 * GUN);
+  const saatler = e && e.kisiler.length ? [...new Set(e.kisiler.map(k => k.saat))].sort() : ['18:10', '18:20', '18:30', '18:40'];
+  const atama = {}; if (e) e.kisiler.forEach(k => { atama[normAd(k.ad)] = k.saat; });
+  const adlar = new Map(); ST.kisiler.forEach(k => adlar.set(normAd(k.ad), k.ad));
+  if (e) e.kisiler.forEach(k => { if (!adlar.has(normAd(k.ad))) adlar.set(normAd(k.ad), k.ad); });
+  // Bugünün yoklaması: her kişinin vardiyası (gelmeyenler hariç). Planda olmayan yoklama kişileri de listeye eklenir.
+  const vardiya = {};
+  if (YOK && YOK.tarih === iso(new Date())) YOK.kisiler.filter(y => !y.gelmedi && y.vardiya).forEach(y => {
+    let n = [...adlar.keys()].find(x => x === y.n) || [...adlar.keys()].find(x => isimBenzer(x, y.n));
+    if (!n) { n = y.n; adlar.set(n, gorunurAd(y.ad)); }
+    vardiya[n] = saatYaz(y.vardiya[0]) + '-' + saatYaz(y.vardiya[1]);
+  });
+  const vardiyalar = [...new Set(Object.values(vardiya))].sort();
+  EK_TASLAK = { vardiya, vardiyalar, vSec: vardiyalar.includes('09:00-19:00') && !(e && e.kisiler.length) ? '09:00-19:00' : '', ad: (e && e.ad) || 'Akşam ek molası', bas: (e && e.bas) || iso(buPzt), bit: (e && e.bit) || iso(cuma), sure: (e && e.sure) || 10, saatler, atama,
+    kisiler: [...adlar.entries()].map(([n, ad]) => ({ n, ad })).sort((x, y) => x.ad.localeCompare(y.ad, 'tr')), ara: '', sadeceSecili: !!(e && e.kisiler.length), bulunamayan: [] };
+  if (EK_TASLAK.vSec) EK_TASLAK.sadeceSecili = false;
+  ciz(); setTimeout(() => $('ekDuzen') && $('ekDuzen').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+}
+function ekMolaYapistir(metin) {
+  const T = EK_TASLAK, c = ekMolaCoz(metin);
+  if (!c.kisiler.length) { toast('Tablo okunamadı. Üst satırda saatler (18:10, 18:20…), altında isimler olmalı.'); return; }
+  T.saatler = [...new Set([...c.saatler])].sort();
+  T.atama = {}; T.bulunamayan = [];
+  c.kisiler.forEach(k => {
+    const n = normAd(k.ad);
+    let hedef = T.kisiler.find(x => x.n === n);
+    if (!hedef) { const a = T.kisiler.filter(x => adSoyadBenzer(x.n, n)); if (a.length === 1) hedef = a[0]; }
+    if (!hedef) { hedef = { n, ad: guzelAd(k.ad) }; T.kisiler.push(hedef); T.kisiler.sort((x, y) => x.ad.localeCompare(y.ad, 'tr')); T.bulunamayan.push(guzelAd(k.ad)); }
+    T.atama[hedef.n] = k.saat;
+  });
+  T.sadeceSecili = true; T.vSec = '';
+  ciz(); toast(`${c.kisiler.length} kişi okundu${T.bulunamayan.length ? `, ${T.bulunamayan.length} kişi planda bulunamadı` : ''}`);
+}
+function ekMolaDuzenHtml() {
+  const T = EK_TASLAK, say = s => Object.values(T.atama).filter(v => v === s).length;
+  return `<div class="kart" id="ekDuzen"><div class="k-bas" style="position:static"><h3>🌙 ${esc(T.ad)} — düzenle</h3><button onclick="EK_TASLAK=null;ciz()">✕ Kapat</button></div>
+    <div class="ek-ust">
+      <label>Ad <input value="${esc(T.ad)}" oninput="EK_TASLAK.ad=this.value" style="width:180px"></label>
+      <label>Başlangıç <input type="date" value="${T.bas}" onchange="EK_TASLAK.bas=this.value"></label>
+      <label>Bitiş <input type="date" value="${T.bit}" onchange="EK_TASLAK.bit=this.value"></label>
+      <label>Süre <input type="number" min="1" max="120" value="${T.sure}" oninput="EK_TASLAK.sure=+this.value" style="width:64px"> dk</label>
+      <label>Saatler <input value="${esc(T.saatler.join(', '))}" onchange="ekSaatler(this.value)" style="width:220px" title="Virgülle ayır"></label>
+    </div>
+    <div class="k-not" style="margin-top:6px">Bu tarihler arasında listedeki kişilere, gündüz molalarına ek olarak bu mola eklenir. CMS'te <b>İhtiyaç</b> durumuyla kontrol edilir.</div>
+    <textarea id="ekYap" rows="2" placeholder="İstersen hazır tabloyu buraya yapıştır (Ctrl+V): üstte saatler, altında isimler. Ya da aşağıdan kişileri seç." style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px dashed #85B7EB;border-radius:6px;background:#f5f9fd"></textarea>
+    ${T.bulunamayan.length ? `<div class="k-not" style="color:#854F0B;margin-top:4px">Mola planında bulunamadı (yine de eklendi, ismini kontrol et): ${T.bulunamayan.map(esc).join(' · ')}</div>` : ''}
+    <div class="e-sec">
+      <div class="satir" style="margin-bottom:6px">${T.vardiyalar.length ? `<label class="k-not">Bugünün yoklamasından vardiya:
+          <select onchange="EK_TASLAK.vSec=this.value;ekListeSuz()"><option value="">Tüm personel</option>${T.vardiyalar.map(v => `<option value="${v}" ${T.vSec === v ? 'selected' : ''}>${v} (${Object.values(T.vardiya).filter(x => x === v).length} kişi)</option>`).join('')}</select></label>`
+          : `<span class="k-not">Bugünün yoklamasını yüklersen buradan vardiyaya göre (ör. 09:00-19:00) listeleyebilirsin.</span>`}
+        <span class="k-not" id="ek_gorunen"></span><button class="kucuk" onclick="ekEsitDagit()" title="Listede görünen, saati seçilmemiş kişileri saatlere eşit dağıtır">Seçilmemişleri eşit dağıt</button></div>
+      <div class="satir"><input id="ek_ara" type="search" placeholder="İsim ara…" value="${esc(T.ara)}" oninput="EK_TASLAK.ara=this.value;ekListeSuz()" style="flex:1;min-width:180px">
+        <label class="k-not"><input type="checkbox" ${T.sadeceSecili ? 'checked' : ''} onchange="EK_TASLAK.sadeceSecili=this.checked;ekListeSuz()"> Sadece seçilenler</label>
+        <span class="k-not" id="ek_say">${T.saatler.map(s => `${s}: ${say(s)}`).join(' · ')} · toplam ${Object.keys(T.atama).length}</span></div>
+      <div class="e-liste" id="ek_liste">${T.kisiler.map(k => `<div class="e-kisi" data-n="${esc(k.n)}"><span>${esc(k.ad)}</span><span class="e-dugmeler">${T.saatler.map(sa => `<button class="e-gb${T.atama[k.n] === sa ? ' secili' : ''}" data-s="${sa}" onclick="ekAta('${esc(k.n)}','${sa}',this)">${sa}</button>`).join('')}</span></div>`).join('')}</div>
+    </div>
+    <div id="ek_hata" class="k-not" style="color:#A32D2D"></div>
+    <div class="satir" style="margin-top:10px"><button class="ana" onclick="ekMolaKaydet()">Kaydet</button><button onclick="EK_TASLAK=null;ciz()">Vazgeç</button>
+      ${ST.ekMola ? `<button class="sil" style="font-size:13px;margin-left:auto" onclick="ekMolaKaldir()">Ek molayı kaldır</button>` : ''}</div></div>`;
+}
+function ekSaatler(v) {
+  const l = String(v).split(/[,;\s]+/).map(x => x.match(/(\d{1,2})[:.](\d{2})/)).filter(Boolean).map(m => pad(+m[1]) + ':' + m[2]);
+  if (!l.length) { toast('Saatleri 18:10, 18:20 biçiminde yaz.'); ciz(); return; }
+  EK_TASLAK.saatler = [...new Set(l)].sort();
+  Object.keys(EK_TASLAK.atama).forEach(n => { if (!EK_TASLAK.saatler.includes(EK_TASLAK.atama[n])) delete EK_TASLAK.atama[n]; });
+  ciz();
+}
+function ekSayac() { const T = EK_TASLAK, e = $('ek_say'); if (e) e.textContent = T.saatler.map(s => `${s}: ${Object.values(T.atama).filter(v => v === s).length}`).join(' · ') + ` · toplam ${Object.keys(T.atama).length}`; }
+function ekAta(n, sa, btn) {
+  const T = EK_TASLAK;
+  if (T.atama[n] === sa) delete T.atama[n]; else T.atama[n] = sa;
+  btn.parentNode.querySelectorAll('.e-gb').forEach(b => b.classList.toggle('secili', T.atama[n] === b.dataset.s));
+  ekSayac(); if (T.sadeceSecili) ekListeSuz();
+}
+function ekListeSuz() {
+  const T = EK_TASLAK, q = normAd(T.ara || '');
+  let gorunen = 0;
+  document.querySelectorAll('#ek_liste .e-kisi').forEach(r => { const n = r.dataset.n;
+    const ok = (!q || n.includes(q)) && (!T.sadeceSecili || n in T.atama) && (!T.vSec || T.vardiya[n] === T.vSec);
+    r.style.display = ok ? '' : 'none'; if (ok) gorunen++; });
+  const g = $('ek_gorunen'); if (g) g.textContent = gorunen + ' kişi listeleniyor';
+}
+/** Listede görünen ve henüz saati olmayan kişileri, en az kişi olan saatten başlayarak sırayla dağıtır. */
+function ekEsitDagit() {
+  const T = EK_TASLAK;
+  const bos = [...document.querySelectorAll('#ek_liste .e-kisi')].filter(r => r.style.display !== 'none' && !(r.dataset.n in T.atama)).map(r => r.dataset.n);
+  if (!bos.length) { toast('Listede saati seçilmemiş kişi yok.'); return; }
+  const say = {}; T.saatler.forEach(s => { say[s] = Object.values(T.atama).filter(v => v === s).length; });
+  bos.forEach(n => { const s = T.saatler.slice().sort((a, b) => say[a] - say[b] || a.localeCompare(b))[0]; T.atama[n] = s; say[s]++; });
+  ciz(); toast(`${bos.length} kişi saatlere dağıtıldı; istediğini değiştirebilirsin.`);
+}
+function ekMolaKaydet() {
+  const T = EK_TASLAK, hata = m => { $('ek_hata').textContent = m; };
+  if (!T.bas || !T.bit || T.bit < T.bas) return hata('Başlangıç ve bitiş tarihini kontrol et.');
+  if (!(T.sure > 0)) return hata('Süreyi dakika olarak yaz.');
+  const kisiler = T.kisiler.filter(k => T.atama[k.n]).map(k => ({ ad: k.ad, saat: T.atama[k.n] })).sort((a, b) => a.saat.localeCompare(b.saat) || a.ad.localeCompare(b.ad, 'tr'));
+  if (!kisiler.length) return hata('En az bir kişiye saat ata ya da tabloyu yapıştır.');
+  ST.ekMola = { ad: String(T.ad || '').trim() || 'Akşam ek molası', bas: T.bas, bit: T.bit, sure: T.sure, kisiler };
+  EK_TASLAK = null;
+  kaydet(`${ST.ekMola.ad} kaydedildi (${kisiler.length} kişi, ${trTarih(isoTarih(ST.ekMola.bas))}–${trTarih(isoTarih(ST.ekMola.bit))})`); ciz(); if (!$('kontrol').hidden) kontrolCiz(); toast('Ek mola kaydedildi');
+}
+function ekMolaKaldir() {
+  if (!confirm('Ek mola tamamen kaldırılsın mı? Gündüz mola planı etkilenmez.')) return;
+  ST.ekMola = null; EK_TASLAK = null; kaydet('Ek mola kaldırıldı'); ciz(); if (!$('kontrol').hidden) kontrolCiz();
+}
+/** Mail görünümünde tablo (Outlook'ta bozulmasın diye düz tablo + satır içi renk) */
+function ekMolaTablo(e) {
+  const saatler = [...new Set(e.kisiler.map(k => k.saat))].sort();
+  const sut = saatler.map(sa => e.kisiler.filter(k => k.saat === sa).map(k => k.ad.toLocaleUpperCase('tr')));
+  const n = Math.max(...sut.map(x => x.length));
+  const td = 'border:1px solid #808080;padding:3px 8px;font-family:Calibri,Segoe UI,Arial,sans-serif;font-size:14px;';
+  let h = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:6px">
+    <tr><td colspan="${saatler.length + 1}" bgcolor="#002060" style="${td}background:#002060;text-align:center"><font color="#FFFFFF"><b>Mola Saatleri</b></font></td></tr>
+    <tr><td bgcolor="#FFFF00" style="${td}background:#FFFF00;white-space:nowrap"><font color="#000000"><b>Kişi Sayısı</b></font></td>${saatler.map(sa => `<td bgcolor="#FFFF00" style="${td}background:#FFFF00;text-align:center;min-width:170px"><font color="#000000"><b>${sa}</b></font></td>`).join('')}</tr>`;
+  for (let i = 0; i < n; i++) h += `<tr><td bgcolor="#FFFFFF" style="${td}background:#FFFFFF">${i + 1}</td>${sut.map(c => `<td bgcolor="#FFFFFF" style="${td}background:#FFFFFF;white-space:nowrap">${esc(c[i] || '')}</td>`).join('')}</tr>`;
+  return h + `</table>`;
+}
+function ekMolaKontrolSatiri() {
+  const e = ST.ekMola, ref = (sonCms && sonCms.zaman) || new Date();
+  if (!e || !e.kisiler || !e.kisiler.length) return `<div class="k-not" style="margin-top:8px">🌙 Akşam ek molası yok. <button class="kucuk" onclick="ekMolaDuzenAc()">+ Ek mola tanımla</button></div>`;
+  const gecerli = ekMolaGecerli(ref);
+  return `<div class="k-not" style="margin-top:8px">🌙 <b>${esc(e.ad)}</b> (${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))}, ${e.kisiler.length} kişi): ${gecerli ? '<b style="color:#27500A">bu kontrolde geçerli</b> — ek molası olanlar normal molalarla birlikte kontrol edilir' : 'bu tarihte geçerli değil'}. <button class="kucuk" onclick="ekMolaDuzenAc()">Düzenle</button></div>`;
+}
+function ekMolaKart() {
+  if (EK_TASLAK) return ekMolaDuzenHtml();
+  const e = ST.ekMola;
+  if (!e || !e.kisiler || !e.kisiler.length) return `<div class="ek-bos">🌙 Akşam ek molası tanımlı değil. <button class="kucuk" onclick="ekMolaDuzenAc()">+ Ek mola tanımla</button></div>`;
+  const bas = isoTarih(e.bas), bit = isoTarih(e.bit), aktif = ekMolaGecerli(new Date());
+  return `<details class="ek-bos ek-ozet"><summary>🌙 <b>${esc(e.ad)}</b>: ${trTarih(bas)} – ${trTarih(bit)} · ${e.kisiler.length} kişi · ${Number(e.sure) || 10} dk${aktif ? ' · <b style="color:#27500A">bugün geçerli</b>' : ''} <button class="kucuk" onclick="event.preventDefault();ekMolaDuzenAc()">Düzenle</button></summary>
+    <div class="mailview" style="margin-top:8px">${ekMolaTablo(e)}</div></details>`;
+}
 /** Bir kişinin o günkü planlı molaları: [{bas, bit, tur, ad}] (dakika) */
 function kisiDilimleri(k, gun) {
   const N = ST.saatler.length, g = grupHafta(k.g, haftaFark(gun, isoTarih(ST.temelHafta)), N);
@@ -827,7 +1016,7 @@ function kisiDilimleri(k, gun) {
     const parca = String(ST.saatler[g - 1][j] || '').split('-');
     const bas = dk(parca[0]), bit = dk(parca[1] || '');
     return bas == null || bit == null ? null : { bas, bit, ad: b, tur: b.includes('YEMEK') ? 'yemek' : 'mola' };
-  }).filter(Boolean) };
+  }).filter(Boolean).concat(ekMolaDilim(k.ad, gun)) };
 }
 
 function karsilastir(cms) {
@@ -1320,6 +1509,7 @@ function kontrolCiz() {
       <input type="file" id="k_yokDosya" accept=".xlsx,.xls" hidden onchange="if(this.files[0])yoklamaDosya(this.files[0]);this.value=''">
     </div>
     <textarea id="k_kutu" rows="2" placeholder="CMS ekranını buraya yapıştır" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px"></textarea>`;
+  h += ekMolaKontrolSatiri();
   h += gorunumSatiri();
   if (kGorunum === 'ekip' && ekipVar() && !EKIP_TASLAK) h += ekipCiz(sonCms);
   else if (sonCms) {
@@ -1393,6 +1583,7 @@ function kontrolCiz() {
     if (s.cmsteYok.length) h += `<details class="k-acik"><summary>Planda olup CMS'te görünmeyenler (${s.cmsteYok.length}) — oturum açmamış / izinli olabilir</summary><div class="k-not" style="margin-top:6px;line-height:1.8">${s.cmsteYok.map(x => esc(x.k.ad)).join(' · ')}</div></details>`;
   }
   p.innerHTML = h;
+  if (EKIP_TASLAK) ekipListeSuz();
   const k = $('k_kutu');
   k.addEventListener('paste', ev => {
     ev.preventDefault();
