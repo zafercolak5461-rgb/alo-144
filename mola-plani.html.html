@@ -88,6 +88,11 @@
   .ek-ozet { display:block; }
   .ana-sekme { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:0 auto 12px; }
   .ana-sekme button { font-size:14px; padding:8px 16px; }
+  .ek-vardiyalar { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:13px; }
+  .ek-vardiyalar label { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+  .ek-karsi { margin-top:10px; padding:10px 12px; border-radius:8px; background:#FFF8EC; border:1px solid #EF9F27; font-size:13px; }
+  .ek-karsi.tamam { background:#EAF3DE; border-color:#97C459; }
+  .ek-karsi-s { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 12px; margin-top:8px; padding-top:8px; border-top:1px dashed #E8C891; line-height:1.6; }
   .ek-bas { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; padding:10px 12px; background:#F3F0FD; border:1px solid #CECBF6; border-radius:8px; font-size:13px; }
   .ek-bos { margin-top:14px; padding:10px 14px; border:1px dashed #b9c5d2; border-radius:10px; background:#fff; font-size:13px; color:var(--m); display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   #ekKart, #ekDuzen { margin-top:14px; }
@@ -893,7 +898,8 @@ function ekMolaDuzenAc() {
   const adlar = new Map(); ST.kisiler.forEach(k => adlar.set(normAd(k.ad), k.ad));
   if (e) e.kisiler.forEach(k => { if (!adlar.has(normAd(k.ad))) adlar.set(normAd(k.ad), k.ad); });
   // Bugünün yoklaması: her kişinin vardiyası (gelmeyenler hariç). Planda olmayan yoklama kişileri de listeye eklenir.
-  const vardiya = {};
+  const vardiya = {}, gelmeyen = new Set();
+  if (YOK && YOK.tarih === iso(new Date())) YOK.kisiler.filter(y => y.gelmedi).forEach(y => { const n = [...adlar.keys()].find(x => x === y.n || isimBenzer(x, y.n)); if (n) gelmeyen.add(n); });
   if (YOK && YOK.tarih === iso(new Date())) YOK.kisiler.filter(y => !y.gelmedi && y.vardiya).forEach(y => {
     let n = [...adlar.keys()].find(x => x === y.n) || [...adlar.keys()].find(x => isimBenzer(x, y.n));
     if (!n) { n = y.n; adlar.set(n, gorunurAd(y.ad)); }
@@ -901,14 +907,17 @@ function ekMolaDuzenAc() {
   });
   const vardiyalar = [...new Set(Object.values(vardiya))].sort();
   anaSekme = 'ek';
-  EK_TASLAK = { vardiya, vardiyalar, vSec: vardiyalar.includes('09:00-19:00') && !(e && e.kisiler.length) ? '09:00-19:00' : '', ad: (e && e.ad) || 'Akşam ek molası', bas: (e && e.bas) || iso(buPzt), bit: (e && e.bit) || iso(cuma), sure: (e && e.sure) || 10, saatler, atama,
+  EK_TASLAK = { vardiya, vardiyalar, gelmeyen, vSec: vardiyalar.filter(v => v.endsWith('-19:00')), ad: (e && e.ad) || 'Akşam ek molası', bas: (e && e.bas) || iso(buPzt), bit: (e && e.bit) || iso(cuma), sure: (e && e.sure) || 10, saatler, atama,
     kisiler: [...adlar.entries()].map(([n, ad]) => ({ n, ad })).sort((x, y) => x.ad.localeCompare(y.ad, 'tr')), ara: '', sadeceSecili: !!(e && e.kisiler.length), bulunamayan: [] };
-  if (EK_TASLAK.vSec) EK_TASLAK.sadeceSecili = false;
+  if (EK_TASLAK.vSec.length) EK_TASLAK.sadeceSecili = false;
+  try { EK_TASLAK.onceki = JSON.parse(localStorage.getItem('molaPlani.ekOnceki') || 'null'); } catch (er) {}
   ciz(); setTimeout(() => $('ekDuzen') && $('ekDuzen').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 function ekMolaYapistir(metin) {
   const T = EK_TASLAK, c = ekMolaCoz(metin);
   if (!c.kisiler.length) { toast('Tablo okunamadı. Üst satırda saatler (18:10, 18:20…), altında isimler olmalı.'); return; }
+  const mevcut = Object.keys(T.atama).length;
+  if (mevcut && !confirm(`Şu anki listede ${mevcut} kişi var. Yapıştırılan tablo (${c.kisiler.length} kişi) bu listenin YERİNE geçecek. Devam edilsin mi?\n\n(Kaydet'e basmadan Vazgeç dersen hiçbir şey değişmez.)`)) return;
   T.saatler = [...new Set([...c.saatler])].sort();
   T.atama = {}; T.bulunamayan = [];
   c.kisiler.forEach(k => {
@@ -918,9 +927,34 @@ function ekMolaYapistir(metin) {
     if (!hedef) { hedef = { n, ad: guzelAd(k.ad) }; T.kisiler.push(hedef); T.kisiler.sort((x, y) => x.ad.localeCompare(y.ad, 'tr')); T.bulunamayan.push(guzelAd(k.ad)); }
     T.atama[hedef.n] = k.saat;
   });
-  T.sadeceSecili = true; T.vSec = '';
+  T.sadeceSecili = false;
   ciz(); toast(`${c.kisiler.length} kişi okundu${T.bulunamayan.length ? `, ${T.bulunamayan.length} kişi planda bulunamadı` : ''}`);
 }
+/** Yoklamadaki vardiya ile ek mola listesini karşılaştırır. */
+function ekKarsilastirHtml() {
+  const T = EK_TASLAK, vs = T.vSec;
+  if (!vs.length) return '';
+  const v = vs.join(', ');
+  const vardiyada = Object.keys(T.vardiya).filter(n => vs.includes(T.vardiya[n]));
+  const secili = Object.keys(T.atama);
+  const eksik = vardiyada.filter(n => !(n in T.atama));
+  const fazla = secili.filter(n => !vs.includes(T.vardiya[n]));
+  const ad = n => esc((T.kisiler.find(k => k.n === n) || { ad: n }).ad);
+  const neden = n => T.gelmeyen.has(n) ? 'bugün yok' : T.vardiya[n] ? T.vardiya[n] : 'yoklamada yok';
+  const tamam = !eksik.length && !fazla.length;
+  return `<div class="ek-karsi${tamam ? ' tamam' : ''}"><div><b>Yoklama ${trTarih(new Date())} · ${vs.map(x => `${x}: ${Object.keys(T.vardiya).filter(n => T.vardiya[n] === x).length}`).join(' + ')} = ${vardiyada.length} kişi</b> · Ek mola listesinde: <b>${secili.length} kişi</b>${tamam ? ' · ✓ birebir uyuşuyor' : ''}</div>
+    ${eksik.length ? `<div class="ek-karsi-s"><span><b style="color:#A32D2D">${eksik.length} kişi vardiyada ama listede yok:</b> ${eksik.map(ad).join(' · ')}</span><button class="kucuk ana" onclick="ekDagit(${esc(JSON.stringify(eksik))})">Bunları saatlere dağıt</button></div>` : ''}
+    ${fazla.length ? `<div class="ek-karsi-s"><span><b style="color:#854F0B">${fazla.length} kişi listede ama bugün seçili vardiyalarda değil:</b> ${fazla.map(n => `${ad(n)} <span class="k-not">(${neden(n)})</span>`).join(' · ')}</span><button class="kucuk" onclick="ekCikar(${esc(JSON.stringify(fazla))})">Listeden çıkar</button></div>` : ''}</div>`;
+}
+/** Verilen kişileri, en az kişi olan saatlerden başlayarak rastgele sırayla dağıtır. */
+function ekDagit(liste) {
+  const T = EK_TASLAK, say = {};
+  T.saatler.forEach(sa => { say[sa] = Object.values(T.atama).filter(x => x === sa).length; });
+  liste.slice().sort(() => Math.random() - .5).forEach(n => { const sa = T.saatler.slice().sort((a, b) => say[a] - say[b] || Math.random() - .5)[0]; T.atama[n] = sa; say[sa]++; });
+  ciz(); toast(`${liste.length} kişi saatlere dağıtıldı. Kaydet'e basınca geçerli olur.`);
+}
+function ekVardiya(v, on) { const T = EK_TASLAK; T.vSec = on ? [...new Set([...T.vSec, v])].sort() : T.vSec.filter(x => x !== v); ciz(); }
+function ekCikar(liste) { liste.forEach(n => delete EK_TASLAK.atama[n]); ciz(); toast(`${liste.length} kişi listeden çıkarıldı. Kaydet'e basınca geçerli olur.`); }
 function ekMolaDuzenHtml() {
   const T = EK_TASLAK, say = s => Object.values(T.atama).filter(v => v === s).length;
   return `<div class="kart" id="ekDuzen"><div class="k-bas" style="position:static"><h3>🌙 ${esc(T.ad)} — düzenle</h3><button onclick="EK_TASLAK=null;ciz()">✕ Kapat</button></div>
@@ -931,12 +965,13 @@ function ekMolaDuzenHtml() {
       <label>Süre <input type="number" min="1" max="120" value="${T.sure}" oninput="EK_TASLAK.sure=+this.value" style="width:64px"> dk</label>
       <label>Saatler <input value="${esc(T.saatler.join(', '))}" onchange="ekSaatler(this.value)" style="width:220px" title="Virgülle ayır"></label>
     </div>
-    <div class="k-not" style="margin-top:6px">Bu tarihler arasında listedeki kişilere, gündüz molalarına ek olarak bu mola eklenir. CMS'te <b>İhtiyaç</b> durumuyla kontrol edilir.</div>
+    <div class="k-not" style="margin-top:6px">Bu tarihler arasında listedeki kişilere, gündüz molalarına ek olarak bu mola eklenir. Mola saatinde CMS'te hangi durumda olursa olsun (İhtiyaç, Yemek, Toplantı…) molada sayılır.</div>
     <textarea id="ekYap" rows="2" placeholder="İstersen hazır tabloyu buraya yapıştır (Ctrl+V): üstte saatler, altında isimler. Ya da aşağıdan kişileri seç." style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px dashed #85B7EB;border-radius:6px;background:#f5f9fd"></textarea>
-    ${T.bulunamayan.length ? `<div class="k-not" style="color:#854F0B;margin-top:4px">Mola planında bulunamadı (yine de eklendi, ismini kontrol et): ${T.bulunamayan.map(esc).join(' · ')}</div>` : ''}
+    ${(() => { const b = T.bulunamayan.filter(a => normAd(a) in T.atama); return b.length ? `<div class="k-not" style="color:#854F0B;margin-top:4px">Mola planında bulunamadı (yine de eklendi, ismini kontrol et): ${b.map(esc).join(' · ')}</div>` : ''; })()}
+    ${ekKarsilastirHtml()}
     <div class="e-sec">
       <div class="satir" style="margin-bottom:6px">${T.vardiyalar.length ? `<label class="k-not">Bugünün yoklamasından vardiya:
-          <select onchange="EK_TASLAK.vSec=this.value;ekListeSuz()"><option value="">Tüm personel</option>${T.vardiyalar.map(v => `<option value="${v}" ${T.vSec === v ? 'selected' : ''}>${v} (${Object.values(T.vardiya).filter(x => x === v).length} kişi)</option>`).join('')}</select></label>`
+          </label><span class="ek-vardiyalar">${T.vardiyalar.map(v => `<label><input type="checkbox" ${T.vSec.includes(v) ? 'checked' : ''} onchange="ekVardiya('${v}',this.checked)"> ${v} <span class="k-not">(${Object.values(T.vardiya).filter(x => x === v).length})</span></label>`).join('')}</span><span class="k-not">· hiçbiri seçili değilse tüm personel</span>`
           : `<span class="k-not">Bugünün yoklamasını yüklersen buradan vardiyaya göre (ör. 09:00-19:00) listeleyebilirsin.</span>`}
         <span class="k-not" id="ek_gorunen"></span><button class="kucuk" onclick="ekEsitDagit()" title="Listede görünen, saati seçilmemiş kişileri saatlere eşit dağıtır">Seçilmemişleri eşit dağıt</button></div>
       <div class="satir"><input id="ek_ara" type="search" placeholder="İsim ara…" value="${esc(T.ara)}" oninput="EK_TASLAK.ara=this.value;ekListeSuz()" style="flex:1;min-width:180px">
@@ -946,6 +981,7 @@ function ekMolaDuzenHtml() {
     </div>
     <div id="ek_hata" class="k-not" style="color:#A32D2D"></div>
     <div class="satir" style="margin-top:10px"><button class="ana" onclick="ekMolaKaydet()">Kaydet</button><button onclick="EK_TASLAK=null;ciz()">Vazgeç</button>
+      ${T.onceki && T.onceki.ek ? `<button onclick="ekOncekiYukle()" title="Bu bilgisayarda son kayıttan önceki hali">↶ Önceki hali yükle (${T.onceki.ek.kisiler.length} kişi, ${new Date(T.onceki.zaman).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})</button>` : ''}
       ${ST.ekMola ? `<button class="sil" style="font-size:13px;margin-left:auto" onclick="ekMolaKaldir()">Ek molayı kaldır</button>` : ''}</div></div>`;
 }
 function ekSaatler(v) {
@@ -961,12 +997,13 @@ function ekAta(n, sa, btn) {
   if (T.atama[n] === sa) delete T.atama[n]; else T.atama[n] = sa;
   btn.parentNode.querySelectorAll('.e-gb').forEach(b => b.classList.toggle('secili', T.atama[n] === b.dataset.s));
   ekSayac(); if (T.sadeceSecili) ekListeSuz();
+  const k = document.querySelector('.ek-karsi'); if (k) k.outerHTML = ekKarsilastirHtml() || '<div class="ek-karsi" hidden></div>';
 }
 function ekListeSuz() {
   const T = EK_TASLAK, q = normAd(T.ara || '');
   let gorunen = 0;
   document.querySelectorAll('#ek_liste .e-kisi').forEach(r => { const n = r.dataset.n;
-    const ok = (!q || n.includes(q)) && (!T.sadeceSecili || n in T.atama) && (!T.vSec || T.vardiya[n] === T.vSec);
+    const ok = (!q || n.includes(q)) && (!T.sadeceSecili || n in T.atama) && (!T.vSec.length || T.vSec.includes(T.vardiya[n]));
     r.style.display = ok ? '' : 'none'; if (ok) gorunen++; });
   const g = $('ek_gorunen'); if (g) g.textContent = gorunen + ' kişi listeleniyor';
 }
@@ -979,12 +1016,21 @@ function ekEsitDagit() {
   bos.forEach(n => { const s = T.saatler.slice().sort((a, b) => say[a] - say[b] || a.localeCompare(b))[0]; T.atama[n] = s; say[s]++; });
   ciz(); toast(`${bos.length} kişi saatlere dağıtıldı; istediğini değiştirebilirsin.`);
 }
+function ekOncekiYukle() {
+  const T = EK_TASLAK, e = T.onceki && T.onceki.ek; if (!e) return;
+  T.ad = e.ad; T.bas = e.bas; T.bit = e.bit; T.sure = e.sure;
+  T.saatler = [...new Set(e.kisiler.map(k => k.saat))].sort(); T.atama = {};
+  e.kisiler.forEach(k => { const n = normAd(k.ad); let h = T.kisiler.find(x => x.n === n); if (!h) { h = { n, ad: k.ad }; T.kisiler.push(h); } T.atama[h.n] = k.saat; });
+  T.kisiler.sort((x, y) => x.ad.localeCompare(y.ad, 'tr')); T.vSec = []; T.sadeceSecili = true;
+  ciz(); toast(`Önceki hal yüklendi (${e.kisiler.length} kişi). Kaydet'e basınca geçerli olur.`);
+}
 function ekMolaKaydet() {
   const T = EK_TASLAK, hata = m => { $('ek_hata').textContent = m; };
   if (!T.bas || !T.bit || T.bit < T.bas) return hata('Başlangıç ve bitiş tarihini kontrol et.');
   if (!(T.sure > 0)) return hata('Süreyi dakika olarak yaz.');
   const kisiler = T.kisiler.filter(k => T.atama[k.n]).map(k => ({ ad: k.ad, saat: T.atama[k.n] })).sort((a, b) => a.saat.localeCompare(b.saat) || a.ad.localeCompare(b.ad, 'tr'));
   if (!kisiler.length) return hata('En az bir kişiye saat ata ya da tabloyu yapıştır.');
+  try { if (ST.ekMola) localStorage.setItem('molaPlani.ekOnceki', JSON.stringify({ zaman: new Date().toISOString(), ek: ST.ekMola })); } catch (er) {}
   ST.ekMola = { ad: String(T.ad || '').trim() || 'Akşam ek molası', bas: T.bas, bit: T.bit, sure: T.sure, kisiler };
   EK_TASLAK = null;
   kaydet(`${ST.ekMola.ad} kaydedildi (${kisiler.length} kişi, ${trTarih(isoTarih(ST.ekMola.bas))}–${trTarih(isoTarih(ST.ekMola.bit))})`); ciz(); if (!$('kontrol').hidden) kontrolCiz(); toast('Ek mola kaydedildi');
