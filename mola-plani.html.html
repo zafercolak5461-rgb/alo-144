@@ -990,7 +990,7 @@ function ekMolaTablo(e) {
   const n = Math.max(...sut.map(x => x.length));
   const td = 'border:1px solid #808080;padding:3px 8px;font-family:Calibri,Segoe UI,Arial,sans-serif;font-size:14px;';
   let h = `<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:6px">
-    <tr><td colspan="${saatler.length + 1}" bgcolor="#002060" style="${td}background:#002060;text-align:center"><font color="#FFFFFF"><b>Mola Saatleri</b></font></td></tr>
+    <tr><td colspan="${saatler.length + 1}" bgcolor="#002060" style="${td}background:#002060;text-align:center"><font color="#FFFFFF"><b>Mola Saatleri${e.bas && e.bit ? ` (${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))})` : ''}</b></font></td></tr>
     <tr><td bgcolor="#FFFF00" style="${td}background:#FFFF00;white-space:nowrap"><font color="#000000"><b>Kişi Sayısı</b></font></td>${saatler.map(sa => `<td bgcolor="#FFFF00" style="${td}background:#FFFF00;text-align:center;min-width:170px"><font color="#000000"><b>${sa}</b></font></td>`).join('')}</tr>`;
   for (let i = 0; i < n; i++) h += `<tr><td bgcolor="#FFFFFF" style="${td}background:#FFFFFF">${i + 1}</td>${sut.map(c => `<td bgcolor="#FFFFFF" style="${td}background:#FFFFFF;white-space:nowrap">${esc(c[i] || '')}</td>`).join('')}</tr>`;
   return h + `</table>`;
@@ -999,15 +999,65 @@ function ekMolaKontrolSatiri() {
   const e = ST.ekMola, ref = (sonCms && sonCms.zaman) || new Date();
   if (!e || !e.kisiler || !e.kisiler.length) return `<div class="k-not" style="margin-top:8px">🌙 Akşam ek molası yok. <button class="kucuk" onclick="ekMolaDuzenAc()">+ Ek mola tanımla</button></div>`;
   const gecerli = ekMolaGecerli(ref);
-  return `<div class="k-not" style="margin-top:8px">🌙 <b>${esc(e.ad)}</b> (${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))}, ${e.kisiler.length} kişi): ${gecerli ? '<b style="color:#27500A">bu kontrolde geçerli</b> — ek molası olanlar normal molalarla birlikte kontrol edilir' : 'bu tarihte geçerli değil'}. <button class="kucuk" onclick="ekMolaDuzenAc()">Düzenle</button></div>`;
+  return `<div class="k-not" style="margin-top:8px">🌙 <b>${esc(e.ad)}</b> (${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))}, ${e.kisiler.length} kişi): ${gecerli ? '<b style="color:#27500A">bu kontrolde geçerli</b> — ek molası olanlar normal molalarla birlikte kontrol edilir' : 'bu tarihte geçerli değil'}. <button class="kucuk" onclick="ekMolaKopyala()">Mail için kopyala</button> <button class="kucuk" onclick="ekMolaDuzenAc()">Düzenle</button></div>`;
 }
 function ekMolaKart() {
   if (EK_TASLAK) return ekMolaDuzenHtml();
   const e = ST.ekMola;
   if (!e || !e.kisiler || !e.kisiler.length) return `<div class="ek-bos">🌙 Akşam ek molası tanımlı değil. <button class="kucuk" onclick="ekMolaDuzenAc()">+ Ek mola tanımla</button></div>`;
   const bas = isoTarih(e.bas), bit = isoTarih(e.bit), aktif = ekMolaGecerli(new Date());
-  return `<details class="ek-bos ek-ozet"><summary>🌙 <b>${esc(e.ad)}</b>: ${trTarih(bas)} – ${trTarih(bit)} · ${e.kisiler.length} kişi · ${Number(e.sure) || 10} dk${aktif ? ' · <b style="color:#27500A">bugün geçerli</b>' : ''} <button class="kucuk" onclick="event.preventDefault();ekMolaDuzenAc()">Düzenle</button></summary>
-    <div class="mailview" style="margin-top:8px">${ekMolaTablo(e)}</div></details>`;
+  return `<details class="ek-bos ek-ozet" open><summary>🌙 <b>${esc(e.ad)}</b>: ${trTarih(bas)} – ${trTarih(bit)} · ${e.kisiler.length} kişi · ${Number(e.sure) || 10} dk${aktif ? ' · <b style="color:#27500A">bugün geçerli</b>' : ''} <button class="kucuk ana" onclick="event.preventDefault();ekMolaKopyala()">Mail için kopyala</button><button class="kucuk" onclick="event.preventDefault();ekMolaDuzenAc()">Düzenle</button></summary>
+    <div class="mailview" style="margin-top:8px">${ekMolaMailHtml(e)}</div></details>`;
+}
+/** Ek mola maili: haftalık mola planı mailiyle aynı görünüm (başlık bandı, özet kutuları, renkli saat blokları). */
+function ekMolaMailHtml(e) {
+  const F = 'font-family:Segoe UI,Arial,sans-serif', sure = Number(e.sure) || 10;
+  const fc = (r, t, k) => `<font color="#${r}">${k ? '<b>' + t + '</b>' : t}</font>`;
+  const saatler = [...new Set(e.kisiler.map(k => k.saat))].sort();
+  const blok = saatler.map(sa => ({ sa, bit: saatYaz(dk(sa) + sure), kisiler: e.kisiler.filter(k => k.saat === sa).map(k => k.ad).sort((a, b) => a.localeCompare(b, 'tr')) }));
+  const tarih = `${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))}`;
+  let o = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f6"><tr><td align="center" style="padding:0">`;
+  o += `<table role="presentation" width="760" cellpadding="0" cellspacing="0" style="max-width:760px;width:100%;background:#ffffff;border:1px solid #d5dde6">`;
+  o += `<tr><td style="background:#185FA5;height:6px;line-height:6px;font-size:1px">&nbsp;</td></tr>`;
+  o += `<tr><td style="background:#E6F1FB;padding:18px 24px;border-bottom:1px solid #B5D4F4;${F}"><div style="font-size:12px;letter-spacing:.5px;color:#185FA5"><font color="#185FA5"><b>${esc(metin(ST, 'baslik'))}</b></font></div><div style="font-size:22px;font-weight:bold;margin-top:2px;color:#042C53"><font color="#042C53"><b>${esc(String(e.ad || 'Akşam ek molası').toLocaleUpperCase('tr'))}</b></font></div><div style="font-size:14px;margin-top:2px;color:#0C447C"><font color="#0C447C">${tarih}</font></div></td></tr>`;
+  o += `<tr><td style="padding:16px 16px 4px"><table role="presentation" width="100%" cellpadding="0" cellspacing="6"><tr>`;
+  [['Toplam personel', e.kisiler.length], ['Mola saati', saatler.length], ['Saat aralığı', `${saatler[0]} – ${blok[blok.length - 1].bit}`], ['Mola süresi', sure + ' dk']].forEach(([l, v]) => {
+    o += `<td width="25%" style="background:#f4f6f9;border:1px solid #e1e7ee;padding:10px 12px;${F}"><div style="font-size:11px;color:#6b7785">${l}</div><div style="font-size:20px;font-weight:bold;color:#1d2733;margin-top:2px">${esc(v)}</div></td>`; });
+  o += `</tr></table></td></tr>`;
+  const th = `background:#D3DDE8;font-size:11px;font-weight:bold;padding:7px 4px;border:1px solid #9fb0c2;text-align:center;${F}`;
+  const kenar = 'border-top:1px solid #9fb0c2;border-bottom:1px solid #9fb0c2;border-left:2px solid #8597aa;border-right:2px solid #8597aa';
+  o += `<tr><td style="padding:12px 22px 4px;${F}"><div style="font-size:15px;font-weight:bold;color:#1d2733">Personel listesi</div></td></tr>`;
+  o += `<tr><td style="padding:6px 22px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">`;
+  o += `<tr><td style="${th}">${fc('1d2733', 'MOLA SAATİ', 1)}</td><td style="${th};text-align:left">${fc('1d2733', 'İSİM SOYİSİM', 1)}</td><td style="${th}">${fc('1d2733', 'ÇIKIŞ – DÖNÜŞ', 1)}</td></tr>`;
+  blok.forEach((b, i) => {
+    const [d, bg] = renk(i), [orta, koyu] = ORTA[i % ORTA.length];
+    b.kisiler.forEach((ad, r) => {
+      const z = r % 2 ? '#' + bg : '#ffffff';
+      o += `<tr>` + (r === 0 ? `<td rowspan="${b.kisiler.length}" style="background:#${orta};font-size:14px;border:1px solid #9fb0c2;text-align:center;width:90px;${F}">${fc(koyu, b.sa, 1)}<div style="font-size:11px;margin-top:2px">${fc(koyu, b.kisiler.length + ' kişi')}</div></td>` : '')
+        + `<td style="background:${z};font-size:12px;padding:5px 8px;${kenar};white-space:nowrap;${F}">${fc('1d2733', esc(ad.toLocaleUpperCase('tr')), 1)}</td>`
+        + `<td style="background:${z};font-size:12px;padding:5px 6px;${kenar};text-align:center;white-space:nowrap;${F}">${fc('1d2733', b.sa + ' – ' + b.bit, 1)}</td></tr>`;
+    });
+    o += `<tr><td colspan="3" style="background:#${d};height:6px;line-height:6px;font-size:1px">&nbsp;</td></tr>`;
+  });
+  o += `</table></td></tr>`;
+  o += `<tr><td style="padding:12px 22px;font-size:12px;color:#6b7785;${F}"><font color="#6b7785">Ek mola ${tarih} tarihleri arasında, belirtilen saatte ${sure} dakika olarak kullanılır.</font></td></tr>`;
+  return o + `</table></td></tr></table>`;
+}
+async function ekMolaKopyala() {
+  const e = ST.ekMola; if (!e || !e.kisiler || !e.kisiler.length) return;
+  const html = ekMolaMailHtml(e);
+  const saatler = [...new Set(e.kisiler.map(k => k.saat))].sort();
+  const duz = `${e.ad} (${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))})\n\n` + saatler.map(sa => `${sa}\n` + e.kisiler.filter(k => k.saat === sa).map(k => k.ad.toLocaleUpperCase('tr')).join('\n')).join('\n\n');
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([duz], { type: 'text/plain' }) })]);
+      toast('Kopyalandı. Outlook\'ta yeni maile Ctrl+V ile yapıştır.'); return;
+    }
+  } catch (er) {}
+  const d = document.createElement('div'); d.contentEditable = 'true'; d.style.cssText = 'position:fixed;left:-99999px;top:0'; d.innerHTML = html; document.body.appendChild(d);
+  const r = document.createRange(); r.selectNodeContents(d); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r);
+  const ok = document.execCommand('copy'); sl.removeAllRanges(); d.remove();
+  toast(ok ? 'Kopyalandı. Outlook\'ta yeni maile Ctrl+V ile yapıştır.' : 'Kopyalanamadı. Tabloyu seçip elle kopyala.');
 }
 /** Bir kişinin o günkü planlı molaları: [{bas, bit, tur, ad}] (dakika) */
 function kisiDilimleri(k, gun) {
