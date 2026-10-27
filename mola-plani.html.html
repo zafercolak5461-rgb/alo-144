@@ -86,6 +86,7 @@
   .e-rozet.mor { background:#EEEDFE; color:#3C3489; } .e-rozet.yesil { background:#EAF3DE; color:#27500A; }
   .ek-ozet summary { cursor:pointer; list-style:none; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .ek-ozet { display:block; }
+  .ek-bas { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; padding:10px 12px; background:#F3F0FD; border:1px solid #CECBF6; border-radius:8px; font-size:13px; }
   .ek-bos { margin-top:14px; padding:10px 14px; border:1px dashed #b9c5d2; border-radius:10px; background:#fff; font-size:13px; color:var(--m); display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   #ekKart, #ekDuzen { margin-top:14px; }
   .ek-ust { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:12px; font-size:13px; color:var(--m); }
@@ -1001,6 +1002,59 @@ function ekMolaKontrolSatiri() {
   const gecerli = ekMolaGecerli(ref);
   return `<div class="k-not" style="margin-top:8px">🌙 <b>${esc(e.ad)}</b> (${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))}, ${e.kisiler.length} kişi): ${gecerli ? '<b style="color:#27500A">bu kontrolde geçerli</b> — ek molası olanlar normal molalarla birlikte kontrol edilir' : 'bu tarihte geçerli değil'}. <button class="kucuk" onclick="ekMolaKopyala()">Mail için kopyala</button> <button class="kucuk" onclick="ekMolaDuzenAc()">Düzenle</button></div>`;
 }
+let EK_SECILI = new Set();
+function ekSaatSec(sa) { EK_SECILI.has(sa) ? EK_SECILI.delete(sa) : EK_SECILI.add(sa); kontrolCiz(); }
+/** Akşam ek molası sekmesi: sadece ek molası olan kişiler, saat kartları ve kontrol listeleri */
+function ekMolaCiz(cms) {
+  const e = ST.ekMola, sure = Number(e.sure) || 10;
+  const ref = (cms && cms.zaman) || new Date(), simdi = ref.getHours() * 60 + ref.getMinutes(), gecerli = ekMolaGecerli(ref);
+  let h = `<div class="ek-bas"><div><b>🌙 ${esc(e.ad)}</b> · ${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))} · ${e.kisiler.length} kişi · ${sure} dk
+      ${gecerli ? '' : ' · <b style="color:#854F0B">bu tarihte geçerli değil</b>'}</div>
+    <span class="satir"><button class="kucuk" onclick="ekMolaKopyala()">Mail için kopyala</button><button class="kucuk" onclick="ekMolaDuzenAc()">Düzenle</button></span></div>`;
+  // Kişi → CMS kaydı ve sonucu
+  const s = cms ? karsilastir(cms) : null;
+  const sonuc = new Map();
+  if (s) {
+    s.cikmayan.filter(x => x.ek).forEach(x => sonuc.set(normAd(x.ad), ['kirmizi', 'Molaya çıkmamış', x]));
+    s.asim.filter(x => x.ek).forEach(x => sonuc.set(normAd(x.ad), ['turuncu', 'Süresini aşmış', x]));
+    s.dogru.filter(x => x.ek).forEach(x => sonuc.set(normAd(x.ad), ['yesil', 'Saatinde molada', x]));
+    s.planDisi.filter(x => x.ekKisi && ekMolaKisi(x.ad)).forEach(x => { if (!sonuc.has(normAd(x.ad))) sonuc.set(normAd(x.ad), ['mor', 'Saati dışında molada', x]); });
+  }
+  const ajan = ad => { if (!cms) return null; const k = ST.kisiler.find(p => normAd(p.ad) === normAd(ad)) || ST.kisiler.find(p => adSoyadBenzer(normAd(p.ad), normAd(ad)));
+    return (k && k.cms && cms.ajanlar.find(a => a.no === String(k.cms))) || cms.ajanlar.find(a => adSoyadBenzer(normAd(a.ad), normAd(ad))) || null; };
+  const yokG = YOK && YOK.tarih === iso(ref);
+  const saatler = [...new Set(e.kisiler.map(k => k.saat))].sort();
+  const satirlar = e.kisiler.map(k => { const a = ajan(k.ad), r = sonuc.get(normAd(k.ad)) || (() => { for (const [n, v] of sonuc) if (adSoyadBenzer(n, normAd(k.ad))) return v; return null; })();
+    const y = yokG ? yoklamaBul(k.ad) : null; return { k, a, r, gelmedi: !!(y && y.gelmedi) }; });
+  h += `<div class="k-not" style="margin-top:8px">${cms ? `CMS saati: <b>${pad(ref.getHours())}:${pad(ref.getMinutes())}</b> · ` : ''}Saatin kişilerini görmek için kartına bas (birden fazla seçebilirsin).</div>`;
+  h += `<div class="e-ozet">${saatler.map(sa => {
+    const bas = dk(sa), bit = bas + sure, simdiMi = simdi >= bas && simdi < bit, us = satirlar.filter(x => x.k.saat === sa);
+    const molada = us.filter(x => x.r && (x.r[0] === 'yesil' || x.r[0] === 'turuncu')).length, sorun = us.filter(x => x.r && x.r[0] !== 'yesil').length;
+    return `<button class="e-ozet-k${simdiMi ? ' simdi' : ''}${EK_SECILI.has(sa) ? ' secili' : ''}" onclick="ekSaatSec('${sa}')"><b>${sa} – ${saatYaz(bit)} ${EK_SECILI.has(sa) ? '▾' : '▸'}</b><span>${simdiMi ? '<b>şu an</b> · ' : ''}${us.length} kişi${cms ? ` · molada ${molada}${sorun ? ` · <b style="color:#A32D2D">${sorun} uyarı</b>` : ''}` : ''}</span></button>`;
+  }).join('')}</div>`;
+  saatler.filter(sa => EK_SECILI.has(sa)).forEach(sa => {
+    const us = satirlar.filter(x => x.k.saat === sa).sort((a, b) => a.k.ad.localeCompare(b.k.ad, 'tr'));
+    h += `<div class="e-plan"><div class="e-plan-bas"><b>${sa} – ${saatYaz(dk(sa) + sure)}</b> · ${us.length} kişi</div>
+      <table class="d-tablo" style="max-width:none"><tr><th>#</th><th>Personel</th>${cms ? '<th>CMS durumu</th><th>Sonuç</th>' : ''}</tr>
+      ${us.map((x, i) => `<tr><td class="k-not">${i + 1}</td><td><b>${esc(gorunurAd(x.k.ad))}</b>${x.gelmedi ? ' <span class="k-not">· bugün yok</span>' : ''}</td>${cms ? `<td>${x.a ? `<span class="etiket ${x.a.tur}">${esc(x.a.durum)}</span> <span class="k-not">${x.a.sure ? sureYaz(x.a.sure) : ''}</span>` : `<span class="k-not">${x.gelmedi ? '—' : "CMS'te yok"}</span>`}</td><td>${x.r ? `<span class="e-rozet ${x.r[0]}">${x.r[1]}</span> <span class="k-not">${esc(x.r[2].aciklama || '')}</span>` : ''}</td>` : ''}</tr>`).join('')}</table></div>`;
+  });
+  if (!cms) return h + `<div class="k-not" style="margin-top:8px">Kontrol için CMS ekranını yukarıdaki kutuya yapıştır (ek mola saatlerinde).</div>`;
+  const grup = r => satirlar.filter(x => x.r && x.r[0] === r);
+  const tablo = (bas, renk, l, bos) => `<div class="k-bolum"><h4><i style="background:${renk}"></i>${bas} (${l.length})</h4>${l.length ? `<table class="k-tablo"><tr><th>Personel</th><th>Ek mola</th><th>CMS durumu</th><th>Açıklama</th></tr>${l.sort((a, b) => ((b.a && b.a.sure) || 0) - ((a.a && a.a.sure) || 0)).map(x => `<tr><td><b>${esc(gorunurAd(x.k.ad))}</b></td><td class="s">${x.k.saat}</td><td class="s">${x.a ? `<span class="etiket ${x.a.tur}">${esc(x.a.durum)}</span> <span class="k-not">${x.a.sure ? sureYaz(x.a.sure) : ''}</span>` : ''}</td><td class="k-not">${esc(x.r[2].aciklama || '')}</td></tr>`).join('')}</table>` : `<div class="k-not">${bos}</div>`}</div>`;
+  const cik = grup('kirmizi'), asim = grup('turuncu'), dis = grup('mor'), uyg = grup('yesil');
+  h += `<div class="k-ozet">
+    <div class="k-kutu kirmizi"><b>${cik.length}</b><span>Molaya çıkmamış</span></div>
+    <div class="k-kutu turuncu"><b>${asim.length}</b><span>Süresini aşmış</span></div>
+    <div class="k-kutu mor"><b>${dis.length}</b><span>Saati dışında molada</span></div>
+    <div class="k-kutu yesil"><b>${uyg.length}</b><span>Saatinde molada</span></div></div>`;
+  h += tablo('Molaya çıkmamış', '#E24B4A', cik, 'Şu an ek mola saati gelip çıkmayan yok.');
+  h += tablo('Süresini aşmış', '#EF9F27', asim, 'Süre aşımı yok.');
+  h += tablo('Saati dışında molada', '#7F77DD', dis, 'Kendi saati dışında molada olan yok.');
+  h += `<details class="k-acik"><summary>Saatinde molada olanlar (${uyg.length})</summary>${tablo('Saatinde molada', '#639922', uyg, '—')}</details>`;
+  const yok = satirlar.filter(x => !x.a && !x.gelmedi);
+  if (yok.length) h += `<details class="k-acik"><summary>Ek mola listesinde olup CMS'te görünmeyenler (${yok.length})</summary><div class="k-not" style="margin-top:6px;line-height:1.8">${yok.map(x => esc(gorunurAd(x.k.ad))).join(' · ')}</div></details>`;
+  return h;
+}
 function ekMolaKart() {
   if (EK_TASLAK) return ekMolaDuzenHtml();
   const e = ST.ekMola;
@@ -1116,16 +1170,18 @@ function karsilastir(cms) {
       if (!d) {
         const sonraki = dilimler.filter(d => uyar(d) && d.bas > simdi).sort((p, q) => p.bas - q.bas)[0];
         const onceki = dilimler.filter(d => uyar(d) && d.bit <= simdi).sort((p, q) => q.bas - p.bas)[0];
-        planDisi.push({ ...satir, aciklama: `Çıkış ~${saatYaz(basladi)}` + (onceki ? ` · son planlı ${onceki.ad}: ${saatYaz(onceki.bas)}–${saatYaz(onceki.bit)}` : '') + (sonraki ? ` · sıradaki ${sonraki.ad}: ${saatYaz(sonraki.bas)}` : '') });
+        const ekDl = dilimler.find(d => d.herTur);
+        planDisi.push({ ...satir, ekKisi: !!(ekDl && basladi >= ekDl.bas - 40), aciklama: `Çıkış ~${saatYaz(basladi)}` + (onceki ? ` · son planlı ${onceki.ad}: ${saatYaz(onceki.bas)}–${saatYaz(onceki.bit)}` : '') + (sonraki ? ` · sıradaki ${sonraki.ad}: ${saatYaz(sonraki.bas)}` : '') });
         return;
       }
       const hak = (d.bit - d.bas) * 60;
+      if (d.herTur) satir.ek = d;
       if (a.sure > hak + TOLERANS_DK * 60) asim.push({ ...satir, aciklama: `${d.ad} ${saatYaz(d.bas)}–${saatYaz(d.bit)} · hakkı ${d.bit - d.bas} dk, ${Math.round((a.sure - hak) / 60)} dk fazla` });
       else dogru.push({ ...satir, aciklama: `${d.ad} ${saatYaz(d.bas)}–${saatYaz(d.bit)}` });
       return;
     }
     const simdiki = dilimler.find(d => simdi >= d.bas + TOLERANS_DK && simdi < d.bit);
-    if (simdiki) cikmayan.push({ ...satir, kTur: simdiki.tur, aciklama: `${simdiki.ad} ${saatYaz(simdiki.bas)}–${saatYaz(simdiki.bit)} · ${simdi - simdiki.bas} dk geçti` });
+    if (simdiki) cikmayan.push({ ...satir, kTur: simdiki.tur, ek: simdiki.herTur ? simdiki : null, aciklama: `${simdiki.ad} ${saatYaz(simdiki.bas)}–${saatYaz(simdiki.bit)} · ${simdi - simdiki.bas} dk geçti` });
     else if (a.tur === 'diger') digerDurum.push({ ...satir, aciklama: '' });
   });
   const vdN = vardiyaDisi.map(k => k.n);
@@ -1444,10 +1500,17 @@ function ekipSil() {
 }
 function gorunumSatiri() {
   if (EKIP_TASLAK) return ekipDuzenHtml();
-  if (!ekipTanimli()) return `<div class="k-not" style="margin-top:8px">Ayrıca takip ettiğin bir ekip varsa: <button class="kucuk" onclick="ekipDuzenAc()">+ Ekibimi tanımla</button></div>`;
-  if (!ekipVar()) return `<div class="satir e-gorunum"><span class="k-not">Ekip takibi kapalı · kayıtlı liste: ${ST.ekip.length} kişi, ${ekipGruplari(ST.ekip).length} grup</span><button class="kucuk ana" onclick="ekipAcKapa(true)">Takibi tekrar başlat</button><button class="kucuk" onclick="ekipDuzenAc()">Düzenle</button></div>`;
+  const ekV = !!(ST.ekMola && ST.ekMola.kisiler && ST.ekMola.kisiler.length);
+  if (kGorunum === 'ek' && !ekV) kGorunum = 'salon';
+  if (kGorunum === 'ekip' && !ekipVar()) kGorunum = 'salon';
   const b = (g, y) => `<button class="${kGorunum === g ? 'aktif' : ''}" onclick="gorunumSec('${g}')">${y}</button>`;
-  return `<div class="satir e-gorunum"><span class="k-not">Görünüm:</span>${b('salon', 'Tüm salon (mola planı)')}${b('ekip', `Ekibim (${ST.ekip.length})`)}<button class="kucuk" onclick="ekipDuzenAc()">Ekibi düzenle</button><button class="kucuk" title="Liste silinmez; ana plan herkes için normal çalışır" onclick="if(confirm('Ekip takibi bitirilsin mi? Liste saklanır, istediğinde Takibi tekrar başlat ile açarsın.'))ekipAcKapa(false)">Takibi bitir</button></div>`;
+  let h = `<div class="satir e-gorunum"><span class="k-not">Görünüm:</span>${b('salon', 'Tüm salon (mola planı)')}`;
+  if (ekV) h += b('ek', `🌙 ${esc(ST.ekMola.ad || 'Akşam ek molası')} (${ST.ekMola.kisiler.length})`);
+  else h += `<button class="kucuk" onclick="ekMolaDuzenAc()">🌙 + Ek mola tanımla</button>`;
+  if (ekipVar()) h += b('ekip', `Ekibim (${ST.ekip.length})`) + `<button class="kucuk" onclick="ekipDuzenAc()">Ekibi düzenle</button><button class="kucuk" title="Liste silinmez; ana plan herkes için normal çalışır" onclick="if(confirm('Ekip takibi bitirilsin mi? Liste saklanır, istediğinde Takibi tekrar başlat ile açarsın.'))ekipAcKapa(false)">Takibi bitir</button>`;
+  else if (ekipTanimli()) h += `<span class="k-not">Ekip takibi kapalı (${ST.ekip.length} kişi)</span><button class="kucuk" onclick="ekipAcKapa(true)">Takibi tekrar başlat</button><button class="kucuk" onclick="ekipDuzenAc()">Düzenle</button>`;
+  else h += `<button class="kucuk" onclick="ekipDuzenAc()">+ Ekibimi tanımla</button>`;
+  return h + `</div>`;
 }
 /** Ekip üyelerini CMS'teki kişilerle eşleştirir ve yemek saatine göre değerlendirir. */
 function ekipKarsilastir(cms) {
@@ -1563,12 +1626,14 @@ function kontrolCiz() {
       <input type="file" id="k_yokDosya" accept=".xlsx,.xls" hidden onchange="if(this.files[0])yoklamaDosya(this.files[0]);this.value=''">
     </div>
     <textarea id="k_kutu" rows="2" placeholder="CMS ekranını buraya yapıştır" style="width:100%;margin-top:10px;font:inherit;font-size:13px;padding:8px;border:1px solid var(--br);border-radius:6px"></textarea>`;
-  h += ekMolaKontrolSatiri();
   h += gorunumSatiri();
-  if (kGorunum === 'ekip' && ekipVar() && !EKIP_TASLAK) h += ekipCiz(sonCms);
+  if (kGorunum === 'ek' && !EKIP_TASLAK) h += ekMolaCiz(sonCms);
+  else if (kGorunum === 'ekip' && ekipVar() && !EKIP_TASLAK) h += ekipCiz(sonCms);
   else if (sonCms) {
     const s0 = karsilastir(sonCms);
-    const s = { ...s0, cikmayan: kSuz(s0.cikmayan), asim: kSuz(s0.asim), planDisi: kSuz(s0.planDisi), dogru: kSuz(s0.dogru) };
+    const ekAyri = ekMolaGecerli(s0.ref), ekS = l => ekAyri ? l.filter(x => !x.ek) : l;
+    const s = { ...s0, cikmayan: kSuz(ekS(s0.cikmayan)), asim: kSuz(ekS(s0.asim)), planDisi: kSuz(ekAyri ? s0.planDisi.filter(x => !x.ekKisi) : s0.planDisi), dogru: kSuz(ekS(s0.dogru)) };
+    const ekSay = ekAyri ? [s0.cikmayan, s0.asim, s0.dogru].reduce((t, l) => t + l.filter(x => x.ek).length, 0) + s0.planDisi.filter(x => x.ekKisi).length : 0;
     const fb = (v, y) => `<button class="${kFiltre === v ? 'aktif' : ''}" onclick="kFiltre='${v}';kontrolCiz()">${y}</button>`;
     h += `<div class="satir" style="margin-top:10px">${fb('', 'Tümü')}${fb('yemek', 'Sadece yemek')}${fb('mola', 'Sadece mola')}</div>`;
     const ozetSatir = (t, y) => `<span><b>${y}:</b> CMS'te şu an ${s0.cmsSimdi[t]} kişi · planda bu saatte ${s0.planSimdi[t]} kişi</span>`;
@@ -1605,6 +1670,7 @@ function kontrolCiz() {
       }
     } else if (YOK) h += `<div class="k-not" style="color:#854F0B;margin-top:6px">Yüklü yoklama ${trTarih(isoTarih(YOK.tarih))} tarihli, CMS saati farklı bir gün; yoklama bu kontrolde kullanılmadı.</div>`;
     else h += `<div class="k-not" style="margin-top:6px">Hattan düşenleri görmek için bugünün yoklamasını yükle.</div>`;
+    if (ekSay) h += `<div class="k-not" style="margin-top:6px">🌙 Ek molayla ilgili ${ekSay} kişi bu listelerde gösterilmiyor; <button class="kucuk" onclick="gorunumSec('ek')">Akşam ek molası</button> sekmesinde.</div>`;
     if (ekipVar()) h += `<div class="k-not" style="margin-top:6px">Ekibindeki ${ST.ekip.length} kişi mola planı kontrolüne dahil edilmedi; onları <b>Ekibim</b> görünümünde takip edebilirsin.</div>`;
     if (gun === 0 || gun === 6) h += `<div class="not" style="color:#A32D2D">Hafta sonu: plan hafta içi için hazırlandı, sonuçlar yanıltıcı olabilir.</div>`;
     h += `<div class="k-ozet">
