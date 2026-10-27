@@ -1301,8 +1301,8 @@ function yoklamaTablo(aoa) {
     if (acAralik) vardiya = acAralik;                       // Açıklama'da farklı vardiya saati yazıyorsa o geçerli
     // Açıklama'da tek saat (10:00 / 10:00:00 / Excel saat değeri) → izin değil, başlama saati
     let acSaat = null;
-    const tekSaat = String(aciklama).trim().match(/^(\d{1,2})[:.](\d{2})([:.]\d{2})?$/);
-    if (tekSaat) acSaat = +tekSaat[1] * 60 + +tekSaat[2];
+    const tekSaat = String(aciklama).trim().match(/^(\d{1,2})[:.](\d{2})([:.]\d{2})?\s*(AM|PM|ÖÖ|ÖS|A|P)?$/);
+    if (tekSaat) { let sa = +tekSaat[1]; const ek = tekSaat[4] || ''; if (/^(PM|ÖS|P)$/.test(ek) && sa < 12) sa += 12; if (/^(AM|ÖÖ|A)$/.test(ek) && sa === 12) sa = 0; acSaat = sa * 60 + +tekSaat[2]; }
     else if (/^0?[.,]\d+$/.test(String(aciklama).trim())) acSaat = Math.round(parseFloat(String(aciklama).replace(',', '.')) * 1440);
     if (!acAralik && acSaat != null && vardiya) vardiya = [acSaat, vardiya[1] > acSaat ? vardiya[1] : vardiya[1] + 1440];
     const off = vardiyaYazi === 'OFF' || aciklama === 'OFF';
