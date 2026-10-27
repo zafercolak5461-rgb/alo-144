@@ -1299,11 +1299,17 @@ function yoklamaTablo(aoa) {
     let vardiya = aralik(vardiyaYazi);
     const acAralik = aralik(aciklama);
     if (acAralik) vardiya = acAralik;                       // Açıklama'da farklı vardiya saati yazıyorsa o geçerli
+    // Açıklama'da tek saat (10:00 / 10:00:00 / Excel saat değeri) → izin değil, başlama saati
+    let acSaat = null;
+    const tekSaat = String(aciklama).trim().match(/^(\d{1,2})[:.](\d{2})([:.]\d{2})?$/);
+    if (tekSaat) acSaat = +tekSaat[1] * 60 + +tekSaat[2];
+    else if (/^0?[.,]\d+$/.test(String(aciklama).trim())) acSaat = Math.round(parseFloat(String(aciklama).replace(',', '.')) * 1440);
+    if (!acAralik && acSaat != null && vardiya) vardiya = [acSaat, vardiya[1] > acSaat ? vardiya[1] : vardiya[1] + 1440];
     const off = vardiyaYazi === 'OFF' || aciklama === 'OFF';
     const girisVar = /\d{1,2}[:.]\d{2}/.test(login) || normAd(login) === 'VAR';
     // Açıklama'ya ne yazılmışsa (rapor, izin, periyodik kontrol, PC değişimi…) kişi açıklamalı sayılır ve kontrol dışı kalır.
     // Kelime listesi aranmaz; yazım hatası da olsa geçerlidir. Sadece saat aralığı (vardiya değişikliği) ve anlamsız işaretler hariç.
-    const yokSebebi = !acAralik && /[A-Z]{2,}/.test(normAd(aciklama).replace(/ /g, '')) && !/^(VAR|YOK|NA|YOKTUR)$/.test(normAd(aciklama).replace(/ /g, ''));
+    const yokSebebi = !acAralik && acSaat == null && /[A-Z]{2,}/.test(normAd(aciklama).replace(/ /g, '')) && !/^(VAR|YOK|NA|YOKTUR)$/.test(normAd(aciklama).replace(/ /g, ''));
     const durum = cD >= 0 ? normAd(row[cD]) : '';
     const durumYok = !!durum && /YOK|GELMEDI|IZIN|IZNI|RAPOR|DEVAMSIZ/.test(durum);
     const gelmedi = off || yokSebebi || durumYok;
@@ -1311,7 +1317,7 @@ function yoklamaTablo(aoa) {
     // Login YOK + açıklama boş: vardiyasında gelmesi beklenir (yoklama erken alınmış olabilir).
     kisiler.push({ ad, n: normAd(ad), vardiya: off ? null : vardiya, gelmedi, girisVar,
       neden: gelmedi ? (off ? 'OFF' : (aciklama || (durumYok && !/^BUGUN YOK$/.test(durum) ? ust(row[cD]) : 'Bugün yok'))) : '',
-      not: gelmedi ? '' : (notYazi || (!acAralik && aciklama ? aciklama : '')),
+      not: gelmedi ? '' : (notYazi || (!acAralik && acSaat == null && aciklama ? aciklama : '')),
       gorev: cG >= 0 ? String(row[cG] ?? '').trim() : '' });
   }
   return kisiler;
