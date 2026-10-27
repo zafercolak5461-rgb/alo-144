@@ -86,6 +86,8 @@
   .e-rozet.mor { background:#EEEDFE; color:#3C3489; } .e-rozet.yesil { background:#EAF3DE; color:#27500A; }
   .ek-ozet summary { cursor:pointer; list-style:none; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .ek-ozet { display:block; }
+  .ana-sekme { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:0 auto 12px; }
+  .ana-sekme button { font-size:14px; padding:8px 16px; }
   .ek-bas { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; padding:10px 12px; background:#F3F0FD; border:1px solid #CECBF6; border-radius:8px; font-size:13px; }
   .ek-bos { margin-top:14px; padding:10px 14px; border:1px dashed #b9c5d2; border-radius:10px; background:#fff; font-size:13px; color:var(--m); display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   #ekKart, #ekDuzen { margin-top:14px; }
@@ -527,7 +529,11 @@ function ciz() {
     + (ST.yuklendi ? ` (${esc(ST.yuklendi)})` : '')
     + ` · Gösterilen hafta bu plandan <b>${fark === 0 ? 'aynı hafta' : (fark > 0 ? fark + ' hafta sonra' : (-fark) + ' hafta önce')}</b>`;
   if (seciliGrup > p.N) seciliGrup = 0;
-  $('icerik').innerHTML = `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value, { grup: seciliGrup })}</div>` + ekMolaKart();
+  const ekVar = !!(ST.ekMola && ST.ekMola.kisiler && ST.ekMola.kisiler.length);
+  if (anaSekme === 'ek' && !ekVar && !EK_TASLAK) anaSekme = 'plan';
+  const sk = (k, y) => `<button class="${anaSekme === k ? 'aktif' : ''}" onclick="anaSekmeSec('${k}')">${y}</button>`;
+  const sekmeler = `<div class="ana-sekme">${sk('plan', 'Haftalık mola planı')}${ekVar ? sk('ek', `🌙 ${esc(ST.ekMola.ad || 'Akşam ek molası')} (${ST.ekMola.kisiler.length})`) : `<button onclick="ekMolaDuzenAc()">🌙 + Ek mola tanımla</button>`}</div>`;
+  $('icerik').innerHTML = sekmeler + (anaSekme === 'ek' || EK_TASLAK ? ekMolaKart() : `<div class="mailview">${mailHtml(p, goruntu, ST, $('ara').value, { grup: seciliGrup })}</div>`);
   if (EK_TASLAK) ekListeSuz();
   const ey = $('ekYap'); if (ey) ey.addEventListener('paste', ev => { ev.preventDefault(); ekMolaYapistir((ev.clipboardData || window.clipboardData).getData('text/plain')); });
   const hit = $('icerik').querySelector('[data-hit]');
@@ -877,7 +883,9 @@ function ekMolaCoz(metin) {
   }
   return { saatler, kisiler: sonuc };
 }
-let EK_TASLAK = null;
+let EK_TASLAK = null, anaSekme = 'plan';
+try { anaSekme = localStorage.getItem('molaPlani.anaSekme') || 'plan'; } catch (e) {}
+function anaSekmeSec(k) { anaSekme = k; EK_TASLAK = null; try { localStorage.setItem('molaPlani.anaSekme', k); } catch (e) {} ciz(); }
 function ekMolaDuzenAc() {
   const e = ST.ekMola, buPzt = pzt(new Date()), cuma = new Date(buPzt.getTime() + 4 * GUN);
   const saatler = e && e.kisiler.length ? [...new Set(e.kisiler.map(k => k.saat))].sort() : ['18:10', '18:20', '18:30', '18:40'];
@@ -892,6 +900,7 @@ function ekMolaDuzenAc() {
     vardiya[n] = saatYaz(y.vardiya[0]) + '-' + saatYaz(y.vardiya[1]);
   });
   const vardiyalar = [...new Set(Object.values(vardiya))].sort();
+  anaSekme = 'ek';
   EK_TASLAK = { vardiya, vardiyalar, vSec: vardiyalar.includes('09:00-19:00') && !(e && e.kisiler.length) ? '09:00-19:00' : '', ad: (e && e.ad) || 'Akşam ek molası', bas: (e && e.bas) || iso(buPzt), bit: (e && e.bit) || iso(cuma), sure: (e && e.sure) || 10, saatler, atama,
     kisiler: [...adlar.entries()].map(([n, ad]) => ({ n, ad })).sort((x, y) => x.ad.localeCompare(y.ad, 'tr')), ara: '', sadeceSecili: !!(e && e.kisiler.length), bulunamayan: [] };
   if (EK_TASLAK.vSec) EK_TASLAK.sadeceSecili = false;
@@ -1058,10 +1067,11 @@ function ekMolaCiz(cms) {
 function ekMolaKart() {
   if (EK_TASLAK) return ekMolaDuzenHtml();
   const e = ST.ekMola;
-  if (!e || !e.kisiler || !e.kisiler.length) return `<div class="ek-bos">🌙 Akşam ek molası tanımlı değil. <button class="kucuk" onclick="ekMolaDuzenAc()">+ Ek mola tanımla</button></div>`;
-  const bas = isoTarih(e.bas), bit = isoTarih(e.bit), aktif = ekMolaGecerli(new Date());
-  return `<details class="ek-bos ek-ozet" open><summary>🌙 <b>${esc(e.ad)}</b>: ${trTarih(bas)} – ${trTarih(bit)} · ${e.kisiler.length} kişi · ${Number(e.sure) || 10} dk${aktif ? ' · <b style="color:#27500A">bugün geçerli</b>' : ''} <button class="kucuk ana" onclick="event.preventDefault();ekMolaKopyala()">Mail için kopyala</button><button class="kucuk" onclick="event.preventDefault();ekMolaDuzenAc()">Düzenle</button></summary>
-    <div class="mailview" style="margin-top:8px">${ekMolaMailHtml(e)}</div></details>`;
+  if (!e || !e.kisiler || !e.kisiler.length) return '';
+  const aktif = ekMolaGecerli(new Date());
+  return `<div class="ek-bas" style="max-width:760px;margin:0 auto 10px"><div>🌙 <b>${esc(e.ad)}</b> · ${trTarih(isoTarih(e.bas))} – ${trTarih(isoTarih(e.bit))} · ${e.kisiler.length} kişi · ${Number(e.sure) || 10} dk${aktif ? ' · <b style="color:#27500A">bugün geçerli</b>' : ''}</div>
+    <span class="satir"><button class="kucuk" onclick="ekMolaDuzenAc()">Düzenle</button></span></div>
+    <div class="mailview">${ekMolaMailHtml(e)}</div>`;
 }
 /** Ek mola maili: haftalık mola planı mailiyle aynı görünüm (başlık bandı, özet kutuları, renkli saat blokları). */
 function ekMolaMailHtml(e) {
@@ -1767,6 +1777,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('kontro
 /* ---------- KOPYALA / YAZDIR / GEZİNME ---------- */
 $('kopyalaBtn').onclick = async () => {
   if (!ST) return;
+  if (anaSekme === 'ek' && ST.ekMola && ST.ekMola.kisiler && ST.ekMola.kisiler.length) return ekMolaKopyala();
   const p = haftaPlani(ST, goruntu), html = mailHtml(p, goruntu, ST, '');
   const duz = `${metin(ST, 'anaBaslik')} - ${haftaAralik(goruntu)}\n\n` + p.bol.map(b => `${b.no}. GRUP (${b.saat.join(' | ')})\n` + b.kisiler.join('\n')).join('\n\n');
   try {
