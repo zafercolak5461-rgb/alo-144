@@ -844,7 +844,7 @@ function ekMolaKisi(ad) {
 function ekMolaDilim(ad, gun) {
   if (!ekMolaGecerli(gun)) return [];
   const k = ekMolaKisi(ad), bas = k && dk(k.saat);
-  return bas == null ? [] : [{ bas, bit: bas + (Number(ST.ekMola.sure) || 10), ad: (ST.ekMola.ad || 'Akşam ek molası').toLocaleUpperCase('tr'), tur: 'mola' }];
+  return bas == null ? [] : [{ bas, bit: bas + (Number(ST.ekMola.sure) || 10), ad: (ST.ekMola.ad || 'Akşam ek molası').toLocaleUpperCase('tr'), tur: 'mola', herTur: true }];   // ek molada CMS durumu ne olursa olsun (İhtiyaç, Yemek, Toplantı…) mola sayılır
 }
 /** Mailden / Excel'den kopyalanan tabloyu okur: başlıkta saatler (18:10 18:20 …), altında her saatin sütununda isimler. */
 function ekMolaCoz(metin) {
@@ -1104,14 +1104,18 @@ function karsilastir(cms) {
   eslesen.forEach(({ a, x }) => {
     const { g, dilimler } = kisiDilimleri(x.k, ref);
     const pl = dilimler.find(d => simdi >= d.bas && simdi < d.bit); if (pl) planSimdi[pl.tur]++;
-    const molada = a.tur === 'mola' || a.tur === 'yemek';
+    const basladi = simdi - Math.round(a.sure / 60);
+    const icinde = d => basladi >= d.bas - ERKEN_DK && basladi <= d.bit;
+    const ekD = dilimler.find(d => d.herTur && icinde(d));
+    // Ek mola saatinde Toplantı / İç Hizmet gibi diğer durumlar da molayı kullanmak sayılır
+    const molada = a.tur === 'mola' || a.tur === 'yemek' || (a.tur === 'diger' && !!ekD);
     const satir = { ad: x.k.ad, no: a.no, g, durum: a.durum, tur: a.tur, sure: a.sure };
     if (molada) {
-      const basladi = simdi - Math.round(a.sure / 60);
-      const d = dilimler.find(d => d.tur === a.tur && basladi >= d.bas - ERKEN_DK && basladi <= d.bit);
+      const uyar = d => d.tur === a.tur || d.herTur;
+      const d = dilimler.find(d => d.tur === a.tur && icinde(d)) || ekD;
       if (!d) {
-        const sonraki = dilimler.filter(d => d.tur === a.tur && d.bas > simdi).sort((p, q) => p.bas - q.bas)[0];
-        const onceki = dilimler.filter(d => d.tur === a.tur && d.bit <= simdi).sort((p, q) => q.bas - p.bas)[0];
+        const sonraki = dilimler.filter(d => uyar(d) && d.bas > simdi).sort((p, q) => p.bas - q.bas)[0];
+        const onceki = dilimler.filter(d => uyar(d) && d.bit <= simdi).sort((p, q) => q.bas - p.bas)[0];
         planDisi.push({ ...satir, aciklama: `Çıkış ~${saatYaz(basladi)}` + (onceki ? ` · son planlı ${onceki.ad}: ${saatYaz(onceki.bas)}–${saatYaz(onceki.bit)}` : '') + (sonraki ? ` · sıradaki ${sonraki.ad}: ${saatYaz(sonraki.bas)}` : '') });
         return;
       }
