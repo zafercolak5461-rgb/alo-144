@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALO-144 Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  ALO-144 PANEL (tek çatı)
+  - Sol menüde her program bir ana başlık. Ana başlığa basınca program sağda iframe ile açılır.
+  - Alt başlıkları program KENDİSİ bildirir (kendi yetki kontrolünden sonra görünen menü öğeleri),
+    panel yalnız gösterir. Programlardaki "PANEL KÖPRÜSÜ" bloğu bunu yapar.
+  - Açılışta hiçbir program yüklenmez. Bir program bir kez açılınca, başka programa geçildiğinde
+    kapanmaz, arkada bekler (tekrar girişe gerek kalmaz).
+  - Giriş: her program kendi Google girişini kendi içinde yapar (ilk aşama).
+  - Programlar tek başına açıldığında bu dosyadan etkilenmez.
+-->
+<style>
+:root{
+  --bg:#10182B;
+  --panel:#16213D;
+  --line:#2A3A5C;
+  --text:#FFFFFF;
+  --dim:#8FA3C9;
+  --dim2:#5D7299;
+  --accent:#E8A53D;
+}
+*{ box-sizing:border-box; }
+html, body{ margin:0; height:100%; }
+body{ background:var(--bg); color:var(--text); font-family:'Inter', sans-serif; overflow:hidden; }
+
+.cati{ display:flex; height:100vh; }
+
+/* --- Sol menü --- */
+#menu{
+  width:260px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; height:100vh;
+}
+.cati.kapali #menu{ display:none; }
+.menu-bas{
+  padding:20px 20px 18px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:10px;
+}
+.marka{
+  width:32px; height:32px; border-radius:8px; background:var(--accent); color:#04140d;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Fraunces', serif; font-weight:700; font-size:15px; flex-shrink:0;
+}
+.marka-ad{ font-family:'Fraunces', serif; font-weight:600; font-size:15px; line-height:1.3; }
+.marka-alt{ font-size:10.5px; color:var(--dim); font-family:'IBM Plex Mono', monospace; }
+.kucuk-btn{
+  background:none; border:1px solid var(--line); border-radius:6px; color:var(--dim);
+  width:26px; height:26px; cursor:pointer; font-size:13px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.kucuk-btn:hover{ color:var(--text); border-color:#3a4d75; }
+.menu-bas .kucuk-btn{ margin-left:auto; }
+
+#acBtn{
+  display:none; position:fixed; top:12px; left:12px; z-index:50;
+  width:34px; height:34px; background:var(--panel); border:1px solid var(--line); border-radius:6px;
+  color:var(--text); font-size:15px; cursor:pointer; align-items:center; justify-content:center;
+}
+.cati.kapali #acBtn{ display:flex; }
+
+#liste{ flex:1; overflow-y:auto; padding:14px 0; }
+
+.ana{
+  display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  background:none; border:none; border-left:2px solid transparent;
+  color:var(--dim); font-family:'Inter', sans-serif; font-size:14px; font-weight:600;
+  padding:11px 18px; cursor:pointer;
+}
+.ana:hover{ background:rgba(255,255,255,0.03); color:var(--text); }
+.ana.acik{ color:var(--accent); border-left-color:var(--accent); background:rgba(232,165,61,0.08); }
+.ana .ok{ margin-left:auto; font-size:10px; transition:transform .15s; color:var(--dim2); }
+.ana.acik .ok{ transform:rotate(90deg); color:var(--accent); }
+.ana .yuklu{ width:6px; height:6px; border-radius:50%; background:transparent; flex-shrink:0; }
+.ana.yuklendi .yuklu{ background:var(--dim2); }
+.ana.acik .yuklu{ background:var(--accent); }
+
+.alt{ display:none; padding:4px 0 12px; }
+.alt.acik{ display:block; }
+.alt-grup{
+  font-size:10px; text-transform:uppercase; letter-spacing:0.07em; color:var(--dim2);
+  padding:10px 20px 4px 38px; font-family:'IBM Plex Mono', monospace;
+}
+.alt-oge{
+  display:block; width:100%; text-align:left; background:none; border:none;
+  color:var(--dim); font-family:'Inter', sans-serif; font-size:13px;
+  padding:7px 18px 7px 38px; cursor:pointer;
+}
+.alt-oge:hover{ color:var(--text); background:rgba(255,255,255,0.03); }
+.alt-oge.aktif{ color:var(--accent); font-weight:600; }
+.alt-oge.pasif{ opacity:.4; cursor:default; }
+.alt-not{ font-size:12px; color:var(--dim2); padding:6px 18px 6px 38px; line-height:1.5; }
+
+.menu-alt{
+  border-top:1px solid var(--line); padding:12px 20px; display:none; gap:8px;
+}
+.menu-alt.var{ display:flex; }
+.menu-alt button, .menu-alt a{
+  flex:1; background:none; border:1px solid var(--line); border-radius:6px;
+  color:var(--dim); font-size:11.5px; padding:6px 8px; cursor:pointer; text-align:center;
+  text-decoration:none; font-family:'Inter', sans-serif;
+}
+.menu-alt button:hover, .menu-alt a:hover{ color:var(--text); border-color:#3a4d75; }
+
+/* --- Sağ alan --- */
+#sahne{ flex:1; min-width:0; position:relative; background:var(--bg); }
+#sahne iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; display:none; background:var(--bg); }
+#sahne iframe.acik{ display:block; }
+#bos{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color:var(--dim2); font-size:13px;
+}
+
+@media (max-width:780px){
+  #menu{ position:fixed; z-index:40; left:0; top:0; box-shadow:0 0 30px rgba(0,0,0,.5); }
+}
+</style>
+</head>
+<body>
+<div class="cati" id="cati">
+  <button id="acBtn" title="Menüyü Göster">☰</button>
+  <aside id="menu">
+    <div class="menu-bas">
+      <div class="marka">A</div>
+      <div>
+        <div class="marka-ad">ALO-144</div>
+        <div class="marka-alt">Panel</div>
+      </div>
+      <button class="kucuk-btn" id="kapatBtn" title="Menüyü Gizle">☰</button>
+    </div>
+    <nav id="liste"></nav>
+    <div class="menu-alt" id="menuAlt">
+      <button id="yenileBtn" title="Açık programı yeniden yükle">↻ Yenile</button>
+      <a id="ayriBtn" target="_blank" rel="noopener" title="Açık programı ayrı sekmede aç">↗ Ayrı sekme</a>
+    </div>
+  </aside>
+  <main id="sahne">
+    <div id="bos">Soldan bir program seçin</div>
+  </main>
+</div>
+
+<script>
+// Panelde görünecek programlar. "id", programdaki PANEL KÖPRÜSÜ bloğundaki CFG.app ile aynı olmalı.
+// Adresler bu dosyanın (alo-144/panel.html) bulunduğu yere göredir.
+const PROGRAMLAR = [
+  { id:'alo144', ad:'ALO-144 Dashboard', url:'ALO-144_DASHBOARD.html' },
+  { id:'karne',  ad:'Personel Karnesi',  url:'personel-karnesi.html' },
+  { id:'veri',   ad:'Veri Hazırlama',    url:'../veri-hazirlama-projesi/' },
+];
+const MESAJ_KAYNAK = 'alo144-panel';
+const KOPRU_BEKLEME_MS = 4000; // program yüklendikten sonra bu süre içinde menü bildirmezse uyarı gösterilir
+
+// Her programın durumu: iframe, gelen alt menü, yüklenme bilgisi
+const durum = {};
+PROGRAMLAR.forEach(p => { durum[p.id] = { iframe:null, ogeler:null, yuklendi:false, kopruYok:false, zaman:null }; });
+let aktifId = null;
+
+const listeEl = document.getElementById('liste');
+const sahneEl = document.getElementById('sahne');
+const bosEl = document.getElementById('bos');
+
+function programAdresi(p){ return p.url + (p.url.includes('?') ? '&' : '?') + 'panel=1'; }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function menuCiz(){
+  let html = '';
+  PROGRAMLAR.forEach(p => {
+    const d = durum[p.id];
+    const acik = p.id === aktifId;
+    html += `<button class="ana${acik ? ' acik' : ''}${d.iframe ? ' yuklendi' : ''}" data-ana="${p.id}">
+      <span class="yuklu"></span><span>${esc(p.ad)}</span><span class="ok">▶</span></button>`;
+    html += `<div class="alt${acik ? ' acik' : ''}">${acik ? altCiz(p.id) : ''}</div>`;
+  });
+  listeEl.innerHTML = html;
+  const d = aktifId ? durum[aktifId] : null;
+  document.getElementById('menuAlt').classList.toggle('var', !!(d && d.iframe));
+  if (aktifId){
+    const p = PROGRAMLAR.find(x => x.id === aktifId);
+    document.getElementById('ayriBtn').href = p.url;
+  }
+}
+
+function altCiz(id){
+  const d = durum[id];
+  if (!d.yuklendi) return '<div class="alt-not">Yükleniyor…</div>';
+  if (d.kopruYok && !d.ogeler) return '<div class="alt-not">Program menüsünü bildirmedi. Program dosyası güncel olmayabilir (Ctrl+F5 deneyin).</div>';
+  if (!d.ogeler) return '<div class="alt-not">Yükleniyor…</div>';
+  if (!d.ogeler.length) return '<div class="alt-not">Giriş bekleniyor — sağdan giriş yapın.</div>';
+  let html = '', sonGrup = null;
+  d.ogeler.forEach(o => {
+    if (o.grup && o.grup !== sonGrup) html += `<div class="alt-grup">${esc(o.grup)}</div>`;
+    sonGrup = o.grup || null;
+    html += `<button class="alt-oge${o.aktif ? ' aktif' : ''}${o.pasif ? ' pasif' : ''}" data-alt="${esc(o.id)}">${esc(o.ad)}</button>`;
+  });
+  return html;
+}
+
+function programAc(id){
+  const p = PROGRAMLAR.find(x => x.id === id);
+  if (!p) return;
+  const d = durum[id];
+  aktifId = id;
+  if (!d.iframe){
+    const fr = document.createElement('iframe');
+    fr.title = p.ad;
+    fr.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+    fr.addEventListener('load', () => {
+      d.yuklendi = true;
+      d.ogeler = null; d.kopruYok = false;
+      gonder(id, { tur:'menu-iste' });
+      clearTimeout(d.zaman);
+      d.zaman = setTimeout(() => { if (!d.ogeler){ d.kopruYok = true; if (aktifId === id) menuCiz(); } }, KOPRU_BEKLEME_MS);
+      if (aktifId === id) menuCiz();
+    });
+    fr.src = programAdresi(p);
+    sahneEl.appendChild(fr);
+    d.iframe = fr;
+  }
+  Object.keys(durum).forEach(k => { if (durum[k].iframe) durum[k].iframe.classList.toggle('acik', k === id); });
+  bosEl.style.display = 'none';
+  document.title = 'ALO-144 Panel · ' + p.ad;
+  menuCiz();
+}
+
+function gonder(id, mesaj){
+  const d = durum[id];
+  if (!d || !d.iframe || !d.iframe.contentWindow) return;
+  try { d.iframe.contentWindow.postMessage(Object.assign({ kaynak:MESAJ_KAYNAK }, mesaj), '/'); } catch(e){}
+}
+
+// Programlardan gelen menü bildirimleri
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin) return;
+  const m = e.data || {};
+  if (m.kaynak !== MESAJ_KAYNAK || m.tur !== 'menu') return;
+  const id = Object.keys(durum).find(k => durum[k].iframe && durum[k].iframe.contentWindow === e.source);
+  if (!id) return;
+  const d = durum[id];
+  d.ogeler = Array.isArray(m.ogeler) ? m.ogeler : [];
+  d.yuklendi = true;
+  clearTimeout(d.zaman);
+  if (aktifId === id) menuCiz();
+});
+
+listeEl.addEventListener('click', e => {
+  const ana = e.target.closest('[data-ana]');
+  if (ana){ programAc(ana.dataset.ana); return; }
+  const alt = e.target.closest('[data-alt]');
+  if (alt && aktifId && !alt.classList.contains('pasif')){
+    gonder(aktifId, { tur:'ac', id: alt.dataset.alt });
+    if (window.innerWidth <= 780) document.getElementById('cati').classList.add('kapali');
+  }
+});
+
+document.getElementById('kapatBtn').addEventListener('click', () => document.getElementById('cati').classList.add('kapali'));
+document.getElementById('acBtn').addEventListener('click', () => document.getElementById('cati').classList.remove('kapali'));
+document.getElementById('yenileBtn').addEventListener('click', () => {
+  if (!aktifId) return;
+  const d = durum[aktifId];
+  if (!d.iframe) return;
+  d.yuklendi = false; d.ogeler = null; d.kopruYok = false;
+  menuCiz();
+  try { d.iframe.contentWindow.location.reload(); } catch(e){ d.iframe.src = d.iframe.src; }
+});
+
+menuCiz();
+</script>
+</body>
+</html>
