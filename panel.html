@@ -21,6 +21,10 @@
     giriş/çıkış kaydı göndermez; "kaydet" kayıtlarını eskisi gibi gönderir.
   - Google izni ~1 saat geçerlidir; süre dolunca panel "Yenile" düğmesi gösterir ve yeni
     izni açık tüm programlara iletir.
+  - Ana başlıklar yetkiye göre: kişinin YETKİLENDİRME'de programın sekmesinde en az bir TRUE'su
+    yoksa o başlık görünmez (sekme okunamazsa başlık gösterilir). Alt sayfaları program süzer.
+  - Son açılan program ve sayfa tarayıcıda (kişinin e-postasıyla) tutulur; girişten sonra
+    oraya dönülür. Sayfaya yetki kalmamışsa programın kendi açılış sayfası açılır.
   - Programlar tek başına açıldığında bu dosyadan etkilenmez.
 -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -201,10 +205,16 @@ body:not(.girildi) .cati{ visibility:hidden; }
 <script>
 // Panelde görünecek programlar. "id", programdaki PANEL KÖPRÜSÜ bloğundaki CFG.app ile aynı olmalı.
 // Adresler bu dosyanın (alo-144/panel.html) bulunduğu yere göredir.
+// yetkiSekme: YETKİLENDİRME tablosunda programın sekmesi. Kişinin o sekmede satırı varsa ve
+//   C sütunundan sonra en az bir TRUE'su varsa başlık görünür (sütun eklense de kural aynı kalır).
+// sabitYetkili: programın kodunda sabit Süper Yetkili olan hesaplar (tablo boş olsa da görür).
 const PROGRAMLAR = [
-  { id:'alo144', ad:'ALO-144 Dashboard', url:'ALO-144_DASHBOARD.html' },
-  { id:'karne',  ad:'Personel Karnesi',  url:'personel-karnesi.html' },
-  { id:'veri',   ad:'Veri Hazırlama',    url:'../veri-hazirlama-projesi/' },
+  { id:'alo144', ad:'ALO-144 Dashboard', url:'ALO-144_DASHBOARD.html',      yetkiSekme:'ALO144',
+    sabitYetkili:['zafercolak5461@gmail.com', 'zafer54sema@gmail.com'] },
+  { id:'karne',  ad:'Personel Karnesi',  url:'personel-karnesi.html',       yetkiSekme:'PERSONEL KARNESİ',
+    sabitYetkili:['zafercolak5461@gmail.com', 'zafer54sema@gmail.com'] },
+  { id:'veri',   ad:'Veri Hazırlama',    url:'../veri-hazirlama-projesi/', yetkiSekme:'VERİ HAZIRLAMA',
+    sabitYetkili:['zafercolak5461@gmail.com'] },
 ];
 const MESAJ_KAYNAK = 'alo144-panel';
 
@@ -212,9 +222,11 @@ const MESAJ_KAYNAK = 'alo144-panel';
 const OAUTH_CLIENT_ID = '334728137950-afbqqtqobh5us03roshseevqh43a4853.apps.googleusercontent.com';
 const OKUMA_KAPSAM = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email';
 const YAZMA_KAPSAM = 'https://www.googleapis.com/auth/spreadsheets';
-// Giriş kaydındaki isim için YETKİLENDİRME tablosu (yalnız Ad + Gmail sütunları okunur, yetki okunmaz).
+// YETKİLENDİRME tablosu: giriş kaydındaki isim ve hangi program başlıklarının görüneceği buradan okunur.
+// Alt sayfaların yetkisine panel karışmaz; onu her program kendisi uygular.
 const AUTH_SHEET_ID = '1PfYdeuiGvuHbHsCx5PTcApepdwdjY-2C491cufssQhU';
-const ISIM_ARALIKLARI = ['ALO144!A2:B', "'PERSONEL KARNESİ'!A2:B"];
+const SON_SAYFA_ANAHTAR = 'alo144-panel-son:'; // + e-posta → { program, sayfa } (tarayıcıda, kişiye özel)
+const GERI_YUKLE_BEKLEME_MS = 700;  // program menüsü bu süre değişmeden kalınca son sayfa açılır
 // Ortak Log – İşlem Günlüğü (programlarla aynı Apps Script).
 const LOG_URL = 'https://script.google.com/macros/s/AKfycbzeyn_R-Khl7qAMZozWuq4ZWIy6UAGiqi906MFEnRgl9YNpgQiV-Me2KpF4IJW43WbI/exec';
 const SURE_PAYI_MS = 60 * 1000; // izin bitmeden bu kadar önce "süresi doldu" sayılır
@@ -232,9 +244,24 @@ const bosEl = document.getElementById('bos');
 function programAdresi(p){ return p.url + (p.url.includes('?') ? '&' : '?') + 'panel=1'; }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Başlık görünürlüğü: null = henüz okunmadı. Okunamayan sekmenin başlığı gösterilir
+// (kimse kilitlenmesin; programın kendi yetki kontrolü yine çalışır).
+let gorunur = null;
+function gorunenProgramlar(){ return gorunur ? PROGRAMLAR.filter(p => gorunur.has(p.id)) : []; }
+
 function menuCiz(){
+  if (!gorunur){
+    listeEl.innerHTML = '<div class="alt-not" style="padding-left:20px">Yetkiler okunuyor…</div>';
+    return;
+  }
+  const programlar = gorunenProgramlar();
+  if (!programlar.length){
+    listeEl.innerHTML = '<div class="alt-not" style="padding-left:20px">Bu hesapla açabileceğiniz program yok. Yöneticinize başvurun.</div>';
+    bosEl.textContent = 'Açabileceğiniz program yok';
+    return;
+  }
   let html = '';
-  PROGRAMLAR.forEach(p => {
+  programlar.forEach(p => {
     const d = durum[p.id];
     const acik = p.id === aktifId;
     html += `<button class="ana${acik ? ' acik' : ''}${d.iframe ? ' yuklendi' : ''}" data-ana="${p.id}">
@@ -267,9 +294,12 @@ function altCiz(id){
 
 function programAc(id){
   const p = PROGRAMLAR.find(x => x.id === id);
-  if (!p) return;
+  if (!p || !gorunur || !gorunur.has(id)) return;
   const d = durum[id];
   aktifId = id;
+  // Daha önce açılmış programa dönülürse o programın açık sayfası kaydedilir
+  const aktifOge = d.ogeler && d.ogeler.find(o => o.aktif);
+  sonSayfaKaydet(id, aktifOge ? aktifOge.id : null);
   if (!d.iframe){
     const fr = document.createElement('iframe');
     fr.title = p.ad;
@@ -339,16 +369,65 @@ async function kullaniciBilgisi(){
     const me = await r.json();
     oturum.email = String(me.email || '').trim().toLocaleLowerCase('tr');
   } catch(e){}
-  try {
-    const q = ISIM_ARALIKLARI.map(a => 'ranges=' + encodeURIComponent(a)).join('&');
-    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values:batchGet?${q}`, { headers:{ Authorization:'Bearer ' + oturum.token } });
-    const d = await r.json();
-    for (const vr of (d.valueRanges || [])){
-      const satir = (vr.values || []).find(x => String(x[1] || '').trim().toLocaleLowerCase('tr') === oturum.email);
-      if (satir && satir[0]){ oturum.isim = String(satir[0]).trim(); break; }
-    }
-  } catch(e){}
+  // Her programın yetki sekmesi ayrı okunur: biri okunamazsa diğerleri etkilenmez.
+  const sonuclar = await Promise.all(PROGRAMLAR.map(p => yetkiSekmesiOku(p.yetkiSekme)));
+  const yeni = new Set();
+  PROGRAMLAR.forEach((p, i) => {
+    const satirlar = sonuclar[i];
+    if (satirlar === null){ yeni.add(p.id); return; }               // okunamadı → göster
+    if (p.sabitYetkili.includes(oturum.email)){ yeni.add(p.id); }
+    const satir = satirlar.slice(1).find(x => String(x[1] || '').trim().toLocaleLowerCase('tr') === oturum.email);
+    if (!satir) return;
+    if (!oturum.isim && satir[0]) oturum.isim = String(satir[0]).trim();
+    if (satir.slice(2).some(dogruMu)) yeni.add(p.id);
+  });
+  gorunur = yeni;
   document.getElementById('kisi').textContent = oturum.isim || oturum.email;
+  menuCiz();
+}
+
+function dogruMu(v){ return ['TRUE', 'DOĞRU', 'EVET'].includes(String(v == null ? '' : v).trim().toLocaleUpperCase('tr')); }
+
+// Satır listesi döner; okunamazsa null.
+async function yetkiSekmesiOku(sekme){
+  try {
+    const aralik = encodeURIComponent(`'${sekme}'!A1:ZZ1000`);
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${aralik}`, { headers:{ Authorization:'Bearer ' + oturum.token } });
+    const d = await r.json();
+    if (!r.ok || d.error) return null;
+    return d.values || [];
+  } catch(e){ return null; }
+}
+
+// ===== Son açılan program ve sayfa (tarayıcıda, kişinin e-postasına bağlı) =====
+const geriYukle = { id:null, sayfa:null, zaman:null };   // açılışta beklenen geri yükleme
+function sonSayfaOku(){
+  try { return JSON.parse(localStorage.getItem(SON_SAYFA_ANAHTAR + oturum.email) || 'null'); } catch(e){ return null; }
+}
+function sonSayfaKaydet(id, sayfa){
+  if (!oturum.email || geriYukle.id === id) return;       // geri yükleme sürerken programın ilk sayfası yazılmasın
+  const eski = sonSayfaOku();
+  if (!sayfa && eski && eski.program === id) sayfa = eski.sayfa;
+  try { localStorage.setItem(SON_SAYFA_ANAHTAR + oturum.email, JSON.stringify({ program:id, sayfa: sayfa || null })); } catch(e){}
+}
+function sonSayfayiAc(){
+  const son = sonSayfaOku();
+  if (!son || !son.program || !gorunur.has(son.program)) return;
+  geriYukle.id = son.program; geriYukle.sayfa = son.sayfa || null;
+  programAc(son.program);
+}
+// Program menüsünü bildirdikçe çağrılır. Menü kısa süre değişmeden kalınca (programın kendi
+// yetki gizlemesi bitince) kayıtlı sayfa açılır; sayfa artık yoksa programın kendi açılışı kalır.
+function geriYuklemeyiDene(id){
+  if (geriYukle.id !== id) return;
+  clearTimeout(geriYukle.zaman);
+  geriYukle.zaman = setTimeout(() => {
+    const d = durum[id];
+    const oge = geriYukle.sayfa && d.ogeler && d.ogeler.find(o => o.id === geriYukle.sayfa && !o.pasif);
+    geriYukle.id = null; geriYukle.sayfa = null;
+    if (oge && !oge.aktif) gonder(id, { tur:'ac', id: oge.id });   // sonraki menü bildirimi kaydeder
+    else sonSayfaKaydet(id, ((d.ogeler || []).find(o => o.aktif) || {}).id);
+  }, GERI_YUKLE_BEKLEME_MS);
 }
 
 function okumaIzniGeldi(resp){
@@ -368,6 +447,7 @@ function okumaIzniGeldi(resp){
   if (ilkGiris){
     document.body.classList.add('girildi');
     kullaniciBilgisi().then(() => {
+      sonSayfayiAc();
       sendLog('giris');
       if (!cikisKaydiKuruldu){
         cikisKaydiKuruldu = true;
@@ -458,6 +538,10 @@ window.addEventListener('message', e => {
     d.ogeler = Array.isArray(m.ogeler) ? m.ogeler : [];
     d.yuklendi = true;
     clearTimeout(d.zaman);
+    if (d.ogeler.length){
+      if (geriYukle.id === id) geriYuklemeyiDene(id);
+      else if (aktifId === id){ const a = d.ogeler.find(o => o.aktif); if (a) sonSayfaKaydet(id, a.id); }
+    }
     if (aktifId === id) menuCiz();
   } else if (m.tur === 'oturum-iste'){
     if (oturum.token) gonder(id, { tur:'oturum', token: oturum.token });
@@ -473,7 +557,9 @@ listeEl.addEventListener('click', e => {
   if (ana){ programAc(ana.dataset.ana); return; }
   const alt = e.target.closest('[data-alt]');
   if (alt && aktifId && !alt.classList.contains('pasif')){
+    if (geriYukle.id === aktifId){ clearTimeout(geriYukle.zaman); geriYukle.id = null; geriYukle.sayfa = null; }  // kullanıcının seçimi öncelikli
     gonder(aktifId, { tur:'ac', id: alt.dataset.alt });
+    sonSayfaKaydet(aktifId, alt.dataset.alt);
     if (window.innerWidth <= 780) document.getElementById('cati').classList.add('kapali');
   }
 });
@@ -484,6 +570,9 @@ document.getElementById('yenileBtn').addEventListener('click', () => {
   if (!aktifId) return;
   const d = durum[aktifId];
   if (!d.iframe) return;
+  // Yeniden yüklenince aynı sayfaya dönülsün
+  const son = sonSayfaOku();
+  if (son && son.program === aktifId && son.sayfa){ geriYukle.id = aktifId; geriYukle.sayfa = son.sayfa; }
   d.yuklendi = false; d.ogeler = null; d.kopruYok = false;
   menuCiz();
   try { d.iframe.contentWindow.location.reload(); } catch(e){ d.iframe.src = d.iframe.src; }
