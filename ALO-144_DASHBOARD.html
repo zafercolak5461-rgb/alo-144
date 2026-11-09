@@ -2425,6 +2425,8 @@ const FIXED_SUPER_ADMIN_EMAILS = ["zafercolak5461@gmail.com", "zafer54sema@gmail
 const LOG_URL = "https://script.google.com/macros/s/AKfycbzeyn_R-Khl7qAMZozWuq4ZWIy6UAGiqi906MFEnRgl9YNpgQiV-Me2KpF4IJW43WbI/exec";
 
 function sendLog(payload){
+  // Panel içinde açıldıysa giriş/çıkış kaydını panel tek seferde yazar; burada atlanır.
+  if (window.__panelModu && (payload.type === 'giris' || payload.type === 'cikis')) return;
   try {
     const body = JSON.stringify(Object.assign({ isim: userName }, payload));
     navigator.sendBeacon(LOG_URL, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
@@ -2575,6 +2577,8 @@ async function initIslemAccess(){
 }
 
 function ensureWriteToken(){
+  // Panel içinde açıldıysa yazma izni panelden alınır (panel önbelleğe alır, süresi dolunca yeniler).
+  if (window.__panelYazmaIzni) return window.__panelYazmaIzni();
   return new Promise((resolve, reject) => {
     if (writeAccessToken){ resolve(writeAccessToken); return; }
     if (!writeTokenClient){ reject(new Error('Yazma yetkisi başlatılamadı.')); return; }
@@ -12093,7 +12097,7 @@ async function exportActiveTableToExcel(pageId, filenamePrefix){
 <script>
 /* ===== PANEL KÖPRÜSÜ =====
    Bu program alo-144/panel.html içinde (iframe + ?panel=1) açıldığında devreye girer:
-   - kendi sol menüsünü gizler,
+   - kendi sol menüsünü ve giriş ekranını gizler; Google girişini panelden alır,
    - görünen (yetkisi olan) menü öğelerini panele bildirir, değiştikçe yeniden bildirir,
    - panelden gelen "şu öğeyi aç" isteğini kendi menü düğmesine tıklayarak uygular.
    Tek başına açıldığında HİÇBİR ŞEY yapmaz. Sadece aşağıdaki CFG bu programa özeldir. */
@@ -12102,13 +12106,26 @@ async function exportActiveTableToExcel(pageId, filenamePrefix){
     app: 'alo144',                                    // panel.html'deki PROGRAMLAR id'si
     menu: '.shell > .sidebar',                        // gizlenecek sol menü
     gizle: '.sidebar-toggle-btn',                     // tamamen gizlenecek ek düğmeler
+    giris: '#loginScreen',                            // panelden giriş gelince gizli kalacak giriş ekranı
     oge: '.shell > .sidebar .nav-item[data-page]',    // menü öğeleri
     id: el => el.dataset.page,
-    grup: el => { const g = el.closest('.nav-group'); const t = g && g.querySelector('.nav-group-title'); return t ? t.textContent.trim() : ''; }
+    grup: el => { const g = el.closest('.nav-group'); const t = g && g.querySelector('.nav-group-title'); return t ? t.textContent.trim() : ''; },
+    yazmaPanelden: true,                              // yazma izni panelden (ensureWriteToken)
+    // Panelden okuma izni gelince: programın kendi giriş callback'indeki adımların aynısı
+    oturum: (token, ilk) => {
+      accessToken = token;
+      if (!ilk) return;
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appShell').style.display = '';
+      initIslemAccess();
+      applyThemeFromSheet();
+    }
   };
   if (window.parent === window) return;                                   // tek başına açıldı: hiçbir şey yapma
   if (!new URLSearchParams(location.search).has('panel')) return;         // panelden açılmadı: hiçbir şey yapma
   const KAYNAK = 'alo144-panel';
+  window.__panelModu = true;   // programın sendLog'u giriş/çıkış kaydını bu bayrağa bakıp atlar
+  function gonder(m){ try { window.parent.postMessage(Object.assign({ kaynak: KAYNAK }, m), '/'); } catch(e){} }
 
   // Kendi sol menüsü ekran dışına alınır (silinmez/display:none yapılmaz) - böylece programın
   // kendi yetki gizlemeleri aynen çalışır ve hangi öğenin görünür olduğu ölçülebilir.
@@ -12116,7 +12133,48 @@ async function exportActiveTableToExcel(pageId, filenamePrefix){
   st.textContent = CFG.menu + '{position:fixed !important; left:-10000px !important; top:0 !important; visibility:hidden !important; pointer-events:none !important;}'
     + (CFG.gizle ? CFG.gizle + '{display:none !important;}' : '');
   document.head.appendChild(st);
+  // Kendi giriş ekranı gizlenir; giriş panelden gelir. Panelden izin gelmezse kendi girişi geri açılır.
+  const girisStil = document.createElement('style');
+  girisStil.textContent = CFG.giris + '{display:none !important;}';
+  document.head.appendChild(girisStil);
+  const girisYedek = setTimeout(() => girisStil.remove(), 10000);
 
+  // ----- Oturum: panelden gelen okuma izni -----
+  let oturumVar = false;
+  function gisHazir(){ return !!(window.google && google.accounts && google.accounts.oauth2); }
+  function oturumUygula(token){
+    const ilk = !oturumVar;
+    oturumVar = true;
+    if (!ilk){ CFG.oturum(token, false); return; }       // yenileme: yalnız izin değişir
+    clearTimeout(girisYedek);
+    const basla = Date.now();
+    (function bekle(){                                      // programın kendi kodu Google kütüphanesini kullanabilsin
+      if (gisHazir() || Date.now() - basla > 8000){
+        try { CFG.oturum(token, true); } catch(e){ console.error('Panel oturumu uygulanamadı:', e); }
+        girisStil.remove();
+        planla();
+      } else setTimeout(bekle, 100);
+    })();
+  }
+
+  // ----- Yazma izni: panelden istenir (CFG.yazmaPanelden ise) -----
+  if (CFG.yazmaPanelden){
+    const bekleyen = {}; let sayac = 0;
+    window.__panelYazmaIzni = () => new Promise((res, rej) => {
+      const no = ++sayac;
+      bekleyen[no] = { res, rej };
+      gonder({ tur: 'yazma-iste', no });
+    });
+    window.addEventListener('message', e => {
+      if (e.source !== window.parent || e.origin !== location.origin) return;
+      const m = e.data || {};
+      if (m.kaynak !== KAYNAK || m.tur !== 'yazma' || !bekleyen[m.no]) return;
+      const b = bekleyen[m.no]; delete bekleyen[m.no];
+      if (m.token) b.res(m.token); else b.rej(new Error(m.hata || 'Yazma izni alınamadı.'));
+    });
+  }
+
+  // ----- Menü bildirimi -----
   function etiket(el){
     const c = el.cloneNode(true);
     c.querySelectorAll('.nav-icon, .dot-indicator').forEach(x => x.remove());
@@ -12135,7 +12193,7 @@ async function exportActiveTableToExcel(pageId, filenamePrefix){
     const l = liste(); const j = JSON.stringify(l);
     if (!zorla && j === son) return;
     son = j;
-    try { window.parent.postMessage({ kaynak: KAYNAK, tur: 'menu', app: CFG.app, ogeler: l }, '/'); } catch(e){}
+    gonder({ tur: 'menu', app: CFG.app, ogeler: l });
   }
   let zamanlayici = null;
   function planla(){ clearTimeout(zamanlayici); zamanlayici = setTimeout(() => bildir(false), 120); }
@@ -12145,6 +12203,7 @@ async function exportActiveTableToExcel(pageId, filenamePrefix){
     const m = e.data || {};
     if (m.kaynak !== KAYNAK) return;
     if (m.tur === 'menu-iste') bildir(true);
+    if (m.tur === 'oturum' && m.token) oturumUygula(m.token);
     if (m.tur === 'ac'){
       const el = ogeler().find(x => CFG.id(x) === m.id);
       if (el) el.click();       // programın kendi menü düğmesine tıklanır - kendi mantığı çalışır
@@ -12162,6 +12221,7 @@ async function exportActiveTableToExcel(pageId, filenamePrefix){
     }
   }
   bildir(true);
+  gonder({ tur: 'oturum-iste' });
 })();
 </script>
 </body>

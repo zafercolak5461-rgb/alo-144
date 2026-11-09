@@ -13,9 +13,17 @@
     panel yalnız gösterir. Programlardaki "PANEL KÖPRÜSÜ" bloğu bunu yapar.
   - Açılışta hiçbir program yüklenmez. Bir program bir kez açılınca, başka programa geçildiğinde
     kapanmaz, arkada bekler (tekrar girişe gerek kalmaz).
-  - Giriş: her program kendi Google girişini kendi içinde yapar (ilk aşama).
+  - Giriş: Google girişini panel yapar, okuma iznini içerideki programlara iletir.
+    Yazma izni ilk kayıtta bir kez istenir; ALO-144 ve Veri Hazırlama aynı izni kullanır.
+    Personel Karnesi farklı Google uygulama kimliği kullandığı için (Drive fotoğrafları)
+    kayıt/fotoğraf işlemlerinde kendi izin penceresini açar.
+  - Giriş/çıkış kaydı (İşlem Günlüğü): yalnız panel yazar ("Panel"). İçerideki programlar
+    giriş/çıkış kaydı göndermez; "kaydet" kayıtlarını eskisi gibi gönderir.
+  - Google izni ~1 saat geçerlidir; süre dolunca panel "Yenile" düğmesi gösterir ve yeni
+    izni açık tüm programlara iletir.
   - Programlar tek başına açıldığında bu dosyadan etkilenmez.
 -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   --bg:#10182B;
@@ -116,12 +124,57 @@ body{ background:var(--bg); color:var(--text); font-family:'Inter', sans-serif; 
   color:var(--dim2); font-size:13px;
 }
 
+
+/* --- Giriş ekranı --- */
+#giris{
+  position:fixed; inset:0; z-index:100; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;
+}
+#giris .ust{ font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.15em; color:var(--dim); text-transform:uppercase; margin-bottom:6px; text-align:center; }
+#giris h1{ font-family:'Fraunces', serif; font-size:30px; margin:0 0 8px; text-align:center; }
+#giris .alt-yazi{ color:var(--dim); font-size:13.5px; text-align:center; }
+#girisBtn{
+  background:var(--accent); color:#08090b; border:none; font-weight:700; font-size:14px;
+  padding:13px 26px; border-radius:10px; cursor:pointer; display:flex; align-items:center; gap:10px;
+}
+#girisBtn:disabled{ opacity:.6; cursor:wait; }
+#girisHata{ color:#e85d5d; font-size:12.5px; max-width:360px; text-align:center; display:none; }
+body.girildi #giris{ display:none; }
+body:not(.girildi) .cati{ visibility:hidden; }
+
+/* --- Uyarı şeridi (oturum süresi / yazma izni) --- */
+#uyari{
+  position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:60;
+  background:#2a1f0c; border:1px solid var(--accent); color:var(--text);
+  border-radius:10px; padding:10px 14px; font-size:13px;
+  display:none; align-items:center; gap:12px; box-shadow:0 8px 30px rgba(0,0,0,.45);
+}
+#uyari.var{ display:flex; }
+#uyari button{
+  background:var(--accent); color:#08090b; border:none; border-radius:7px;
+  font-weight:700; font-size:12.5px; padding:7px 12px; cursor:pointer;
+}
+.menu-kisi{ font-size:11px; color:var(--dim2); padding:0 20px 10px; font-family:'IBM Plex Mono', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
 @media (max-width:780px){
   #menu{ position:fixed; z-index:40; left:0; top:0; box-shadow:0 0 30px rgba(0,0,0,.5); }
 }
 </style>
 </head>
 <body>
+<div id="giris">
+  <div>
+    <div class="ust">Operasyon Merkezi</div>
+    <h1>ALO-144 Panel</h1>
+    <div class="alt-yazi">Devam etmek için yetkili Google hesabınızla giriş yapın</div>
+  </div>
+  <button id="girisBtn">
+    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.1 18.9 12 24 12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.6 3 24 3c-7.7 0-14.4 4.4-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 36 26.9 37 24 37c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.6 40.6 16.3 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.1 5.7l6.6 5.6C40.9 36.6 45 30.9 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
+    Google ile Giriş Yap
+  </button>
+  <div id="girisHata"></div>
+</div>
+<div id="uyari"><span id="uyariYazi"></span><button id="uyariBtn"></button></div>
 <div class="cati" id="cati">
   <button id="acBtn" title="Menüyü Göster">☰</button>
   <aside id="menu">
@@ -133,6 +186,7 @@ body{ background:var(--bg); color:var(--text); font-family:'Inter', sans-serif; 
       </div>
       <button class="kucuk-btn" id="kapatBtn" title="Menüyü Gizle">☰</button>
     </div>
+    <div class="menu-kisi" id="kisi"></div>
     <nav id="liste"></nav>
     <div class="menu-alt" id="menuAlt">
       <button id="yenileBtn" title="Açık programı yeniden yükle">↻ Yenile</button>
@@ -153,6 +207,17 @@ const PROGRAMLAR = [
   { id:'veri',   ad:'Veri Hazırlama',    url:'../veri-hazirlama-projesi/' },
 ];
 const MESAJ_KAYNAK = 'alo144-panel';
+
+// Google girişi - ALO-144 Dashboard ve Veri Hazırlama ile AYNI uygulama kimliği.
+const OAUTH_CLIENT_ID = '334728137950-afbqqtqobh5us03roshseevqh43a4853.apps.googleusercontent.com';
+const OKUMA_KAPSAM = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email';
+const YAZMA_KAPSAM = 'https://www.googleapis.com/auth/spreadsheets';
+// Giriş kaydındaki isim için YETKİLENDİRME tablosu (yalnız Ad + Gmail sütunları okunur, yetki okunmaz).
+const AUTH_SHEET_ID = '1PfYdeuiGvuHbHsCx5PTcApepdwdjY-2C491cufssQhU';
+const ISIM_ARALIKLARI = ['ALO144!A2:B', "'PERSONEL KARNESİ'!A2:B"];
+// Ortak Log – İşlem Günlüğü (programlarla aynı Apps Script).
+const LOG_URL = 'https://script.google.com/macros/s/AKfycbzeyn_R-Khl7qAMZozWuq4ZWIy6UAGiqi906MFEnRgl9YNpgQiV-Me2KpF4IJW43WbI/exec';
+const SURE_PAYI_MS = 60 * 1000; // izin bitmeden bu kadar önce "süresi doldu" sayılır
 const KOPRU_BEKLEME_MS = 4000; // program yüklendikten sonra bu süre içinde menü bildirmezse uyarı gösterilir
 
 // Her programın durumu: iframe, gelen alt menü, yüklenme bilgisi
@@ -233,18 +298,174 @@ function gonder(id, mesaj){
   try { d.iframe.contentWindow.postMessage(Object.assign({ kaynak:MESAJ_KAYNAK }, mesaj), '/'); } catch(e){}
 }
 
-// Programlardan gelen menü bildirimleri
+// ===== Oturum (giriş izni) =====
+const oturum = { token:null, bitis:0, email:'', isim:'' };
+const yazma  = { token:null, bitis:0, bekleyenler:[], isteniyor:false };
+let okumaClient = null, yazmaClient = null, yenilemeZaman = null, cikisKaydiKuruldu = false;
+let yenilemeIstendi = false;
+
+function gisHazir(){ return !!(window.google && google.accounts && google.accounts.oauth2); }
+function gisBekle(){
+  return new Promise(res => {
+    if (gisHazir()) return res();
+    const t = setInterval(() => { if (gisHazir()){ clearInterval(t); res(); } }, 100);
+  });
+}
+
+function girisHatasi(msg){
+  const el = document.getElementById('girisHata');
+  el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  document.getElementById('girisBtn').disabled = false;
+}
+
+function uyariGoster(yazi, dugme, fn){
+  document.getElementById('uyariYazi').textContent = yazi;
+  const b = document.getElementById('uyariBtn');
+  b.textContent = dugme; b.onclick = fn;
+  document.getElementById('uyari').classList.add('var');
+}
+function uyariGizle(){ document.getElementById('uyari').classList.remove('var'); }
+
+function sendLog(tur){
+  try {
+    const body = JSON.stringify({ isim: oturum.isim || oturum.email || '', type: tur, dashboard: 'Panel' });
+    navigator.sendBeacon(LOG_URL, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
+  } catch(e){}
+}
+
+async function kullaniciBilgisi(){
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers:{ Authorization:'Bearer ' + oturum.token } });
+    const me = await r.json();
+    oturum.email = String(me.email || '').trim().toLocaleLowerCase('tr');
+  } catch(e){}
+  try {
+    const q = ISIM_ARALIKLARI.map(a => 'ranges=' + encodeURIComponent(a)).join('&');
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values:batchGet?${q}`, { headers:{ Authorization:'Bearer ' + oturum.token } });
+    const d = await r.json();
+    for (const vr of (d.valueRanges || [])){
+      const satir = (vr.values || []).find(x => String(x[1] || '').trim().toLocaleLowerCase('tr') === oturum.email);
+      if (satir && satir[0]){ oturum.isim = String(satir[0]).trim(); break; }
+    }
+  } catch(e){}
+  document.getElementById('kisi').textContent = oturum.isim || oturum.email;
+}
+
+function okumaIzniGeldi(resp){
+  if (resp.error){
+    if (yenilemeIstendi){ yenilemeIstendi = false; uyariGoster('Oturum yenilenemedi.', 'Tekrar dene', oturumYenile); }
+    else girisHatasi('Giriş başarısız oldu: ' + resp.error + '. Erişim izniniz olmayabilir, yöneticinizle iletişime geçin.');
+    return;
+  }
+  const ilkGiris = !oturum.token;
+  oturum.token = resp.access_token;
+  oturum.bitis = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - SURE_PAYI_MS;
+  yenilemeIstendi = false;
+  uyariGizle();
+  zamanlayiciKur();
+  // Açık programlara yeni izni ilet
+  Object.keys(durum).forEach(id => { if (durum[id].iframe) gonder(id, { tur:'oturum', token: oturum.token }); });
+  if (ilkGiris){
+    document.body.classList.add('girildi');
+    kullaniciBilgisi().then(() => {
+      sendLog('giris');
+      if (!cikisKaydiKuruldu){
+        cikisKaydiKuruldu = true;
+        window.addEventListener('pagehide', () => sendLog('cikis'));
+      }
+    });
+  }
+}
+
+function zamanlayiciKur(){
+  clearTimeout(yenilemeZaman);
+  const kalan = Math.max(0, oturum.bitis - Date.now());
+  yenilemeZaman = setTimeout(() => {
+    uyariGoster('Oturum süresi doldu. Verilerin okunabilmesi için yenileyin.', '↻ Oturumu yenile', oturumYenile);
+  }, kalan);
+}
+
+function oturumYenile(){
+  if (!okumaClient) return;
+  yenilemeIstendi = true;
+  okumaClient.requestAccessToken({ prompt: '' });
+}
+
+async function girisKur(){
+  await gisBekle();
+  okumaClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CLIENT_ID,
+    scope: OKUMA_KAPSAM,
+    callback: okumaIzniGeldi,
+    error_callback: () => {
+      if (yenilemeIstendi){ yenilemeIstendi = false; uyariGoster('Oturum yenilenemedi.', 'Tekrar dene', oturumYenile); }
+      else girisHatasi('Giriş penceresi açılamadı ya da iptal edildi. Tekrar deneyin.');
+    }
+  });
+  yazmaClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CLIENT_ID,
+    scope: YAZMA_KAPSAM,
+    callback: (resp) => {
+      yazma.isteniyor = false;
+      if (resp.error){ yazmaBitir(null, resp.error); return; }
+      yazma.token = resp.access_token;
+      yazma.bitis = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - SURE_PAYI_MS;
+      uyariGizle();
+      yazmaBitir(yazma.token);
+    },
+    error_callback: (err) => {
+      yazma.isteniyor = false;
+      // Tarayıcı açılır pencereyi engellediyse kullanıcıdan panelde bir tıklama istenir.
+      if (err && err.type === 'popup_failed_to_open'){
+        uyariGoster('Kaydetmek için yazma izni gerekiyor.', 'İzin ver', yazmaIste);
+        return;
+      }
+      uyariGizle();
+      yazmaBitir(null, 'Yazma izni verilmedi.');
+    }
+  });
+}
+
+document.getElementById('girisBtn').addEventListener('click', () => {
+  girisHatasi('');
+  if (!okumaClient){ girisHatasi('Google giriş servisi henüz yüklenmedi, birkaç saniye sonra tekrar deneyin.'); return; }
+  document.getElementById('girisBtn').disabled = true;
+  okumaClient.requestAccessToken({ prompt: 'consent' });
+});
+
+// ===== Yazma izni (ilk kayıtta istenir, sonra ALO-144 ve Veri Hazırlama ortak kullanır) =====
+function yazmaGecerli(){ return yazma.token && Date.now() < yazma.bitis; }
+function yazmaIste(){
+  if (!yazmaClient || yazma.isteniyor) return;
+  yazma.isteniyor = true;
+  yazmaClient.requestAccessToken({ prompt: '' });
+}
+function yazmaBitir(token, hata){
+  const liste = yazma.bekleyenler.splice(0);
+  liste.forEach(b => gonder(b.id, { tur:'yazma', no: b.no, token: token || null, hata: token ? null : (hata || 'Yazma izni alınamadı.') }));
+}
+
+// ===== Programlardan gelen mesajlar =====
 window.addEventListener('message', e => {
   if (e.origin !== location.origin) return;
   const m = e.data || {};
-  if (m.kaynak !== MESAJ_KAYNAK || m.tur !== 'menu') return;
+  if (m.kaynak !== MESAJ_KAYNAK) return;
   const id = Object.keys(durum).find(k => durum[k].iframe && durum[k].iframe.contentWindow === e.source);
   if (!id) return;
   const d = durum[id];
-  d.ogeler = Array.isArray(m.ogeler) ? m.ogeler : [];
-  d.yuklendi = true;
-  clearTimeout(d.zaman);
-  if (aktifId === id) menuCiz();
+
+  if (m.tur === 'menu'){
+    d.ogeler = Array.isArray(m.ogeler) ? m.ogeler : [];
+    d.yuklendi = true;
+    clearTimeout(d.zaman);
+    if (aktifId === id) menuCiz();
+  } else if (m.tur === 'oturum-iste'){
+    if (oturum.token) gonder(id, { tur:'oturum', token: oturum.token });
+  } else if (m.tur === 'yazma-iste'){
+    if (yazmaGecerli()){ gonder(id, { tur:'yazma', no: m.no, token: yazma.token }); return; }
+    yazma.bekleyenler.push({ id, no: m.no });
+    yazmaIste();
+  }
 });
 
 listeEl.addEventListener('click', e => {
@@ -269,6 +490,7 @@ document.getElementById('yenileBtn').addEventListener('click', () => {
 });
 
 menuCiz();
+girisKur();
 </script>
 </body>
 </html>
