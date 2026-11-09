@@ -213,9 +213,8 @@ select.field:focus, input.field:focus{ outline:none; border-color:var(--shell-ac
 
 <script>
 // ===== Kimlik doğrulama: ALO-144 ile BİREBİR AYNI mekanizma =====
-// Aynı OAuth Client ID, aynı AUTH_SHEET_ID, aynı "ALO144" sekmesi. Erişim izni için AYRI bir
-// sütun açılmadı - kullanıcı kararıyla ALO-144'teki mevcut "Excel" yetkisi (F sütunu) aynen
-// kullanılıyor: ALO-144'te Excel yetkisi olan biri burada da otomatik yetkili sayılır.
+// Aynı OAuth Client ID, aynı AUTH_SHEET_ID. Yetki 09.11.2026'dan beri tek "YETKİLENDİRME" sekmesinden
+// okunur (bkz. loadAuthTable): Erişim'i olan herkes bu aracı da kullanır.
 const OAUTH_CLIENT_ID = "334728137950-afbqqtqobh5us03roshseevqh43a4853.apps.googleusercontent.com";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email";
 const AUTH_SHEET_ID = "1PfYdeuiGvuHbHsCx5PTcApepdwdjY-2C491cufssQhU";
@@ -266,22 +265,26 @@ function showLoginError(msg){
   el.style.display = 'block';
 }
 
-// ALO144 sekmesi: A=İsim, B=Gmail, C=Süper Yetkili, D=Güncelleme, E=Sunum, F=Excel, G+ = sayfa erişimleri.
-// Bu dashboard için sadece F (excel) sütunu okunuyor - PAGE_COLS bu projeye taşınmadı,
-// çünkü tek sayfalık bir yetki modeli yeterli (ileride gerekirse eklenir).
+// Yetki tek sekmede (09.11.2026): YETKİLENDİRME / "YETKİLENDİRME" — İsim, Gmail, Erişim, Süper Yetkili.
+// Erişim (ya da Süper Yetkili) olan herkes bu aracı da kullanır. Sütunlar başlık adıyla bulunur.
+const AUTH_TAB = 'YETKİLENDİRME';
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('ALO144!A1:F1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(`'${AUTH_TAB}'!A1:Z1000`)}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
   const values = data.values || [];
   if (!values.length) return null;
+  const bas = values[0].map(h => String(h || '').trim().toLocaleUpperCase('tr'));
+  const ara = ad => bas.indexOf(String(ad).toLocaleUpperCase('tr'));   // başlık ve aranan ad aynı (Türkçe) büyük harfe çevrilir
+  const ci = { isim: ara('İsim'), gmail: ara('Gmail'), erisim: ara('Erişim'), sup: ara('Süper Yetkili') };
+  if (ci.gmail < 0 || ci.erisim < 0 || ci.sup < 0) return null;
   const rows = [];
   for (let i = 1; i < values.length; i++){
     const r = values[i] || [];
-    const gmail = String(r[1] || '').trim().toLocaleLowerCase('tr');
+    const gmail = String(r[ci.gmail] || '').trim().toLocaleLowerCase('tr');
     if (!gmail) continue;
-    rows.push({ gmail, isim: r[0] || '', excel: isTrueVal(r[5]) });
+    rows.push({ gmail, isim: ci.isim >= 0 ? (r[ci.isim] || '') : '', excel: isTrueVal(r[ci.erisim]) || isTrueVal(r[ci.sup]) });
   }
   return rows;
 }
@@ -302,7 +305,7 @@ async function initAccess(){
     window.addEventListener('pagehide', () => { sendLog({ type: 'cikis', dashboard: 'Excel Dosyası Hazırlama' }); });
 
     if (!excelAuthorized){
-      document.getElementById('appShell').innerHTML = `<div style="padding:60px; text-align:center; color:var(--shell-text-dim); width:100%;">Bu araca erişim yetkiniz yok. ALO-144 Yetki Atama sayfasından "Excel" yetkisi almanız gerekiyor.</div>`;
+      document.getElementById('appShell').innerHTML = `<div style="padding:60px; text-align:center; color:var(--shell-text-dim); width:100%;">Bu araca erişim yetkiniz yok. Panel &gt; Yetkilendirme ekranından "Erişim" verilmesi gerekiyor.</div>`;
       return;
     }
 

@@ -786,7 +786,7 @@ body{
       <div class="nav-group yetki-only">
         <div class="nav-group-title">Yönetim</div>
         <button class="nav-item" data-page="yetki-atama">
-          <span class="dot-indicator"></span> Yetki Atama
+          <span class="dot-indicator"></span> Tema Ayarları
         </button>
       </div>
     </nav>
@@ -2295,8 +2295,11 @@ body{
 </div>
 <div class="page" id="page-yetki-atama">
   <div class="topbar">
-    <div class="topbar-left"><h1>Yetki Atama</h1><p class="subtitle">Sadece Süper Yetkili — kimin hangi özelliği ve hangi sekmeleri kullanabileceğini yönetin</p></div>
+    <div class="topbar-left"><h1>Tema Ayarları</h1><p class="subtitle">Sadece Süper Yetkili — kişi yetkileri artık Panel &gt; Yetkilendirme ekranından yönetiliyor</p></div>
   </div>
+  <!-- Eski kişi yetki tablosu (09.11.2026'dan beri kullanılmıyor; yetki Panel > Yetkilendirme'de).
+       Kodu bozulmasın diye silinmedi, gizlendi. -->
+  <div style="display:none">
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
       <input id="ya-filterInput" placeholder="İsim ya da e-posta ile ara…" style="flex:1; min-width:220px; padding:10px 12px; border-radius:8px; border:1px solid var(--shell-line); background:var(--shell-panel); color:var(--shell-text);">
@@ -2332,6 +2335,7 @@ body{
       </table>
     </div>
     <div style="padding:14px 18px;"><span id="ya-statusMsg" class="hint"></span></div>
+  </div>
   </div>
 
   <div class="panel" style="margin-top:16px;">
@@ -2477,28 +2481,39 @@ const PAGE_COLS = [
 // aralıklı olduğu için "ilk/son harf" kavramı anlamsızlaştı, yaToggleAllPages artık her
 // sütuna kendi harfiyle ayrı ayrı (batchUpdate ile) yazıyor.
 
+// Yetki tek sekmede (09.11.2026): YETKİLENDİRME / "YETKİLENDİRME" — İsim, Gmail, Erişim, Süper Yetkili.
+// Sütunlar başlık adıyla bulunur. Erişim = tüm sayfalar + Güncelleme/Sunum/Excel; Süper Yetkili =
+// ayrıca Tema paneli. Veri yazmayı Drive paylaşımı belirler (Görüntüleyen kaydedemez).
+// Kişi ekleme/çıkarma panel.html > Yetkilendirme ekranından yapılır.
+const AUTH_TAB = 'YETKİLENDİRME';
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('ALO144!A1:O1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(`'${AUTH_TAB}'!A1:Z1000`)}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
   const values = data.values || [];
   if (!values.length) return null;
+  const bas = values[0].map(h => String(h || '').trim().toLocaleUpperCase('tr'));
+  const ara = ad => bas.indexOf(String(ad).toLocaleUpperCase('tr'));   // başlık ve aranan ad aynı (Türkçe) büyük harfe çevrilir
+  const ci = { isim: ara('İsim'), gmail: ara('Gmail'), erisim: ara('Erişim'), sup: ara('Süper Yetkili') };
+  if (ci.gmail < 0 || ci.erisim < 0 || ci.sup < 0) return null;
   const rows = [];
   for (let i = 1; i < values.length; i++){
     const r = values[i] || [];
-    const gmail = String(r[1] || '').trim().toLocaleLowerCase('tr');
+    const gmail = String(r[ci.gmail] || '').trim().toLocaleLowerCase('tr');
     if (!gmail) continue;
+    const sup = isTrueVal(r[ci.sup]);
+    const erisim = sup || isTrueVal(r[ci.erisim]);
     const row = {
       rowNum: i + 1,
-      isim: r[0] || '',
+      isim: ci.isim >= 0 ? (r[ci.isim] || '') : '',
       gmail,
-      superYetkili: isTrueVal(r[2]),
-      guncelleme: isTrueVal(r[3]),
-      sunum: isTrueVal(r[4]),
-      excel: isTrueVal(r[5])
+      superYetkili: sup,
+      guncelleme: erisim,
+      sunum: erisim,
+      excel: erisim
     };
-    PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[6 + idx]); });
+    PAGE_COLS.forEach(c => { row[c.key] = erisim; });
     rows.push(row);
   }
   return rows;

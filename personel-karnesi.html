@@ -268,7 +268,7 @@
     <button class="sidebar-nav-item analiz-only" data-lefttab="analiz">Analiz</button>
     <button class="sidebar-nav-item performans-only" data-lefttab="performans">Personel Performansı</button>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn">Güncelleme</button>
-    <button class="sidebar-nav-item yetki-only" data-lefttab="yetki">Yetki Atama</button>
+    <button class="sidebar-nav-item yetki-only" data-lefttab="yetki">Fotoğraf ve Tema</button>
   </aside>
 
   <main class="main-area">
@@ -577,34 +577,42 @@ const PAGE_COLS_LAST_LETTER = PAGE_COLS[PAGE_COLS.length - 1].letter;
 // kendi class mekanizmasıyla, varsayılan gizli/CSS tabanlı çalışıyor, dokunulmuyor).
 const PAGE_ACCESS_LEFTTABS = PAGE_COLS.filter(c => c.page !== 'analiz');
 
+// Yetki tek sekmede (09.11.2026): YETKİLENDİRME / "YETKİLENDİRME" — İsim, Gmail, Erişim, Süper Yetkili.
+// Sütunlar başlık adıyla bulunur. Erişim = tüm sekmeler ve özellikler; Süper Yetkili = ayrıca
+// Fotoğraf Yönetimi ve Tema. Veri yazmayı Drive paylaşımı belirler (Görüntüleyen kaydedemez).
+// Kişi ekleme/çıkarma panel.html > Yetkilendirme ekranından yapılır.
+const AUTH_TAB = 'YETKİLENDİRME';
 async function loadAuthTable(token){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent('PERSONEL KARNESİ!A1:M1000')}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(`'${AUTH_TAB}'!A1:Z1000`)}`;
   const res = await authFetch(url, token);
   const data = await res.json();
   if (data.error) return null;
   const values = data.values || [];
   if (!values.length) return null;
+  const bas = values[0].map(h => String(h || '').trim().toLocaleUpperCase('tr'));
+  const ara = ad => bas.indexOf(String(ad).toLocaleUpperCase('tr'));   // başlık ve aranan ad aynı (Türkçe) büyük harfe çevrilir
+  const ci = { isim: ara('İsim'), gmail: ara('Gmail'), erisim: ara('Erişim'), sup: ara('Süper Yetkili') };
+  if (ci.gmail < 0 || ci.erisim < 0 || ci.sup < 0) return null;
   const rows = [];
   for (let i = 1; i < values.length; i++){
     const r = values[i] || [];
-    const gmail = String(r[1] || '').trim().toLocaleLowerCase('tr');
+    const gmail = String(r[ci.gmail] || '').trim().toLocaleLowerCase('tr');
     if (!gmail) continue;
+    const sup = isTrueVal(r[ci.sup]);
+    const erisim = sup || isTrueVal(r[ci.erisim]);
     const row = {
       rowNum: i + 1,
-      isim: r[0] || '',
+      isim: ci.isim >= 0 ? (r[ci.isim] || '') : '',
       gmail,
-      superYetkili: isTrueVal(r[2]),
-      guncelleme: isTrueVal(r[3]),
-      sunum: isTrueVal(r[4]),
-      excel: isTrueVal(r[5]),
-      yoneticiDetay: isTrueVal(r[10]), // K sütunu - "+1 Vardiya otomatik" gibi personelin görmemesi gereken teknik notların göz ikonu
-      excelBicimlendirme: isTrueVal(r[11]), // L sütunu - Excel export yetkisinden AYRI, sadece Biçimlendirme panelini açabilme izni
-      performans: isTrueVal(r[12]), // M sütunu - "Personel Performansı" (ALO-144'ten taşınan ayrı sekme, ayrı veri kaynağı)
+      superYetkili: sup,
+      guncelleme: erisim,
+      sunum: erisim,
+      excel: erisim,
+      yoneticiDetay: erisim,
+      excelBicimlendirme: erisim,
+      performans: erisim,
     };
-    // H sütunu (Personel Bilgileri) = 0-index 7'de başlıyor. Önceki "r[6+idx]" G sütunundan
-    // (Analiz) başlayıp her PAGE_COLS alanını bir sütun SOLA kaydırıyordu - Personel
-    // Bilgileri'nin gerçek değeri okunmuyor, yanlışlıkla Analiz'in değeri okunuyordu.
-    PAGE_COLS.forEach((c, idx) => { row[c.key] = isTrueVal(r[7 + idx]); });
+    PAGE_COLS.forEach(c => { row[c.key] = erisim; });
     rows.push(row);
   }
   return rows;
@@ -7488,8 +7496,11 @@ function renderYetkiTab(){
 
   return `
     <div class="topbar" style="margin-bottom:24px;">
-      <div class="topbar-left"><div><div class="eyebrow">Sadece Süper Yetkili</div><h1>Yetki Atama</h1></div></div>
+      <div class="topbar-left"><div><div class="eyebrow">Sadece Süper Yetkili · Kişi yetkileri Panel &gt; Yetkilendirme ekranında</div><h1>Fotoğraf ve Tema</h1></div></div>
     </div>
+    <!-- Eski kişi yetki tablosu (09.11.2026'dan beri kullanılmıyor; yetki Panel > Yetkilendirme'de).
+         Kodu bozulmasın diye silinmedi, gizlendi. -->
+    <div style="display:none">
     <div class="panel" style="margin-bottom:20px;">
       <div class="panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
         <input class="search" id="yetkiFilterInput" placeholder="İsim ya da e-posta ile ara…" value="${yetkiFilterText.replace(/"/g,'&quot;')}" style="flex:1; min-width:220px;">
@@ -7530,6 +7541,7 @@ function renderYetkiTab(){
         </table>
       </div>
       <div class="panel-body" style="padding-top:10px;"><span id="yetkiStatusMsg" class="hint" style="font-size:12.5px; color:var(--dim);"></span></div>
+    </div>
     </div>
 
     <div class="panel" style="margin-top:20px;">
