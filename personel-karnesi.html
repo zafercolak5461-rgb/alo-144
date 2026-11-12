@@ -582,6 +582,8 @@ const PAGE_ACCESS_LEFTTABS = PAGE_COLS.filter(c => c.page !== 'analiz');
 // Fotoğraf Yönetimi ve Tema. Veri yazmayı Drive paylaşımı belirler (Görüntüleyen kaydedemez).
 // Kişi ekleme/çıkarma panel.html > Yetkilendirme ekranından yapılır.
 const AUTH_TAB = 'YETKİLENDİRME';
+// Program bazlı yetki (12.11.2026): bu programın sütunu. Sütun yoksa eski "Erişim" sütununa bakılır.
+const AUTH_PROGRAM_SUTUN = 'Personel Karnesi';
 async function loadAuthTable(token){
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(`'${AUTH_TAB}'!A1:Z1000`)}`;
   const res = await authFetch(url, token);
@@ -591,7 +593,8 @@ async function loadAuthTable(token){
   if (!values.length) return null;
   const bas = values[0].map(h => String(h || '').trim().toLocaleUpperCase('tr'));
   const ara = ad => bas.indexOf(String(ad).toLocaleUpperCase('tr'));   // başlık ve aranan ad aynı (Türkçe) büyük harfe çevrilir
-  const ci = { isim: ara('İsim'), gmail: ara('Gmail'), erisim: ara('Erişim'), sup: ara('Süper Yetkili') };
+  const ci = { isim: ara('İsim'), gmail: ara('Gmail'), erisim: ara('Erişim'), sup: ara('Süper Yetkili'), prog: ara(AUTH_PROGRAM_SUTUN) };
+  if (ci.prog >= 0) ci.erisim = ci.prog;
   if (ci.gmail < 0 || ci.erisim < 0 || ci.sup < 0) return null;
   const rows = [];
   for (let i = 1; i < values.length; i++){

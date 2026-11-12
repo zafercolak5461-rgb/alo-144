@@ -236,8 +236,8 @@ body:not(.girildi) .cati{ visibility:hidden; }
     <section id="yetkiEkran">
       <h2>Yetkilendirme</h2>
       <div class="y-alt">
-        <b>Erişim</b> işaretli kişi ALO-144 Dashboard, Personel Karnesi ve Veri Hazırlama'nın tamamını görür.
-        <b>Süper Yetkili</b> ayrıca bu ekranı, tema ve fotoğraf ayarlarını görür.
+        Her program için ayrı izin: işaretli olduğu programı (bütün sekmeleriyle) görür, işaretsiz programı hiç görmez.
+        <b>Süper Yetkili</b> hepsini, ayrıca bu ekranı, tema ve fotoğraf ayarlarını görür.
         Kişinin verileri görebilmesi için tabloların Drive'da onunla paylaşılması gerekir:
         <b>Görüntüleyen</b> yalnız okur, <b>Düzenleyen</b> kayıt da yapabilir.
       </div>
@@ -245,14 +245,14 @@ body:not(.girildi) .cati{ visibility:hidden; }
         <div class="y-ekle">
           <input type="text" id="yYeniIsim" placeholder="Ad Soyad">
           <input type="text" id="yYeniGmail" placeholder="ornek@gmail.com">
-          <label><input type="checkbox" id="yYeniErisim" checked> Erişim</label>
+          <span id="yYeniProgramlar" style="display:contents"></span>
           <label><input type="checkbox" id="yYeniSuper"> Süper Yetkili</label>
           <button class="y-btn ana-btn" id="yEkleBtn">+ Ekle</button>
         </div>
       </div>
       <div id="yDurum"></div>
       <div class="y-kutu"><table class="y-tablo">
-        <thead><tr><th>İsim</th><th lang="en">Gmail</th><th class="orta">Erişim</th><th class="orta">Süper Yetkili</th><th></th></tr></thead>
+        <thead><tr id="yBaslik"></tr></thead>
         <tbody id="yGovde"></tbody>
       </table></div>
     </section>
@@ -262,8 +262,10 @@ body:not(.girildi) .cati{ visibility:hidden; }
 <script>
 // Panelde görünecek programlar. "id", programdaki PANEL KÖPRÜSÜ bloğundaki CFG.app ile aynı olmalı.
 // Adresler bu dosyanın (alo-144/panel.html) bulunduğu yere göredir.
-// Yetki tek yerde: YETKİLENDİRME tablosunun "YETKİLENDİRME" sekmesi (İsim, Gmail, Erişim, Süper Yetkili).
-// Erişim = TRUE → üç programın tamamı. Süper Yetkili → ayrıca en alttaki Yetkilendirme ekranı.
+// Yetki tek yerde: YETKİLENDİRME tablosunun "YETKİLENDİRME" sekmesi (İsim, Gmail, Süper Yetkili + her program için bir sütun).
+// Program sütunu (başlığı programın "ad"ı) TRUE → o programın tamamı. Süper Yetkili → hepsi + en alttaki Yetkilendirme ekranı.
+// Bir programın sütunu tabloda yoksa eski "Erişim" sütunu kullanılır. Erişim, programlardan biri açıksa TRUE tutulur
+// (panelde olmayan Excel Dosyası Hazırlama hâlâ ona bakıyor).
 // Veri yazma Drive paylaşımıyla belirlenir (Düzenleyen yazar, Görüntüleyen yalnız okur).
 const PROGRAMLAR = [
   { id:'alo144', ad:'ALO-144 Dashboard', url:'ALO-144_DASHBOARD.html' },
@@ -440,19 +442,21 @@ async function kullaniciBilgisi(){
 async function yetkileriUygula(){
   const t = await yetkiTablosuOku();
   const sabit = SABIT_SUPER.includes(oturum.email);
-  let erisim = false, sup = false;
+  let acik = new Set(), sup = false;
+  const hepsi = PROGRAMLAR.map(p => p.id);
   if (t.durum === 'ok'){
     const ben = t.kisiler.find(k => k.gmail === oturum.email);
     if (ben){
       if (!oturum.isim && ben.isim) oturum.isim = ben.isim;
-      sup = ben.super; erisim = ben.erisim || ben.super;
+      sup = ben.super;
+      acik = new Set(sup ? hepsi : hepsi.filter(id => ben.prog[id]));
     }
   } else if (t.durum === 'hata'){
-    erisim = true;            // geçici hata: kimse kilitlenmesin, programlar kendi kontrolünü yapar
+    acik = new Set(hepsi);    // geçici hata: kimse kilitlenmesin, programlar kendi kontrolünü yapar
   }                           // 'izinYok': tablo bu hesapla paylaşılmamış → hiçbir şey
-  if (sabit){ erisim = true; sup = true; }
+  if (sabit){ acik = new Set(hepsi); sup = true; }
   superMi = sup;
-  gorunur = new Set(erisim ? PROGRAMLAR.map(p => p.id) : []);
+  gorunur = acik;
   document.getElementById('kisi').textContent = oturum.isim || oturum.email;
   if (aktifId === YETKI_EKRANI && !superMi){ aktifId = null; document.getElementById('yetkiEkran').classList.remove('acik'); bosEl.style.display = ''; }
   menuCiz();
@@ -475,14 +479,19 @@ async function yetkiTablosuOku(){
     const satirlar = d.values || [];
     const bas = (satirlar[0] || []).map(trBuyuk);
     const ara = ad => bas.indexOf(trBuyuk(ad));   // her iki taraf aynı (Türkçe) büyük harfe çevrilir
-    const sutun = { isim: ara('İsim'), gmail: ara('Gmail'), erisim: ara('Erişim'), super: ara('Süper Yetkili') };
-    if (sutun.gmail < 0 || sutun.erisim < 0 || sutun.super < 0) return { durum:'hata', mesaj:'Başlıklar bulunamadı (İsim, Gmail, Erişim, Süper Yetkili).' };
+    const sutun = { isim: ara('İsim'), gmail: ara('Gmail'), erisim: ara('Erişim'), super: ara('Süper Yetkili'), prog: {} };
+    PROGRAMLAR.forEach(p => { sutun.prog[p.id] = ara(p.ad); });
+    const progVar = PROGRAMLAR.some(p => sutun.prog[p.id] >= 0);
+    if (sutun.gmail < 0 || sutun.super < 0 || (sutun.erisim < 0 && !progVar)) return { durum:'hata', mesaj:'Başlıklar bulunamadı (İsim, Gmail, Süper Yetkili ve program sütunları).' };
     const kisiler = [];
     satirlar.slice(1).forEach((x, i) => {
       const gmail = String(x[sutun.gmail] || '').trim().toLocaleLowerCase('tr');
       if (!gmail) return;
+      const erisim = sutun.erisim >= 0 && dogruMu(x[sutun.erisim]);
+      const prog = {};
+      PROGRAMLAR.forEach(p => { prog[p.id] = sutun.prog[p.id] >= 0 ? dogruMu(x[sutun.prog[p.id]]) : erisim; });
       kisiler.push({ satir: i + 2, isim: sutun.isim >= 0 ? String(x[sutun.isim] || '').trim() : '', gmail,
-                     erisim: dogruMu(x[sutun.erisim]), super: dogruMu(x[sutun.super]) });
+                     erisim, prog, super: dogruMu(x[sutun.super]) });
     });
     return { durum:'ok', sutun, kisiler };
   } catch(e){ return { durum:'hata', mesaj: e.message }; }
@@ -659,18 +668,21 @@ async function yetkiEkraniYukle(mesaj){
 
 function yetkiEkraniCiz(){
   const t = yEkran.tablo; if (!t) return;
-  const kisiler = [...t.kisiler].sort((a, b) => (b.erisim - a.erisim) || a.isim.localeCompare(b.isim, 'tr'));
+  const say = k => PROGRAMLAR.filter(p => k.prog[p.id]).length + (k.super ? 10 : 0);
+  const kisiler = [...t.kisiler].sort((a, b) => (say(b) - say(a)) || a.isim.localeCompare(b.isim, 'tr'));
+  document.getElementById('yBaslik').innerHTML = '<th>İsim</th><th lang="en">Gmail</th>' +
+    PROGRAMLAR.map(p => `<th class="orta">${esc(p.ad)}</th>`).join('') + '<th class="orta">Süper Yetkili</th><th></th>';
   document.getElementById('yGovde').innerHTML = kisiler.map(k => {
     const ben = k.gmail === oturum.email;
     const silOnay = yEkran.silinecek === k.satir;
     return `<tr>
       <td>${esc(k.isim) || '<span class="y-gmail">—</span>'}${ben ? '<span class="y-sen">sen</span>' : ''}</td>
       <td class="y-gmail">${esc(k.gmail)}</td>
-      <td class="orta"><input type="checkbox" data-y="erisim" data-satir="${k.satir}" ${k.erisim ? 'checked' : ''} ${ben || yEkran.mesgul ? 'disabled' : ''}></td>
+      ${PROGRAMLAR.map(p => `<td class="orta"><input type="checkbox" data-y="prog:${p.id}" data-satir="${k.satir}" ${k.prog[p.id] || k.super ? 'checked' : ''} ${ben || k.super || yEkran.mesgul ? 'disabled' : ''} title="${k.super ? 'Süper Yetkili her programı görür' : ''}"></td>`).join('')}
       <td class="orta"><input type="checkbox" data-y="super" data-satir="${k.satir}" ${k.super ? 'checked' : ''} ${ben || yEkran.mesgul ? 'disabled' : ''}></td>
       <td class="orta">${ben ? '' : `<button class="y-btn${silOnay ? ' sil-onay' : ''}" data-ysil="${k.satir}" ${yEkran.mesgul ? 'disabled' : ''}>${silOnay ? 'Emin misin? Sil' : 'Sil'}</button>`}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:var(--dim2)">Kayıt yok.</td></tr>';
+  }).join('') || `<tr><td colspan="${PROGRAMLAR.length + 4}" style="color:var(--dim2)">Kayıt yok.</td></tr>`;
 }
 
 function sutunHarfi(i){ let s = ''; i++; while (i > 0){ const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
@@ -710,11 +722,22 @@ function yetkiDegistir(satir, alan, deger){
   yetkiIslem(async () => {
     const { t, k } = await guncelSatir(eski.gmail);
     if (!k) throw new Error('Kişi tabloda bulunamadı, liste yenilendi.');
-    const harf = sutunHarfi(alan === 'erisim' ? t.sutun.erisim : t.sutun.super);
-    const aralik = `'${YETKI_SEKME}'!${harf}${k.satir}`;
-    await sheetsYaz(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(aralik)}?valueInputOption=USER_ENTERED`,
-      'PUT', { range: aralik, values: [[deger]] });
-    const ad = alan === 'erisim' ? 'Erişim' : 'Süper Yetkili';
+    const progId = alan.startsWith('prog:') ? alan.slice(5) : null;
+    const prog = progId ? PROGRAMLAR.find(p => p.id === progId) : null;
+    const sutunNo = prog ? t.sutun.prog[prog.id] : t.sutun.super;
+    if (sutunNo < 0) throw new Error(`Tabloda "${prog ? prog.ad : 'Süper Yetkili'}" sütunu yok.`);
+    const yaz = [[sutunNo, deger]];
+    // Erişim sütunu (panel dışı programlar için) programlardan biri açıksa TRUE tutulur.
+    if (prog && t.sutun.erisim >= 0){
+      const yeni = Object.assign({}, k.prog, { [prog.id]: deger });
+      yaz.push([t.sutun.erisim, PROGRAMLAR.some(p => yeni[p.id])]);
+    }
+    for (const [no, v] of yaz){
+      const aralik = `'${YETKI_SEKME}'!${sutunHarfi(no)}${k.satir}`;
+      await sheetsYaz(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(aralik)}?valueInputOption=USER_ENTERED`,
+        'PUT', { range: aralik, values: [[v]] });
+    }
+    const ad = prog ? prog.ad : 'Süper Yetkili';
     sendLog('kaydet', { page:'Yetkilendirme', target: k.isim || k.gmail, fields: ad + ' = ' + (deger ? 'Evet' : 'Hayır'), action:'Güncelleme' });
     return `${k.isim || k.gmail}: ${ad} ${deger ? 'verildi' : 'kaldırıldı'}`;
   });
@@ -723,22 +746,28 @@ function yetkiDegistir(satir, alan, deger){
 function yetkiEkle(){
   const isim = document.getElementById('yYeniIsim').value.trim();
   const gmail = document.getElementById('yYeniGmail').value.trim().toLocaleLowerCase('tr');
-  const erisim = document.getElementById('yYeniErisim').checked;
+  const secili = {};
+  PROGRAMLAR.forEach(p => { const c = document.getElementById('yYeni_' + p.id); secili[p.id] = !!(c && c.checked); });
   const sup = document.getElementById('yYeniSuper').checked;
+  const erisim = PROGRAMLAR.some(p => secili[p.id]);
   if (!isim || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(gmail)){ yDurum('İsim ve geçerli bir Gmail girin.', true); return; }
   yetkiIslem(async () => {
     const { t, k } = await guncelSatir(gmail);
     if (k) throw new Error(gmail + ' zaten listede.');
-    const genislik = Math.max(t.sutun.gmail, t.sutun.erisim, t.sutun.super, t.sutun.isim) + 1;
+    const genislik = Math.max(t.sutun.gmail, t.sutun.erisim, t.sutun.super, t.sutun.isim, ...PROGRAMLAR.map(p => t.sutun.prog[p.id])) + 1;
     const satir = new Array(genislik).fill('');
     if (t.sutun.isim >= 0) satir[t.sutun.isim] = isim;
-    satir[t.sutun.gmail] = gmail; satir[t.sutun.erisim] = erisim || sup; satir[t.sutun.super] = sup;
+    satir[t.sutun.gmail] = gmail; satir[t.sutun.super] = sup;
+    if (t.sutun.erisim >= 0) satir[t.sutun.erisim] = erisim || sup;
+    PROGRAMLAR.forEach(p => { if (t.sutun.prog[p.id] >= 0) satir[t.sutun.prog[p.id]] = secili[p.id] || sup; });
     const aralik = `'${YETKI_SEKME}'!A1`;
     await sheetsYaz(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(aralik)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
       'POST', { values: [satir] });
-    sendLog('kaydet', { page:'Yetkilendirme', target: isim, fields: 'Erişim = ' + (erisim || sup ? 'Evet' : 'Hayır') + ', Süper Yetkili = ' + (sup ? 'Evet' : 'Hayır'), action:'Yeni Kayıt' });
+    const izinler = PROGRAMLAR.filter(p => secili[p.id] || sup).map(p => p.ad).join(', ') || 'yok';
+    sendLog('kaydet', { page:'Yetkilendirme', target: isim, fields: 'Programlar = ' + izinler + ', Süper Yetkili = ' + (sup ? 'Evet' : 'Hayır'), action:'Yeni Kayıt' });
     document.getElementById('yYeniIsim').value = ''; document.getElementById('yYeniGmail').value = '';
-    document.getElementById('yYeniSuper').checked = false; document.getElementById('yYeniErisim').checked = true;
+    document.getElementById('yYeniSuper').checked = false;
+    PROGRAMLAR.forEach(p => { const c = document.getElementById('yYeni_' + p.id); if (c) c.checked = true; });
     return isim + ' eklendi. Tabloları Drive\'da paylaşmayı unutmayın';
   });
 }
@@ -769,6 +798,8 @@ document.getElementById('yGovde').addEventListener('click', e => {
   if (b) yetkiSil(Number(b.dataset.ysil));
 });
 document.getElementById('yEkleBtn').addEventListener('click', yetkiEkle);
+document.getElementById('yYeniProgramlar').innerHTML = PROGRAMLAR.map(p =>
+  `<label><input type="checkbox" id="yYeni_${p.id}" checked> ${esc(p.ad)}</label>`).join('');
 
 // ===== Programlardan gelen mesajlar =====
 window.addEventListener('message', e => {
