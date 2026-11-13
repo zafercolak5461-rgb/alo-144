@@ -161,6 +161,24 @@ body:not(.girildi) .cati{ visibility:hidden; }
   background:var(--accent); color:#08090b; border:none; border-radius:7px;
   font-weight:700; font-size:12.5px; padding:7px 12px; cursor:pointer;
 }
+/* --- Özel durum bitiş uyarısı (Veri Hazırlama > Yoklama > Personel Listesi'nden) --- */
+#ozelUyari{
+  position:fixed; top:14px; right:16px; z-index:55; width:340px; max-width:calc(100vw - 32px);
+  background:var(--panel); border:1px solid var(--accent); border-radius:12px;
+  box-shadow:0 10px 34px rgba(0,0,0,.5); display:none; font-size:13px;
+}
+#ozelUyari.var{ display:block; }
+#ozelUyari .ou-bas{ display:flex; align-items:center; gap:8px; padding:11px 12px 9px 14px; border-bottom:1px solid var(--line); }
+#ozelUyari .ou-bas b{ flex:1; color:var(--accent); font-size:13px; }
+#ozelUyari .ou-kapat{ background:none; border:none; color:var(--dim); font-size:18px; line-height:1; cursor:pointer; padding:2px 4px; }
+#ozelUyari .ou-kapat:hover{ color:var(--text); }
+#ozelUyari .ou-liste{ max-height:50vh; overflow-y:auto; padding:6px; }
+#ozelUyari .ou-kisi{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--text);
+  padding:8px 8px; border-radius:8px; cursor:pointer; font:inherit; }
+#ozelUyari .ou-kisi:hover{ background:rgba(232,165,61,.10); }
+#ozelUyari .ou-ad{ font-weight:600; }
+#ozelUyari .ou-alt{ color:var(--dim); font-size:12px; margin-top:2px; }
+#ozelUyari .ou-kalan{ color:var(--accent); font-weight:600; }
 /* --- Yetkilendirme ekranı (yalnız Süper Yetkili) --- */
 .ayrac{ height:1px; background:var(--line); margin:12px 18px; }
 #yetkiEkran{ position:absolute; inset:0; overflow-y:auto; padding:32px 36px; display:none; }
@@ -213,6 +231,10 @@ body:not(.girildi) .cati{ visibility:hidden; }
   <div id="girisHata"></div>
 </div>
 <div id="uyari"><span id="uyariYazi"></span><button id="uyariBtn"></button></div>
+<div id="ozelUyari" role="alert">
+  <div class="ou-bas"><span>⏳</span><b id="ozelUyariBaslik">Özel durumu bitiyor</b><button class="ou-kapat" id="ozelUyariKapat" title="Kapat">×</button></div>
+  <div class="ou-liste" id="ozelUyariListe"></div>
+</div>
 <div class="cati" id="cati">
   <button id="acBtn" title="Menüyü Göster">☰</button>
   <aside id="menu">
@@ -290,7 +312,13 @@ const GERI_YUKLE_BEKLEME_MS = 700;  // program menüsü bu süre değişmeden ka
 // Ortak Log – İşlem Günlüğü (programlarla aynı Apps Script).
 const LOG_URL = 'https://script.google.com/macros/s/AKfycbzeyn_R-Khl7qAMZozWuq4ZWIy6UAGiqi906MFEnRgl9YNpgQiV-Me2KpF4IJW43WbI/exec';
 const SURE_PAYI_MS = 60 * 1000; // izin bitmeden bu kadar önce "süresi doldu" sayılır
-const KOPRU_BEKLEME_MS = 4000; // program yüklendikten sonra bu süre içinde menü bildirmezse uyarı gösterilir
+const KOPRU_BEKLEME_MS = 4000;
+// Özel durum bitiş uyarısı: Veri Hazırlama'nın YOKLAMA tablosu okunur (yalnız okuma).
+// Kaç gün kala uyarılacağı AYARLAR'daki "Özel Durum Uyarı Günü"nden gelir (Yoklama Ayarları > Genel).
+const YOKLAMA_SHEET_ID = '1QqUxdK_A2uTjXCwd9BKkf4SKTxlXsJgxpVhZXIvB010';
+const OZEL_UYARI_AYAR = 'Özel Durum Uyarı Günü';
+const OZEL_UYARI_PROGRAM = 'veri';                 // uyarıyı bu programa yetkisi olan görür
+const OZEL_UYARI_SAYFA = 'yoklama:personel';      // kişiye tıklayınca açılan sayfa // program yüklendikten sonra bu süre içinde menü bildirmezse uyarı gösterilir
 
 // Her programın durumu: iframe, gelen alt menü, yüklenme bilgisi
 const durum = {};
@@ -546,6 +574,7 @@ function okumaIzniGeldi(resp){
     document.body.classList.add('girildi');
     kullaniciBilgisi().then(() => {
       sonSayfayiAc();
+      ozelDurumUyarisi();
       sendLog('giris');
       if (!cikisKaydiKuruldu){
         cikisKaydiKuruldu = true;
@@ -802,6 +831,69 @@ document.getElementById('yYeniProgramlar').innerHTML = PROGRAMLAR.map(p =>
   `<label><input type="checkbox" id="yYeni_${p.id}" checked> ${esc(p.ad)}</label>`).join('');
 
 // ===== Programlardan gelen mesajlar =====
+// ===== Özel durum bitiş uyarısı =====
+// Personel Listesi'nde bitiş tarihi girilmiş özel durumlardan, bitişine "Özel Durum Uyarı Günü" ya da
+// daha az kalanlar her açılışta gösterilir. Bitişi geçenler gösterilmez. Hata olursa sessizce geçilir.
+function ozelTarihGun(v){                 // "GG.AA.YYYY" / "YYYY-AA-GG" → UTC gün sayısı
+  const t = String(v == null ? '' : v).trim();
+  let m = t.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+  if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1]) / 86400000;
+  m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000;
+  return null;
+}
+function ozelKalanYazi(n){ return n === 0 ? 'bugün son gün' : n === 1 ? 'yarın son gün' : `${n} gün kaldı`; }
+// Saf: tablo satırlarından uyarılacak kişiler (ağ yok, test edilebilir)
+function ozelUyariListesi(personelRows, ayarRows, bugunGun){
+  const bas = (personelRows[0] || []).map(trBuyuk);
+  const c = { sicil: bas.indexOf(trBuyuk('Sicil')), ad: bas.indexOf(trBuyuk('Ad Soyad')), teg: bas.indexOf(trBuyuk('Tegsoft Adı')),
+              ozel: bas.indexOf(trBuyuk('Özel Durum')), bitis: bas.indexOf(trBuyuk('Özel Durum Bitiş')) };
+  if (c.ozel < 0 || c.bitis < 0) return { esik: null, kisiler: [] };
+  const ayar = (ayarRows || []).slice(1).find(r => r && trBuyuk(r[0]) === trBuyuk(OZEL_UYARI_AYAR));
+  const esik = ayar && String(ayar[1] == null ? '' : ayar[1]).trim() !== '' && !isNaN(Number(ayar[1])) ? Number(ayar[1]) : 2;
+  const al = (r, i) => i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : '';
+  const kisiler = personelRows.slice(1).map(r => {
+    const ozel = al(r, c.ozel), g = ozelTarihGun(al(r, c.bitis));
+    if (!ozel || g == null) return null;
+    const kalan = g - bugunGun;
+    if (kalan < 0 || kalan > esik) return null;
+    return { sicil: al(r, c.sicil), ad: al(r, c.ad) || al(r, c.teg), ozel, bitis: al(r, c.bitis), kalan };
+  }).filter(Boolean).sort((a, b) => a.kalan - b.kalan || a.ad.localeCompare(b.ad, 'tr'));
+  return { esik, kisiler };
+}
+async function ozelDurumUyarisi(){
+  if (!gorunur || !gorunur.has(OZEL_UYARI_PROGRAM) || !oturum.token) return;
+  try {
+    const q = [`'PERSONEL'!A1:Z2000`, `'AYARLAR'!A1:B200`].map(a => 'ranges=' + encodeURIComponent(a)).join('&');
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${YOKLAMA_SHEET_ID}/values:batchGet?${q}`, { headers:{ Authorization:'Bearer ' + oturum.token } });
+    if (!r.ok) return;                       // tablo bu hesapla paylaşılmamış ya da geçici hata: uyarı yok
+    const d = await r.json();
+    const [per, ayar] = (d.valueRanges || []).map(v => v.values || []);
+    const b = new Date();
+    const { kisiler } = ozelUyariListesi(per || [], ayar || [], Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) / 86400000);
+    if (!kisiler.length) return;
+    document.getElementById('ozelUyariBaslik').textContent = kisiler.length === 1 ? 'Özel durumu bitiyor' : `${kisiler.length} kişinin özel durumu bitiyor`;
+    document.getElementById('ozelUyariListe').innerHTML = kisiler.map(k =>
+      `<button class="ou-kisi" title="Personel Listesi'nde aç"><div class="ou-ad">${esc(k.ad)}</div>` +
+      `<div class="ou-alt">${esc(k.ozel)} · <span class="ou-kalan">${esc(ozelKalanYazi(k.kalan))}</span> (${esc(k.bitis)})</div></button>`).join('');
+    document.getElementById('ozelUyari').classList.add('var');
+  } catch(e){}
+}
+document.getElementById('ozelUyariKapat').addEventListener('click', () => document.getElementById('ozelUyari').classList.remove('var'));
+document.getElementById('ozelUyariListe').addEventListener('click', e => {
+  if (!e.target.closest('.ou-kisi')) return;
+  document.getElementById('ozelUyari').classList.remove('var');
+  const d = durum[OZEL_UYARI_PROGRAM];
+  if (d.iframe && d.ogeler && d.ogeler.length){       // program zaten yüklü: sayfayı hemen aç
+    programAc(OZEL_UYARI_PROGRAM);
+    gonder(OZEL_UYARI_PROGRAM, { tur:'ac', id: OZEL_UYARI_SAYFA });
+    sonSayfaKaydet(OZEL_UYARI_PROGRAM, OZEL_UYARI_SAYFA);
+  } else {                                            // yüklenince menü bildirdiğinde açılır
+    geriYukle.id = OZEL_UYARI_PROGRAM; geriYukle.sayfa = OZEL_UYARI_SAYFA;
+    programAc(OZEL_UYARI_PROGRAM);
+  }
+});
+
 window.addEventListener('message', e => {
   if (e.origin !== location.origin) return;
   const m = e.data || {};
