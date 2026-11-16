@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+/* GÖRÜNÜM - sayfa çizilmeden son bilinen görünüm uygulanır; asıl değer girişten sonra
+   YETKİLENDİRME > AYARLAR > "Görünüm" satırından okunur. Varsayılan = beyaz. */
+(function(){ var g = null; try { g = localStorage.getItem('alo144-gorunum'); } catch(e){}
+  if (g !== 'Varsayılan (2)') document.documentElement.classList.add('gorunum-beyaz'); })();
+</script>
 <title>ALO-144 Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -26,6 +32,9 @@
     Geçici bir okuma hatasında başlıklar gösterilir (programlar kendi kontrolünü yapar).
   - Menünün en altındaki "Yetkilendirme" ekranını yalnız Süper Yetkili görür: kişi ekler/siler,
     Erişim ve Süper Yetkili'yi değiştirir. Kendi satırı değiştirilemez (kendini kilitlememek için).
+  - Görünüm: YETKİLENDİRME tablosunun "AYARLAR" sekmesindeki "Görünüm" satırı (Varsayılan = beyaz tasarım,
+    Varsayılan (2) = eski koyu görünüm). Herkes için tek ayar; Yetkilendirme ekranının üstünden değiştirilir.
+    Panel değeri açık programlara iletir ve onları yeniden yükler.
   - Son açılan program ve sayfa tarayıcıda (kişinin e-postasıyla) tutulur; girişten sonra
     oraya dönülür. Sayfaya yetki kalmamışsa programın kendi açılış sayfası açılır.
   - Programlar tek başına açıldığında bu dosyadan etkilenmez.
@@ -216,6 +225,114 @@ body:not(.girildi) .cati{ visibility:hidden; }
   #menu{ position:fixed; z-index:40; left:0; top:0; box-shadow:0 0 30px rgba(0,0,0,.5); }
 }
 </style>
+<style id="gorunumBeyazStil">
+/* ===== GÖRÜNÜM: "Varsayılan" (beyaz tasarım) =====
+   Yalnız <html class="gorunum-beyaz"> iken çalışır. Değer YETKİLENDİRME > AYARLAR > "Görünüm" satırındadır;
+   Yetkilendirme ekranının üstündeki "Görünüm" kutusundan değiştirilir. "Varsayılan (2)" = eski koyu görünüm. */
+html.gorunum-beyaz{
+  --bg:#F7F8FA; --panel:#FFFFFF; --line:#E5E7EB; --text:#111827; --dim:#4B5563; --dim2:#6B7280; --accent:#1E3A8A;
+  --gb-cerceve:#D1D5DB; --gb-hover:#F3F4F6; --gb-secili:#EEF2FB;
+}
+html.gorunum-beyaz body, html.gorunum-beyaz body *:not(svg):not(svg *){ font-family:'Inter', sans-serif !important; }
+html.gorunum-beyaz body{ background:var(--bg); color:var(--text); }
+
+/* Yeni görünümün parçaları eski görünümde gizli; eski görünümün işaretleri yenide gizli */
+.bolum, .ana-ikon, .alt-ikon, .ok-yeni, .kisi-av, .kisi-rol{ display:none; }
+html.gorunum-beyaz .eski-isaret, html.gorunum-beyaz .ana .ok, html.gorunum-beyaz .ana .yuklu, html.gorunum-beyaz .ayrac{ display:none; }
+
+/* --- Menü --- */
+html.gorunum-beyaz #menu{ width:272px; background:#FFFFFF; border-right:1px solid var(--line); }
+html.gorunum-beyaz .menu-bas{ padding:18px 16px 16px 20px; border-bottom:1px solid #EEF0F3; gap:12px; }
+html.gorunum-beyaz .marka{ width:36px; height:36px; border-radius:9px; background:var(--accent); color:#FFFFFF; font-size:16px; font-weight:700; }
+html.gorunum-beyaz .marka-ad{ font-weight:700; font-size:15px; }
+html.gorunum-beyaz .marka-alt{ font-size:12px; color:var(--dim); }
+html.gorunum-beyaz .kucuk-btn{ width:34px; height:34px; border-radius:8px; border-color:var(--gb-cerceve); color:#374151; background:#FFFFFF; }
+html.gorunum-beyaz .kucuk-btn:hover{ background:#F9FAFB; border-color:#9CA3AF; color:#111827; }
+html.gorunum-beyaz #acBtn{ background:#FFFFFF; border-color:var(--gb-cerceve); color:#374151; border-radius:8px; box-shadow:0 2px 8px rgba(17,24,39,.08); }
+html.gorunum-beyaz #liste{ padding:6px 0 12px; }
+html.gorunum-beyaz .bolum{ display:block; font-family:'IBM Plex Mono', monospace !important; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#6B7280; padding:16px 22px 6px; }
+html.gorunum-beyaz .ana{
+  width:calc(100% - 20px); margin:2px 10px; padding:10px 12px; border:none; border-radius:8px; gap:12px; min-height:44px;
+  color:#374151; font-size:14px; font-weight:600;
+}
+html.gorunum-beyaz .ana:hover{ background:var(--gb-hover); color:#111827; }
+html.gorunum-beyaz .ana.acik{ background:var(--gb-secili); color:var(--accent); border:none; }
+html.gorunum-beyaz .ana-ikon{ display:inline-flex; flex-shrink:0; }
+html.gorunum-beyaz .ok-yeni{ display:inline-flex; margin-left:auto; color:#9CA3AF; }
+html.gorunum-beyaz .ana.acik .ok-yeni{ color:var(--accent); }
+html.gorunum-beyaz .alt{ padding:2px 0 8px; }
+html.gorunum-beyaz .alt-grup{ font-size:11px; font-weight:600; letter-spacing:0; text-transform:none; color:#6B7280; padding:10px 20px 4px 50px; }
+html.gorunum-beyaz .alt-oge{
+  display:flex; align-items:center; gap:10px; width:calc(100% - 20px); margin:1px 10px; padding:7px 12px 7px 40px; border-radius:7px;
+  color:#4B5563; font-size:13px; font-weight:500; min-height:34px;
+}
+html.gorunum-beyaz .alt-oge:hover{ background:var(--gb-hover); color:#111827; }
+html.gorunum-beyaz .alt-oge.aktif{ background:var(--accent); color:#FFFFFF; font-weight:600; }
+html.gorunum-beyaz .alt-ikon{ display:inline-flex; color:#9CA3AF; flex-shrink:0; }
+html.gorunum-beyaz .alt-oge:hover .alt-ikon{ color:#4B5563; }
+html.gorunum-beyaz .alt-oge.aktif .alt-ikon{ color:#FFFFFF; }
+html.gorunum-beyaz .alt-oge.pasif{ opacity:.45; }
+html.gorunum-beyaz .alt-not{ color:#6B7280; padding-left:50px; }
+
+/* Kişi: menünün en altına, baş harfli yuvarlakla */
+html.gorunum-beyaz .menu-kisi{
+  order:9; display:flex; align-items:center; gap:10px; margin:0; padding:12px 16px 14px; border-top:1px solid #EEF0F3;
+  font-size:13px; font-weight:600; color:#111827; white-space:normal;
+}
+html.gorunum-beyaz .kisi-av{ display:flex; width:34px; height:34px; border-radius:50%; background:#E0E7FF; color:var(--accent); align-items:center; justify-content:center; font-weight:700; font-size:12.5px; flex-shrink:0; }
+html.gorunum-beyaz .kisi-yazi{ display:flex; flex-direction:column; gap:2px; min-width:0; overflow:hidden; }
+html.gorunum-beyaz .kisi-ad{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+html.gorunum-beyaz .kisi-rol{ display:block; font-size:11.5px; font-weight:400; color:#4B5563; }
+html.gorunum-beyaz .menu-alt{ border-top:1px solid #EEF0F3; padding:10px 16px; }
+html.gorunum-beyaz .menu-alt button, html.gorunum-beyaz .menu-alt a{
+  background:#FFFFFF; border:1px solid var(--gb-cerceve); border-radius:8px; color:#374151; font-size:12px; font-weight:600; padding:7px 8px;
+}
+html.gorunum-beyaz .menu-alt button:hover, html.gorunum-beyaz .menu-alt a:hover{ background:#F9FAFB; border-color:#9CA3AF; color:#111827; }
+
+/* --- Sağ alan --- */
+html.gorunum-beyaz #sahne, html.gorunum-beyaz #sahne iframe{ background:var(--bg); }
+html.gorunum-beyaz #bos{ color:#6B7280; font-size:14px; }
+
+/* --- Giriş ekranı --- */
+html.gorunum-beyaz #giris{ background:var(--bg); }
+html.gorunum-beyaz #giris .ust{ color:#4B5563; }
+html.gorunum-beyaz #giris h1{ font-weight:700; font-size:28px; }
+html.gorunum-beyaz #giris .alt-yazi{ color:#4B5563; }
+html.gorunum-beyaz #girisBtn{ background:#FFFFFF; color:#111827; border:1px solid var(--gb-cerceve); box-shadow:0 1px 2px rgba(17,24,39,.06); }
+html.gorunum-beyaz #girisBtn:hover{ background:#F9FAFB; border-color:#9CA3AF; }
+html.gorunum-beyaz #girisHata{ color:#B91C1C; }
+
+/* --- Uyarılar --- */
+html.gorunum-beyaz #uyari{ background:#FFFBEB; border-color:#F59E0B; color:#78350F; box-shadow:0 10px 30px -12px rgba(17,24,39,.3); }
+html.gorunum-beyaz #uyari button{ background:var(--accent); color:#FFFFFF; }
+html.gorunum-beyaz #ozelUyari{ background:#FFFFFF; border-color:#F59E0B; box-shadow:0 18px 40px -16px rgba(17,24,39,.35); }
+html.gorunum-beyaz #ozelUyari .ou-bas{ border-bottom-color:var(--line); }
+html.gorunum-beyaz #ozelUyari .ou-bas b, html.gorunum-beyaz #ozelUyari .ou-kalan{ color:#B45309; }
+html.gorunum-beyaz #ozelUyari .ou-kisi{ color:#111827; }
+html.gorunum-beyaz #ozelUyari .ou-kisi:hover{ background:#FFFBEB; }
+
+/* --- Yetkilendirme ekranı --- */
+html.gorunum-beyaz #yetkiEkran{ padding:28px 32px 40px; }
+html.gorunum-beyaz #yetkiEkran h2{ font-size:24px; font-weight:700; }
+html.gorunum-beyaz .y-alt{ color:#4B5563; }
+html.gorunum-beyaz .y-kutu{ background:#FFFFFF; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+html.gorunum-beyaz .y-ekle input[type=text], html.gorunum-beyaz .y-ekle select{ background:#FFFFFF; border:1px solid var(--gb-cerceve); color:#111827; border-radius:8px; }
+html.gorunum-beyaz .y-ekle label{ color:#374151; }
+html.gorunum-beyaz .y-btn{ background:#FFFFFF; border:1px solid var(--gb-cerceve); color:#374151; border-radius:8px; font-weight:600; }
+html.gorunum-beyaz .y-btn:hover{ background:#F9FAFB; border-color:#9CA3AF; color:#111827; }
+html.gorunum-beyaz .y-btn.ana-btn{ background:var(--accent); border-color:var(--accent); color:#FFFFFF; }
+html.gorunum-beyaz .y-btn.sil-onay{ border-color:#B91C1C; color:#B91C1C; }
+html.gorunum-beyaz .y-tablo th{ background:#F9FAFB; color:#4B5563; border-bottom-color:var(--line); font-size:11px; }
+html.gorunum-beyaz .y-tablo td{ border-bottom-color:#F0F1F3; color:#1F2937; }
+html.gorunum-beyaz .y-gmail{ color:#4B5563; }
+html.gorunum-beyaz .y-sen{ color:var(--accent); font-weight:600; }
+html.gorunum-beyaz #yDurum, html.gorunum-beyaz #gDurum{ color:#4B5563; }
+html.gorunum-beyaz #yDurum.hata, html.gorunum-beyaz #gDurum.hata{ color:#B91C1C; }
+html.gorunum-beyaz input[type="checkbox"]{ accent-color:var(--accent); }
+@media (max-width:780px){
+  html.gorunum-beyaz #menu{ box-shadow:0 0 30px rgba(17,24,39,.2); }
+}
+</style>
 </head>
 <body>
 <div id="giris">
@@ -265,6 +382,17 @@ body:not(.girildi) .cati{ visibility:hidden; }
       </div>
       <div class="y-kutu">
         <div class="y-ekle">
+          <label for="gSecim" style="font-weight:600">Görünüm</label>
+          <select id="gSecim" style="min-width:200px; padding:8px 10px; font-size:13px">
+            <option value="Varsayılan">Varsayılan (beyaz)</option>
+            <option value="Varsayılan (2)">Varsayılan (2) (eski koyu)</option>
+          </select>
+          <button class="y-btn ana-btn" id="gKaydetBtn">Kaydet</button>
+          <span id="gDurum" style="font-size:12.5px"></span>
+        </div>
+      </div>
+      <div class="y-kutu">
+        <div class="y-ekle">
           <input type="text" id="yYeniIsim" placeholder="Ad Soyad">
           <input type="text" id="yYeniGmail" placeholder="ornek@gmail.com">
           <span id="yYeniProgramlar" style="display:contents"></span>
@@ -290,9 +418,9 @@ body:not(.girildi) .cati{ visibility:hidden; }
 // (panelde olmayan Excel Dosyası Hazırlama hâlâ ona bakıyor).
 // Veri yazma Drive paylaşımıyla belirlenir (Düzenleyen yazar, Görüntüleyen yalnız okur).
 const PROGRAMLAR = [
-  { id:'alo144', ad:'ALO-144 Dashboard', url:'ALO-144_DASHBOARD.html' },
-  { id:'karne',  ad:'Personel Karnesi',  url:'personel-karnesi.html' },
-  { id:'veri',   ad:'Veri Hazırlama',    url:'../veri-hazirlama-projesi/' },
+  { id:'alo144', ad:'ALO-144 Dashboard', url:'ALO-144_DASHBOARD.html',    ikon:'grafik' },
+  { id:'karne',  ad:'Personel Karnesi',  url:'personel-karnesi.html',     ikon:'kimlik' },
+  { id:'veri',   ad:'Veri Hazırlama',    url:'../veri-hazirlama-projesi/', ikon:'pano' },
 ];
 // Tablo boş ya da bozuk olsa bile her şeyi gören hesap (kilitlenmeyi önler).
 const SABIT_SUPER = ['zafercolak5461@gmail.com'];
@@ -332,6 +460,122 @@ const bosEl = document.getElementById('bos');
 function programAdresi(p){ return p.url + (p.url.includes('?') ? '&' : '?') + 'panel=1'; }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// ===== GÖRÜNÜM SİMGELERİ (Panel ve programlarda ortak ad listesi) =====
+// Menü öğesinin data-ikon değeri buradaki addır. Panel, programın bildirdiği adı kendi listesinden çizer.
+const GORUNUM_IKONLAR = {
+  telefon:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
+  pasta:'<path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+  liste:'<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+  nabiz:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  takvim:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+  kisiler:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+  kisi:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  grafik:'<path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-7"/>',
+  kimlik:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17a4 4 0 0 1 7 0"/><path d="M15 10h3"/><path d="M15 14h3"/>',
+  pano:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
+  kalkan:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  ayar:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  palet:'<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7h2a5.6 5.6 0 0 0 5.6-5.6C22 6 17.5 2 12 2z"/>',
+  dosya:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/>',
+  tablo:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>',
+  onay:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  saat:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  kahve:'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><path d="M6 1v3"/><path d="M10 1v3"/><path d="M14 1v3"/>',
+  yildiz:'<path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+  hedef:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  yukle:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+  kamera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  klasor:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  yenile:'<path d="M23 4v6h-6"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/>',
+  nokta:'<circle cx="12" cy="12" r="3"/>'
+};
+function gorunumIkon(ad, boyut){
+  const ic = GORUNUM_IKONLAR[ad] || GORUNUM_IKONLAR.nokta, b = boyut || 16;
+  return `<svg width="${b}" height="${b}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic}</svg>`;
+}
+const OK_YENI = acik => gorunumIkon(acik ? 'asagi' : 'sag', 16);
+GORUNUM_IKONLAR.asagi = '<path d="M6 9l6 6 6-6"/>';
+GORUNUM_IKONLAR.sag = '<path d="M9 18l6-6-6-6"/>';
+
+// ===== GÖRÜNÜM (Varsayılan = beyaz / Varsayılan (2) = eski koyu) =====
+// YETKİLENDİRME tablosu > AYARLAR sekmesi > "Görünüm" satırı. Herkes için tek ayar.
+// Tarayıcıda da tutulur (aynı adresteki programlar da bu değeri okur, açılışta yanıp sönme olmaz).
+const GORUNUM_ANAHTAR = 'alo144-gorunum';
+const GORUNUM_IKINCI = 'Varsayılan (2)';
+const GORUNUM_SEKME = 'AYARLAR';
+const GORUNUM_AYAR = 'Görünüm';
+function gorunumBeyaz(){ return document.documentElement.classList.contains('gorunum-beyaz'); }
+function gorunumDegeri(){ return gorunumBeyaz() ? 'Varsayılan' : GORUNUM_IKINCI; }
+// Uygular; görünüm değiştiyse true döner.
+function gorunumUygula(deger){
+  const beyaz = String(deger == null ? '' : deger).trim() !== GORUNUM_IKINCI;
+  const degisti = beyaz !== gorunumBeyaz();
+  try { localStorage.setItem(GORUNUM_ANAHTAR, beyaz ? 'Varsayılan' : GORUNUM_IKINCI); } catch(e){}
+  document.documentElement.classList.toggle('gorunum-beyaz', beyaz);
+  const s = document.getElementById('gSecim'); if (s) s.value = gorunumDegeri();
+  return degisti;
+}
+// AYARLAR sekmesini okur: { satir, deger } (satır yoksa satir:null, deger:'Varsayılan'); okunamazsa null.
+async function gorunumOku(){
+  try {
+    const aralik = encodeURIComponent(`'${GORUNUM_SEKME}'!A1:B50`);
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${aralik}`, { headers:{ Authorization:'Bearer ' + oturum.token } });
+    if (!r.ok) return null;
+    const satirlar = (await r.json()).values || [];
+    const i = satirlar.findIndex(x => trBuyuk(x[0]) === trBuyuk(GORUNUM_AYAR));
+    return i < 0 ? { satir:null, deger:'Varsayılan' } : { satir: i + 1, deger: String(satirlar[i][1] || '').trim() || 'Varsayılan' };
+  } catch(e){ return null; }
+}
+// Açık programlara bildirir ve yeniden yükler (grafikler/renkler baştan doğru çizilsin).
+function gorunumProgramlaraIlet(){
+  Object.keys(durum).forEach(id => {
+    const d = durum[id];
+    if (!d.iframe) return;
+    gonder(id, { tur:'gorunum', deger: gorunumDegeri() });
+    const son = sonSayfaOku();
+    if (son && son.program === id && son.sayfa){ geriYukle.id = id; geriYukle.sayfa = son.sayfa; }
+    d.yuklendi = false; d.ogeler = null; d.kopruYok = false;
+    try { d.iframe.contentWindow.location.reload(); } catch(e){ d.iframe.src = d.iframe.src; }
+  });
+  menuCiz();
+}
+async function gorunumGiristeOku(){
+  const g = await gorunumOku();
+  if (g && gorunumUygula(g.deger)) gorunumProgramlaraIlet();
+}
+function gDurum(msg, hata){ const el = document.getElementById('gDurum'); el.textContent = msg || ''; el.classList.toggle('hata', !!hata); }
+async function gorunumKaydet(){
+  const yeni = document.getElementById('gSecim').value;
+  const btn = document.getElementById('gKaydetBtn');
+  btn.disabled = true; gDurum('Kaydediliyor…');
+  try {
+    const g = await gorunumOku();
+    if (!g) throw new Error('AYARLAR sekmesi okunamadı.');
+    if (g.satir){
+      const aralik = `'${GORUNUM_SEKME}'!B${g.satir}`;
+      await sheetsYaz(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(aralik)}?valueInputOption=RAW`, 'PUT', { range: aralik, values: [[yeni]] });
+    } else {
+      const aralik = `'${GORUNUM_SEKME}'!A1`;
+      await sheetsYaz(`https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent(aralik)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, 'POST', { values: [[GORUNUM_AYAR, yeni]] });
+    }
+    sendLog('kaydet', { page:'Yetkilendirme', target: GORUNUM_AYAR, fields: GORUNUM_AYAR + ' = ' + yeni, action:'Güncelleme' });
+    if (gorunumUygula(yeni)) gorunumProgramlaraIlet();
+    gDurum('✓ Kaydedildi — herkes bir sonraki açılışta bu görünümü görür');
+  } catch(e){
+    gDurum('✗ ' + e.message, true);
+    document.getElementById('gSecim').value = gorunumDegeri();
+  }
+  btn.disabled = false;
+}
+document.getElementById('gKaydetBtn').addEventListener('click', gorunumKaydet);
+document.getElementById('gSecim').value = gorunumDegeri();
+
+function kisiCiz(){
+  const ad = oturum.isim || oturum.email;
+  const bas = String(oturum.isim || oturum.email || '?').trim().split(/\s+/).slice(0, 2).map(s => s.charAt(0)).join('').toLocaleUpperCase('tr');
+  document.getElementById('kisi').innerHTML = `<span class="kisi-av">${esc(bas)}</span><span class="kisi-yazi"><span class="kisi-ad">${esc(ad)}</span>${superMi ? '<span class="kisi-rol">Süper Yetkili</span>' : ''}</span>`;
+}
+
 // Başlık görünürlüğü: null = henüz okunmadı. Tablo geçici bir hatayla okunamazsa başlıklar
 // gösterilir (programın kendi yetki kontrolü yine çalışır); Google "izin yok" derse hiçbiri gösterilmez.
 let gorunur = null;
@@ -349,17 +593,17 @@ function menuCiz(){
     bosEl.textContent = 'Açabileceğiniz program yok';
     return;
   }
-  let html = '';
+  let html = programlar.length ? '<div class="bolum">Programlar</div>' : '';
   programlar.forEach(p => {
     const d = durum[p.id];
     const acik = p.id === aktifId;
     html += `<button class="ana${acik ? ' acik' : ''}${d.iframe ? ' yuklendi' : ''}" data-ana="${p.id}">
-      <span class="yuklu"></span><span>${esc(p.ad)}</span><span class="ok">▶</span></button>`;
+      <span class="yuklu"></span><span class="ana-ikon">${gorunumIkon(p.ikon, 18)}</span><span>${esc(p.ad)}</span><span class="ok">▶</span><span class="ok-yeni">${OK_YENI(acik)}</span></button>`;
     html += `<div class="alt${acik ? ' acik' : ''}">${acik ? altCiz(p.id) : ''}</div>`;
   });
   if (superMi){
-    html += `<div class="ayrac"></div><button class="ana${aktifId === YETKI_EKRANI ? ' acik' : ''}" data-ozel="${YETKI_EKRANI}">
-      <span class="yuklu"></span><span>⚙ Yetkilendirme</span></button>`;
+    html += `<div class="ayrac"></div><div class="bolum">Yönetim</div><button class="ana${aktifId === YETKI_EKRANI ? ' acik' : ''}" data-ozel="${YETKI_EKRANI}">
+      <span class="yuklu"></span><span class="ana-ikon">${gorunumIkon('kalkan', 18)}</span><span><span class="eski-isaret">⚙ </span>Yetkilendirme</span></button>`;
   }
   listeEl.innerHTML = html;
   const d = aktifId ? durum[aktifId] : null;
@@ -380,7 +624,7 @@ function altCiz(id){
   d.ogeler.forEach(o => {
     if (o.grup && o.grup !== sonGrup) html += `<div class="alt-grup">${esc(o.grup)}</div>`;
     sonGrup = o.grup || null;
-    html += `<button class="alt-oge${o.aktif ? ' aktif' : ''}${o.pasif ? ' pasif' : ''}" data-alt="${esc(o.id)}">${esc(o.ad)}</button>`;
+    html += `<button class="alt-oge${o.aktif ? ' aktif' : ''}${o.pasif ? ' pasif' : ''}" data-alt="${esc(o.id)}"><span class="alt-ikon">${gorunumIkon(o.ikon, 15)}</span>${esc(o.ad)}</button>`;
   });
   return html;
 }
@@ -401,6 +645,7 @@ function programAc(id){
       d.yuklendi = true;
       d.ogeler = null; d.kopruYok = false;
       gonder(id, { tur:'menu-iste' });
+      gonder(id, { tur:'gorunum', deger: gorunumDegeri() });
       clearTimeout(d.zaman);
       d.zaman = setTimeout(() => { if (!d.ogeler){ d.kopruYok = true; if (aktifId === id) menuCiz(); } }, KOPRU_BEKLEME_MS);
       if (aktifId === id) menuCiz();
@@ -485,7 +730,7 @@ async function yetkileriUygula(){
   if (sabit){ acik = new Set(hepsi); sup = true; }
   superMi = sup;
   gorunur = acik;
-  document.getElementById('kisi').textContent = oturum.isim || oturum.email;
+  kisiCiz();
   if (aktifId === YETKI_EKRANI && !superMi){ aktifId = null; document.getElementById('yetkiEkran').classList.remove('acik'); bosEl.style.display = ''; }
   menuCiz();
 }
@@ -573,6 +818,7 @@ function okumaIzniGeldi(resp){
   if (ilkGiris){
     document.body.classList.add('girildi');
     kullaniciBilgisi().then(() => {
+      gorunumGiristeOku();
       sonSayfayiAc();
       ozelDurumUyarisi();
       sendLog('giris');
