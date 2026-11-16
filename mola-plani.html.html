@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+/* GÖRÜNÜM - ALO-144 programlarıyla ortak ayar (Varsayılan = beyaz tasarım, Varsayılan (2) = bu sayfanın eski görünümü).
+   Bu sayfa Google'a giriş yapmadığı için değeri kendisi okumaz: aynı tarayıcıda Panel ya da diğer programlar
+   açıldığında AYARLAR > "Görünüm" satırından okunup saklanan son değeri kullanır. */
+(function(){ var g = null; try { g = localStorage.getItem('alo144-gorunum'); } catch(e){}
+  if (g !== 'Varsayılan (2)') document.documentElement.classList.add('gorunum-beyaz'); })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>Mola Planı</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
@@ -159,6 +168,24 @@
   #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#1d2733; color:#fff; padding:10px 16px; border-radius:8px; font-size:14px; display:none; z-index:9; max-width:92%; }
   @media (max-width:640px) { .hafta { margin-right:0; width:100%; justify-content:space-between; } .hafta b { min-width:0; } }
   @media print { .bar, .panel, #toast { display:none !important; } body { background:#fff; } .wrap { padding:0; max-width:none; } }
+</style>
+<style id="gorunumBeyazStil">
+/* ===== GÖRÜNÜM: "Varsayılan" (beyaz tasarım) - yalnız <html class="gorunum-beyaz"> iken ===== */
+html.gorunum-beyaz{ --b:#1E3A8A; --bd:#172F70; --bg:#F7F8FA; --c:#FFFFFF; --t:#111827; --m:#4B5563; --br:#E5E7EB; --soft:#EEF2FB; }
+html.gorunum-beyaz body{ font-family:'Inter', "Segoe UI", Arial, sans-serif; }
+html.gorunum-beyaz button{ border-color:#D1D5DB; border-radius:8px; font-weight:600; color:#374151; }
+html.gorunum-beyaz button:hover{ background:#F9FAFB; border-color:#9CA3AF; }
+html.gorunum-beyaz button.ana{ color:#FFFFFF; border-color:var(--b); }
+html.gorunum-beyaz button.ana:hover{ background:var(--bd); }
+html.gorunum-beyaz button.aktif{ background:var(--b); border-color:var(--b); color:#FFFFFF; }
+html.gorunum-beyaz button.sil{ color:#B91C1C; }
+html.gorunum-beyaz input, html.gorunum-beyaz select, html.gorunum-beyaz textarea{ border-color:#D1D5DB; border-radius:8px; }
+html.gorunum-beyaz input:focus, html.gorunum-beyaz select:focus, html.gorunum-beyaz textarea:focus{ outline:2px solid #BFDBFE; outline-offset:0; border-color:var(--b); }
+html.gorunum-beyaz .kart{ border-radius:12px; }
+html.gorunum-beyaz .e-gb.secili{ color:#FFFFFF; }
+html.gorunum-beyaz .e-duzen{ border-color:#C7D2FE; background:#F5F7FD; }
+html.gorunum-beyaz .grup-btn:focus-visible{ outline-color:var(--b); }
+html.gorunum-beyaz input[type="checkbox"], html.gorunum-beyaz input[type="radio"]{ accent-color:var(--b); }
 </style>
 </head>
 <body>

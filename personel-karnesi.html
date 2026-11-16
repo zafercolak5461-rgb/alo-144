@@ -3,6 +3,12 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
+<script>
+/* GÖRÜNÜM - sayfa çizilmeden son bilinen görünüm uygulanır; asıl değer girişten sonra
+   YETKİLENDİRME > AYARLAR > "Görünüm" satırından okunur. Varsayılan = beyaz. */
+(function(){ var g = null; try { g = localStorage.getItem('alo144-gorunum'); } catch(e){}
+  if (g !== 'Varsayılan (2)') document.documentElement.classList.add('gorunum-beyaz'); })();
+</script>
 <title>Personel Karnesi — ALO 144</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
@@ -246,6 +252,89 @@
   .id-badge{ font-size:13px; background: var(--panel2); border:1px solid var(--line); padding:3px 9px; border-radius:20px; margin-left:6px; }
 .islem-only, .yetki-only, .sunum-only, .excel-only, .analiz-only, .formatpanel-only, .pageaccess-only, .performans-only{ display:none !important; }
 </style>
+<style id="gorunumBeyazStil">
+/* ===== GÖRÜNÜM: "Varsayılan" (beyaz tasarım) =====
+   Yalnız <html class="gorunum-beyaz"> iken çalışır. Değer YETKİLENDİRME > AYARLAR > "Görünüm" satırındadır
+   (Panel > Yetkilendirme'den değiştirilir). "Varsayılan (2)" = eski koyu görünüm; Tema sekmesi yalnız onda uygulanır. */
+html.gorunum-beyaz{
+  --bg:#F7F8FA; --panel:#FFFFFF; --panel2:#F3F4F6; --panel3:#EEF0F3; --line:#E5E7EB;
+  --text:#111827; --dim:#4B5563; --dim2:#6B7280; --accent:#1E3A8A;
+  --blue:#1D4ED8; --blue-soft:rgba(29,78,216,.10); --ok:#047857; --ok-soft:rgba(4,120,87,.10);
+  --danger:#B91C1C; --danger-soft:rgba(185,28,28,.10); --warn:#B45309; --warn-soft:rgba(180,83,9,.10);
+  --neutral-gauge:#7C3AED;
+  --shell-bg:#FFFFFF; --shell-panel:#F3F4F6; --shell-line:#E5E7EB; --shell-text:#111827; --shell-dim:#374151; --shell-dim2:#6B7280; --shell-accent:#1E3A8A;
+  --gb-cerceve:#D1D5DB; --gb-hover:#F3F4F6; --gb-secili:#EEF2FB;
+}
+html.gorunum-beyaz body, html.gorunum-beyaz body *:not(svg):not(svg *){ font-family:'Inter', sans-serif !important; }
+html.gorunum-beyaz td, html.gorunum-beyaz .value, html.gorunum-beyaz .mval, html.gorunum-beyaz .gd-val{ font-variant-numeric:tabular-nums; }
+
+/* --- Sol menü: simgeli ve bölümlü --- */
+.nav-bolum, .sidebar-nav-item .nav-ikon{ display:none; }
+html.gorunum-beyaz .sidebar{ width:248px; background:#FFFFFF; border-right:1px solid var(--line); padding:10px 0 16px; }
+html.gorunum-beyaz .sidebar.collapsed{ width:0; padding:10px 0; }
+html.gorunum-beyaz .nav-bolum{ display:block; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:#6B7280; padding:12px 22px 4px; }
+html.gorunum-beyaz .sidebar-nav-item{ display:flex; align-items:center; gap:10px; width:calc(100% - 20px); margin:1px 10px; padding:8px 12px; border-radius:8px; color:#374151; font-size:13.5px; font-weight:500; min-height:38px; }
+html.gorunum-beyaz .sidebar-nav-item:hover{ background:var(--gb-hover); color:#111827; }
+html.gorunum-beyaz .sidebar-nav-item.active{ background:var(--accent); color:#FFFFFF; font-weight:600; }
+html.gorunum-beyaz .sidebar-nav-item .nav-ikon{ display:inline-flex; color:#9CA3AF; flex-shrink:0; }
+html.gorunum-beyaz .sidebar-nav-item:hover .nav-ikon{ color:#4B5563; }
+html.gorunum-beyaz .sidebar-nav-item.active .nav-ikon{ color:#FFFFFF; }
+html.gorunum-beyaz .hamburger-btn{ background:#FFFFFF; border:1px solid var(--gb-cerceve); color:#374151; border-radius:8px; }
+html.gorunum-beyaz .hamburger-btn:hover{ background:#F9FAFB; border-color:#9CA3AF; }
+
+/* --- İskelet ve başlık --- */
+html.gorunum-beyaz .main-area{ padding:28px 32px 48px; }
+html.gorunum-beyaz .eyebrow{ font-family:'IBM Plex Mono', monospace !important; color:#6B7280; font-size:11px; letter-spacing:.08em; }
+html.gorunum-beyaz h1{ font-size:24px; font-weight:700; letter-spacing:-.01em; }
+
+/* --- Düğmeler, alanlar --- */
+html.gorunum-beyaz .refresh-btn{ background:#FFFFFF; border:1px solid var(--gb-cerceve); color:#374151; font-weight:600; }
+html.gorunum-beyaz .refresh-btn:hover{ background:#F9FAFB; border-color:#9CA3AF; color:#111827; }
+html.gorunum-beyaz .month-chip, html.gorunum-beyaz .preset-btn{ background:#FFFFFF; border:1px solid var(--gb-cerceve); color:#374151; font-weight:600; }
+html.gorunum-beyaz .month-chip:hover, html.gorunum-beyaz .preset-btn:hover{ background:#F9FAFB; border-color:#9CA3AF; color:#111827; }
+html.gorunum-beyaz .month-chip.active, html.gorunum-beyaz .preset-btn.active{ background:var(--accent); border-color:var(--accent); color:#FFFFFF; }
+html.gorunum-beyaz .search, html.gorunum-beyaz select, html.gorunum-beyaz input[type="text"], html.gorunum-beyaz input[type="number"],
+html.gorunum-beyaz input[type="date"], html.gorunum-beyaz textarea{ background:#FFFFFF; border:1px solid var(--gb-cerceve); color:#111827; color-scheme:light; }
+html.gorunum-beyaz .search:focus, html.gorunum-beyaz select:focus, html.gorunum-beyaz input:focus, html.gorunum-beyaz textarea:focus{ outline:2px solid #BFDBFE; outline-offset:0; border-color:var(--accent); }
+html.gorunum-beyaz .search-results{ background:#FFFFFF; box-shadow:0 18px 40px -18px rgba(17,24,39,.3); }
+html.gorunum-beyaz .search-count{ background:#F9FAFB; }
+html.gorunum-beyaz .pitem:hover{ background:#F3F4F6; }
+html.gorunum-beyaz .pitem-av, html.gorunum-beyaz .mgr-av{ background:#E0E7FF; color:var(--accent); }
+html.gorunum-beyaz input[type="checkbox"], html.gorunum-beyaz input[type="radio"]{ accent-color:var(--accent); }
+html.gorunum-beyaz .error-box{ background:#FEF2F2; border-color:#FCA5A5; color:#B91C1C; }
+
+/* --- Kimlik şeridi, kartlar, paneller --- */
+html.gorunum-beyaz .identity-strip{ background:#FFFFFF; border:1px solid var(--line); border-radius:16px; }
+html.gorunum-beyaz .identity-av{ border-color:var(--accent); background:#F3F4F6; }
+html.gorunum-beyaz .identity-name{ font-size:32px; }
+html.gorunum-beyaz .identity-sicil-badge, html.gorunum-beyaz .id-badge{ background:#F3F4F6; border:1px solid var(--line); color:#374151; }
+html.gorunum-beyaz .stat-grid{ background:transparent; border:none; gap:12px; overflow:visible; }
+html.gorunum-beyaz .stat-box{ border:1px solid var(--line); border-radius:12px; }
+html.gorunum-beyaz .stat-box .label{ font-family:'Inter', sans-serif !important; font-weight:600; font-size:11px; color:#4B5563; }
+html.gorunum-beyaz .panel, html.gorunum-beyaz .gd-card, html.gorunum-beyaz .analiz-card{ border-radius:12px; }
+html.gorunum-beyaz .panel-head, html.gorunum-beyaz .gd-card-head{ font-weight:600; }
+html.gorunum-beyaz .gd-card-head, html.gorunum-beyaz .info-cell .k, html.gorunum-beyaz .karne-table td:first-child, html.gorunum-beyaz .myear-label{ color:var(--accent); }
+html.gorunum-beyaz .info-strip{ border-radius:12px; }
+html.gorunum-beyaz .karne-table th{ background:#F9FAFB; color:#4B5563; font-weight:600; }
+html.gorunum-beyaz .karne-table td{ color:#1F2937; border-bottom-color:#F0F1F3; }
+html.gorunum-beyaz .month-card{ background:#F9FAFB; }
+html.gorunum-beyaz .gd-card:hover, html.gorunum-beyaz .stat-box:hover, html.gorunum-beyaz .month-card:hover,
+html.gorunum-beyaz .analiz-hero:hover, html.gorunum-beyaz .analiz-card:hover{ box-shadow:0 10px 22px -14px rgba(17,24,39,.3); }
+html.gorunum-beyaz .analiz-hero{ background:#FFFFFF; }
+html.gorunum-beyaz .analiz-rankbar-fill{ background:linear-gradient(90deg, #C7D2FE, var(--accent)); }
+html.gorunum-beyaz .marquee-wrap{ background:#FFFFFF; }
+html.gorunum-beyaz .analiz-marquee-wrap{ background:#EEF2FB; border-color:#C7D2FE; }
+html.gorunum-beyaz .timeline-fill{ background:linear-gradient(90deg, var(--accent), #6B8BD6); }
+html.gorunum-beyaz .timeline-dot{ background:var(--accent); }
+
+/* --- Pencereler --- */
+html.gorunum-beyaz .modal-overlay{ background:rgba(17,24,39,.45); }
+html.gorunum-beyaz .modal-box{ background:#FFFFFF; border-radius:14px; box-shadow:0 24px 60px -20px rgba(17,24,39,.35); }
+html.gorunum-beyaz .modal-head{ font-weight:700; }
+
+/* Tema paneli yalnız "Varsayılan (2)" görünümünde */
+.gorunum-tema-notu{ padding:14px 16px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; color:#92400E; font-size:13px; line-height:1.55; margin-bottom:20px; }
+</style>
 </head>
 <body>
 <div id="loginScreen" style="position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:999; flex-direction:column; gap:22px;">
@@ -262,13 +351,17 @@
 </div>
 <div class="app-shell" style="display:none;" id="appShell">
   <aside class="sidebar" id="sidebar">
-    <button class="sidebar-nav-item active pageaccess-only" data-lefttab="bilgiler">Personel Bilgileri</button>
-    <button class="sidebar-nav-item pageaccess-only" data-lefttab="genel">Genel Değerlendirme</button>
-    <button class="sidebar-nav-item pageaccess-only" data-lefttab="parametre">Parametre</button>
-    <button class="sidebar-nav-item analiz-only" data-lefttab="analiz">Analiz</button>
-    <button class="sidebar-nav-item performans-only" data-lefttab="performans">Personel Performansı</button>
-    <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn">Güncelleme</button>
-    <button class="sidebar-nav-item yetki-only" data-lefttab="yetki">Fotoğraf ve Tema</button>
+    <!-- Bölüm başlıkları (.nav-bolum) ve simgeler yalnız beyaz görünümde görünür; data-grup panel menüsü içindir. -->
+    <div class="nav-bolum">Personel</div>
+    <button class="sidebar-nav-item active pageaccess-only" data-lefttab="bilgiler" data-ikon="kisi" data-grup="Personel"><span class="nav-ikon"></span>Personel Bilgileri</button>
+    <button class="sidebar-nav-item pageaccess-only" data-lefttab="genel" data-ikon="yildiz" data-grup="Personel"><span class="nav-ikon"></span>Genel Değerlendirme</button>
+    <button class="sidebar-nav-item pageaccess-only" data-lefttab="parametre" data-ikon="liste" data-grup="Personel"><span class="nav-ikon"></span>Parametre</button>
+    <div class="nav-bolum">Analiz</div>
+    <button class="sidebar-nav-item analiz-only" data-lefttab="analiz" data-ikon="nabiz" data-grup="Analiz"><span class="nav-ikon"></span>Analiz</button>
+    <button class="sidebar-nav-item performans-only" data-lefttab="performans" data-ikon="grafik" data-grup="Analiz"><span class="nav-ikon"></span>Personel Performansı</button>
+    <div class="nav-bolum">Yönetim</div>
+    <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn" data-ikon="yenile" data-grup="Yönetim"><span class="nav-ikon"></span>Güncelleme</button>
+    <button class="sidebar-nav-item yetki-only" data-lefttab="yetki" data-ikon="kamera" data-grup="Yönetim"><span class="nav-ikon"></span>Fotoğraf ve Tema</button>
   </aside>
 
   <main class="main-area">
@@ -1299,7 +1392,74 @@ async function ensureThemeTabExists(){
 // Sayfa açılışında HERKES tarafından çağrılır (yetkiden bağımsız) - Sheet'ten okur, eksik
 // anahtarlar için kod-içi varsayılanı kullanır, hepsini CSS'e ve slot dizisine uygular.
 // Sheet'e hiç erişilemezse (sekme yok, ağ hatası vb.) sessizce mevcut varsayılanlarda kalır.
+// ===== GÖRÜNÜM SİMGELERİ (Panel ve programlarda ortak ad listesi) =====
+// Menü öğesinin data-ikon değeri buradaki addır. Panel, programın bildirdiği adı kendi listesinden çizer.
+const GORUNUM_IKONLAR = {
+  telefon:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
+  pasta:'<path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+  liste:'<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+  nabiz:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  takvim:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+  kisiler:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+  kisi:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  grafik:'<path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-7"/>',
+  kimlik:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17a4 4 0 0 1 7 0"/><path d="M15 10h3"/><path d="M15 14h3"/>',
+  pano:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/>',
+  kalkan:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  ayar:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  palet:'<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7h2a5.6 5.6 0 0 0 5.6-5.6C22 6 17.5 2 12 2z"/>',
+  dosya:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/>',
+  tablo:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>',
+  onay:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+  saat:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  kahve:'<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><path d="M6 1v3"/><path d="M10 1v3"/><path d="M14 1v3"/>',
+  yildiz:'<path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+  hedef:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  yukle:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+  kamera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  klasor:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  yenile:'<path d="M23 4v6h-6"/><path d="M20.5 15a9 9 0 1 1-2.1-9.4L23 10"/>',
+  nokta:'<circle cx="12" cy="12" r="3"/>'
+};
+function gorunumIkon(ad, boyut){
+  const ic = GORUNUM_IKONLAR[ad] || GORUNUM_IKONLAR.nokta, b = boyut || 16;
+  return `<svg width="${b}" height="${b}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ic}</svg>`;
+}
+// Menü simgeleri (yalnız beyaz görünümde görünür)
+document.querySelectorAll('#sidebar [data-ikon] > .nav-ikon').forEach(s => { s.innerHTML = gorunumIkon(s.parentElement.dataset.ikon); });
+
+// ===== GÖRÜNÜM (Varsayılan = beyaz tasarım / Varsayılan (2) = eski koyu görünüm) =====
+// Değer YETKİLENDİRME tablosu > AYARLAR > "Görünüm" satırında (herkes için tek ayar, Panel > Yetkilendirme'den
+// değiştirilir). Tarayıcıda da tutulur ki sayfa doğru görünümle açılsın. Satır yoksa "Varsayılan".
+const GORUNUM_ANAHTAR = 'alo144-gorunum';
+const GORUNUM_IKINCI = 'Varsayılan (2)';
+const GORUNUM_BEYAZ_SLOTLAR = ['#1E3A8A', '#0E7490', '#C2410C', '#7C3AED', '#047857'];
+function gorunumBeyaz(){ return document.documentElement.classList.contains('gorunum-beyaz'); }
+function gorunumUygula(deger){
+  const beyaz = String(deger == null ? '' : deger).trim() !== GORUNUM_IKINCI;
+  try { localStorage.setItem(GORUNUM_ANAHTAR, beyaz ? 'Varsayılan' : GORUNUM_IKINCI); } catch(e){}
+  document.documentElement.classList.toggle('gorunum-beyaz', beyaz);
+  return beyaz;
+}
+async function gorunumOku(){
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${AUTH_SHEET_ID}/values/${encodeURIComponent("'AYARLAR'!A1:B50")}`;
+    const data = await (await authFetch(url)).json();
+    if (data.error) return null;
+    const satir = (data.values || []).find(r => String(r[0] || '').trim().toLocaleUpperCase('tr') === 'GÖRÜNÜM');
+    return satir ? String(satir[1] || '').trim() || 'Varsayılan' : 'Varsayılan';
+  } catch(e){ return null; }
+}
+
 async function loadThemeConfig(){
+  const g = await gorunumOku();
+  if (g) gorunumUygula(g);
+  if (gorunumBeyaz()){                       // beyaz görünüm: Tema sekmesi uygulanmaz, grafik slotları beyaz paletle
+    THEME_KEYS.forEach(k => { if (k.cssVar) document.documentElement.style.removeProperty(k.cssVar); });
+    ANALIZ_SLOT_BASE = GORUNUM_BEYAZ_SLOTLAR.slice();
+    ANALIZ_SLOT_COLORS = ANALIZ_SLOT_BASE.map(slotColorObj);
+    return;
+  }
   const defaults = themeDefaultsMap();
   try {
     const range = `${THEME_TAB_NAME}!A1:B50`;
@@ -4241,6 +4401,7 @@ function chartDimColor(){
 }
 // ===== ALO-144'teki ORTAK GRAFİK OLUŞTURUCU PANELİ (Genel Değerlendirme için) =====
 function chartTheme(){
+  if (gorunumBeyaz()) return { grid:'#E5E7EB', text: chartDimColor(), accent:'#1E3A8A', blue:'#1D4ED8', warn:'#B45309', danger:'#B91C1C' };
   return { grid:'#2A3A5C', text: chartDimColor(), accent:'#3ddc97', blue:'#5b9cf6', warn:'#e8a53d', danger:'#e85d5d' };
 }
 function secToLabel(sec){
@@ -5492,7 +5653,7 @@ function analizBuildSlotDatasets(slots, metrics, valueGetter){
       position: axisOrder % 2 === 0 ? 'left' : 'right',
       display: axisOrder < 2,
       ticks: { color: color.solid, font: { size: 10 } },
-      grid: { display: axisOrder === 0, color: 'rgba(143,163,201,0.12)' },
+      grid: { display: axisOrder === 0, color: (gorunumBeyaz() ? '#E5E7EB' : 'rgba(143,163,201,0.12)') },
       title: axisOrder < 2 ? { display: true, text: metric.label, color: color.solid, font: { size: 10 } } : undefined,
     };
     axisOrder++;
@@ -7285,7 +7446,7 @@ function wireAnalizCharts(){
   const a = computeAnaliz(analizYear, analizMonth);
   destroyAnalizCharts();
   const chartTextColor = chartDimColor();
-  const chartGridColor = 'rgba(143,163,201,0.12)';
+  const chartGridColor = gorunumBeyaz() ? '#E5E7EB' : 'rgba(143,163,201,0.12)';
 
   // Dağılım donut
   const distCanvas = document.getElementById('analizDistChart');
@@ -7588,6 +7749,7 @@ function renderThemeColorGroupHtml(group){
 }
 
 function renderTemaPanel(){
+  if (gorunumBeyaz()) return `<div class="gorunum-tema-notu">Şu an <b>Varsayılan</b> (beyaz) görünüm açık. Tema paneli yalnız <b>Varsayılan (2)</b> görünümünün renklerini düzenler; kullanmak için Panel &gt; Yetkilendirme ekranından Görünüm'ü <b>Varsayılan (2)</b> yapın.</div>`;
   ensureThemeColorsInit();
   return `
     <div class="panel" style="margin-top:20px;">
@@ -7978,7 +8140,7 @@ async function performFotoSave(){
     giris: '#loginScreen',
     oge: '#sidebar [data-lefttab]',
     id: el => el.dataset.lefttab,
-    grup: el => '',
+    grup: el => gorunumBeyaz() ? (el.dataset.grup || '') : '',   // bölümler yalnız beyaz görünümde
     // Karne farklı Google uygulama kimliği kullanır (Drive fotoğrafları drive.file ile bu kimliğe
     // bağlı) - kayıt/fotoğraf için kendi izin penceresini açmaya devam eder.
     yazmaPanelden: false,
@@ -8055,7 +8217,7 @@ async function performFotoSave(){
   // Görünür (yetkili) öğeler: kendisi ya da bir üstü display:none ise kutusu olmaz.
   function liste(){
     return ogeler().filter(el => el.getClientRects().length > 0).map(el => ({
-      id: CFG.id(el), ad: etiket(el), grup: CFG.grup(el),
+      id: CFG.id(el), ad: etiket(el), grup: CFG.grup(el), ikon: el.dataset.ikon || '',
       aktif: el.classList.contains('active'), pasif: el.classList.contains('disabled')
     })).filter(o => o.id);
   }
@@ -8075,6 +8237,7 @@ async function performFotoSave(){
     if (m.kaynak !== KAYNAK) return;
     if (m.tur === 'menu-iste') bildir(true);
     if (m.tur === 'oturum' && m.token) oturumUygula(m.token);
+    if (m.tur === 'gorunum' && typeof gorunumUygula === 'function') gorunumUygula(m.deger);   // panel görünümü değiştirince sayfayı yeniden yükler
     if (m.tur === 'ac'){
       const el = ogeler().find(x => CFG.id(x) === m.id);
       if (el) el.click();       // programın kendi menü düğmesine tıklanır - kendi mantığı çalışır
