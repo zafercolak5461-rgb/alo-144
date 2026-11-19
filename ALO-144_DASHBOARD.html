@@ -1249,6 +1249,12 @@ html.gorunum-beyaz .nav-group-title::before, html.gorunum-beyaz .nav-group-title
       </div>
     </div>
 
+    <div class="chart-panel" id="wkChartPanel" style="padding-bottom:0; margin-bottom:16px;">
+      <div class="chart-panel-head">Grafik <span class="hint" id="wkChartHint" style="font-size:10.5px;">5 slotun her biri için ayrı metrik ve grafik tipi (Çizgi/Sütun) seçin</span></div>
+      <div id="wkCh-selectors" style="padding:8px 18px 6px;"></div>
+      <div class="chart-wrap" style="height:340px; padding:0 18px 18px;"><canvas id="wkCh-canvas"></canvas></div>
+    </div>
+
     <div class="panel" id="wkListPanel">
       <div class="panel-head" id="wkListPanelHead">
         Tüm Haftalar
@@ -4793,6 +4799,7 @@ function renderWeekly(){
       `<div>Her gün, bir önceki iş günüyle karşılaştırılıyor.</div>`;
     WK_GT = wkGunData(days, periods);
     wrap.innerHTML = wkGtHtml(WK_GT);
+    wkChartRender();
     return;
   }
 
@@ -4883,6 +4890,7 @@ function renderWeeklyList(periods){
   }
   body.innerHTML = rowsHtml.length ? rowsHtml.join('') : `<tr><td class="empty-state" colspan="99">Seçilen aralıkta ${turAd} yok.</td></tr>`;
   count.textContent = `${rowsHtml.length} ${turAd}`;
+  wkChartRender();
 }
 
 function wkDurum(msg, err){
@@ -4999,6 +5007,64 @@ async function wkResim(){
     const canvas = await h2c(kap, { backgroundColor:'#ffffff', scale:2, logging:false });
     return await new Promise(ok => canvas.toBlob(ok, 'image/png'));
   } finally { kap.remove(); }
+}
+
+// --- Grafik (iki tablo arasında) ---
+// Haftalık/Aylık: alttaki listenin tarih aralığı ve Toplam/İş günü ortalaması seçimi uygulanır.
+// Günlük: seçilen tarih aralığındaki günler. Devam eden dönem etikette "(devam)" ile işaretlenir.
+function wkChartPeriods(){
+  const periods = wkBuildPeriods(WK_PERIOD);
+  if (WK_PERIOD === 'gun'){
+    const f = document.getElementById('wkGunFrom').value, t = document.getElementById('wkGunTo').value;
+    return periods.filter(p => (!f || p.key >= f) && (!t || p.key <= t));
+  }
+  const fv = document.getElementById('wkListFrom').value, tv = document.getElementById('wkListTo').value;
+  const from = fv ? new Date(fv + 'T00:00:00') : null, to = tv ? new Date(tv + 'T00:00:00') : null;
+  return periods.filter(p => !(from && p.end < from) && !(to && p.start > to));
+}
+function wkChartContext(){
+  const periods = wkChartPeriods();
+  const mode = WK_PERIOD === 'gun' ? 'total' : WK_LIST_MODE;
+  const labels = periods.map(p => {
+    let l;
+    if (p.tur === 'ay') l = `${MONTH_NAMES[p.start.getMonth()].slice(0,3)} ${p.start.getFullYear()}`;
+    else if (p.tur === 'gun') l = `${wkP2(p.start.getDate())}.${wkP2(p.start.getMonth() + 1)} ${WK_GUN_ADLARI[p.start.getDay()]}`;
+    else l = `${wkP2(p.start.getDate())}.${wkP2(p.start.getMonth() + 1)}.${String(p.start.getFullYear()).slice(2)}`;
+    return p.inProgress ? l + ' (devam)' : l;
+  });
+  const metrics = COLUMN_DEFS.map(def => ({
+    key: String(def.index),
+    label: (def.agg === 'sum' && mode === 'perday') ? def.name + ' (gün ort.)' : def.name,
+    type: def.type, agg: def.agg,
+    percentSymbol: def.percentSymbol, excludeZeroInAvg: def.excludeZeroInAvg,
+    values: periods.map(p => {
+      const v = wkValue(def, p, mode);
+      if (v === null) return null;
+      return def.type === 'dur' ? +(v / 60).toFixed(2) : v;
+    })
+  }));
+  return { labels, metrics };
+}
+const wkChart = createSlotChartPanel({
+  idPrefix: 'wkCh',
+  selectorsId: 'wkCh-selectors',
+  canvasId: 'wkCh-canvas',
+  getContext: wkChartContext,
+  // Not: başlık "SL" olduğunda ortak COL.sla ('sla' arar) bulamıyor; burada başlığın tam "SL" olması da kabul edilir.
+  getDefaultMetricKeys: () => [COL.gelen, COL.cevap, COL.kacan,
+    COL.sla >= 0 ? COL.sla : HEADERS.findIndex(h => String(h || '').trim().toLocaleUpperCase('tr') === 'SL'),
+    COL.ach].filter(i => i >= 0),
+  forceMultiDefault: true,
+  defaultTypes: ['bar', 'bar', 'line', 'line', 'line']
+});
+function wkChartRender(){
+  const hint = document.getElementById('wkChartHint');
+  hint.textContent = WK_PERIOD === 'gun'
+    ? 'seçilen tarih aralığındaki günler — 5 slotun her biri için metrik ve tip seçin'
+    : `alttaki listenin tarih aralığı ve ${WK_LIST_MODE === 'perday' ? 'iş günü ortalaması' : 'toplam'} seçimi uygulanır — 5 slotun her biri için metrik ve tip seçin`;
+  // Sekme görünmüyorken Chart.js boyut hesaplayamaz; sekme açılınca renderWeekly zaten yeniden çizer.
+  if (!document.getElementById('tab-haftalik').classList.contains('active')) return;
+  wkChart.render();
 }
 
 // --- Olaylar ---
