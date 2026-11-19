@@ -502,7 +502,7 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
     <div class="modal-box">
       <div class="modal-head">Sunum Oluştur</div>
       <div class="modal-body">
-        <div style="display:flex; align-items:center; gap:20px; margin-bottom:16px; flex-wrap:wrap;">
+        <div id="pptRenkSatiri" style="display:flex; align-items:center; gap:20px; margin-bottom:16px; flex-wrap:wrap;">
           <div style="display:flex; align-items:center; gap:10px;">
             <label for="pptBgColorPicker" class="hint" style="font-size:12.5px;">Arkaplan Rengi</label>
             <input type="color" id="pptBgColorPicker" value="#141A44" style="width:40px; height:32px; border:1px solid var(--line); border-radius:6px; background:none; cursor:pointer; padding:2px;">
@@ -552,6 +552,11 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
           <div id="pptLiderWrap" style="display:none;">
             <div class="search-label" style="margin-bottom:6px;">Takım lideri <span class="hint" style="text-transform:none;">(seçilen ayın VARDİYA sekmesindeki takımlar)</span></div>
             <select class="search" id="pptLiderSelect"></select>
+          </div>
+          <div class="search-label" style="margin:12px 0 6px;">Tema</div>
+          <div style="display:flex; gap:8px;">
+            <button class="refresh-btn" id="pptTemaBeyazBtn" style="flex:1;">⬜ Sade beyaz</button>
+            <button class="refresh-btn" id="pptTemaBantliBtn" style="flex:1;">▬ Üst bantlı</button>
           </div>
           <div id="pptAnalizInfo" style="font-size:11.5px; color:var(--dim); margin-top:8px;"></div>
         </div>
@@ -3661,6 +3666,7 @@ function pptSetTab(tab){
   pptActiveTab = tab;
   document.getElementById('pptPersonelPanel').style.display = tab === 'personel' ? 'block' : 'none';
   document.getElementById('pptAnalizPanel').style.display = tab === 'analiz' ? 'block' : 'none';
+  document.getElementById('pptRenkSatiri').style.display = tab === 'analiz' ? 'none' : 'flex';
   const pBtn = document.getElementById('pptTabPersonelBtn'), aBtn = document.getElementById('pptTabAnalizBtn');
   pBtn.style.background = tab === 'personel' ? 'var(--accent-soft)' : '';
   pBtn.style.borderColor = tab === 'personel' ? 'var(--accent)' : '';
@@ -3704,6 +3710,11 @@ document.getElementById('pptModeKisiyeBtn').addEventListener('click', () => pptS
 document.getElementById('pptModeIcBtn').addEventListener('click', () => pptSetFindingsMode('ic'));
 // --- Analiz Sunumu seçim ekranı (Ay + Kapsam) ---
 let pptKapsamTip = 'lokasyon';
+let pptTema = 'beyaz';
+function pptTemaSet(t){
+  pptTema = t;
+  [['pptTemaBeyazBtn', 'beyaz'], ['pptTemaBantliBtn', 'bantli']].forEach(([id, k]) => { const b = document.getElementById(id); const on = k === t; b.style.background = on ? 'var(--accent-soft)' : ''; b.style.borderColor = on ? 'var(--accent)' : ''; b.style.color = on ? 'var(--accent)' : ''; });
+}
 let pptAnalizAylar = null; // OSMANİYE-PERFORMANS ay sekmeleri (abs değerleri, yeniden eskiye)
 function pptKapsamSet(tip){
   pptKapsamTip = tip;
@@ -3715,6 +3726,7 @@ function pptKapsamSet(tip){
 async function pptAnalizHazirla(){
   const sel = document.getElementById('pptAnalizMonthSelect');
   pptKapsamSet(pptKapsamTip);
+  pptTemaSet(pptTema);
   if (pptAnalizAylar) return;
   try {
     const titles = await asFetchTabTitles(PERF_SHEET_ID);
@@ -3740,6 +3752,8 @@ async function pptLiderleriDoldur(){
   } catch (e){ ls.innerHTML = '<option value="">VARDİYA okunamadı</option>'; }
 }
 document.getElementById('pptKapsamLokBtn').addEventListener('click', () => pptKapsamSet('lokasyon'));
+document.getElementById('pptTemaBeyazBtn').addEventListener('click', () => pptTemaSet('beyaz'));
+document.getElementById('pptTemaBantliBtn').addEventListener('click', () => pptTemaSet('bantli'));
 document.getElementById('pptKapsamTakimBtn').addEventListener('click', () => pptKapsamSet('takim'));
 document.getElementById('pptAnalizMonthSelect').addEventListener('change', () => { if (pptKapsamTip === 'takim') pptLiderleriDoldur(); });
 document.getElementById('pptCancelBtn').addEventListener('click', () => { pptModalOverlay.style.display = 'none'; });
@@ -3797,7 +3811,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generateAnalizPresentation(abs, kapsam, bgColorHex, textColorHex, t => { btn.textContent = '⏳ ' + t; });
+      await generateAnalizPresentation(abs, kapsam, pptTema, t => { btn.textContent = '⏳ ' + t; });
     } catch (e) {
       console.error(e);
       alert("Analiz sunumu oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -4100,6 +4114,11 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
 // ortalamalara ve açıklamalara katılmaz (sayısı slaytta yazar).
 const AS_CAGRI_SHEET_ID = "1O9g3ik4k_vAeYL34DbovvrZB5KME3unQCgHqTLn0AHY"; // Alo 144 Genel Çağrı Raporu
 const AS_OLCEK_TAB = "PUANLAMA ÖLÇEĞİ";
+// Sunum temaları (yalnız görünüm; seçim ekranında seçilir).
+const AS_TEMALAR = {
+  beyaz: { ad: 'Sade beyaz', BG: 'FFFFFF', TX: '1F2937', TITLE: '1F3864', ACCENT: '1F5FAD', DIM: '6B7280', OK: '1E8E5A', BAD: 'C0392B', LINE: 'D5DBE5', CELL: 'FFFFFF', HEAD: '1F3864', FOOTLINE: '1F3864' },
+  bantli: { ad: 'Üst bantlı', BG: 'F4F6F9', TX: '1F2937', TITLE: '1F2937', ACCENT: 'B5651D', DIM: '6B7280', OK: '1E8E5A', BAD: 'C0392B', LINE: 'CBD2DC', CELL: 'FFFFFF', HEAD: '44546A', BAND: '1F3864' },
+};
 
 function asUp(s){ return String(s == null ? '' : s).trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR'); }
 function asNum(v){
@@ -4438,19 +4457,19 @@ function asExplainChange(D, prev, cur){
 }
 
 // ---------- Sunum ----------
-async function generateAnalizPresentation(targetAbs, kapsam, bgColorHex, textColorHex, onProgress){
+async function generateAnalizPresentation(targetAbs, kapsam, temaKey, onProgress){
   const D = await asLoadAll(targetAbs, onProgress);
   if (!D.perf.get(targetAbs)) throw new Error(`OSMANİYE-PERFORMANS tablosunda ${asKeyOf(targetAbs)} sekmesi yok.`);
   const v = D.vardiya.get(targetAbs);
   if (kapsam.tip === 'takim' && (!v || !v.size)) throw new Error(`VARDİYA tablosunda ${asKeyOf(targetAbs)} sekmesi yok ya da boş; takım bazlı sunum bu ay için hazırlanamaz.`);
-  const pres = asBuildPresentation(D, targetAbs, kapsam, bgColorHex, textColorHex);
+  const pres = asBuildPresentation(D, targetAbs, kapsam, temaKey);
   const kapsamAd = kapsam.tip === 'lokasyon' ? 'Lokasyon' : kapsam.lider;
   await pres.writeFile({ fileName: `Analiz Sunumu - ${asLabelOf(targetAbs)} - ${kapsamAd}.pptx` });
 }
 
-function asBuildPresentation(D, M, kapsam, bgColorHex, textColorHex){
-  const BG = bgColorHex || '141A44', TX = textColorHex || 'FFFFFF';
-  const ACCENT = 'E8A53D', DIM = '9AA3B5', OK = '3DDC97', BAD = 'E85D5D', LINE = '2A3A5C', CELL = '1C2944', HEAD = '2E4A7A';
+function asBuildPresentation(D, M, kapsam, temaKey){
+  const T = AS_TEMALAR[temaKey] || AS_TEMALAR.beyaz;
+  const BG = T.BG, TX = T.TX, ACCENT = T.ACCENT, DIM = T.DIM, OK = T.OK, BAD = T.BAD, LINE = T.LINE, CELL = T.CELL, HEAD = T.HEAD;
   const P1 = M - 1, P2 = M - 2, Y1 = M - 12;
   const S = {};
   [M, P1, P2, Y1].concat([M - 3, M - 4, M - 5]).forEach(a => { S[a] = asMonthStats(D, a, kapsam); });
@@ -4475,9 +4494,11 @@ function asBuildPresentation(D, M, kapsam, bgColorHex, textColorHex){
     const s = pres.addSlide();
     s.background = { color: BG };
     sayfaNo++;
-    s.addText(baslik.toLocaleUpperCase('tr-TR'), { x: 0.5, y: 0.25, w: 9.5, h: 0.3, fontFace: 'Arial', fontSize: 11, bold: true, color: ACCENT, charSpacing: 1 });
-    s.addText(`${kapsamAd} · ${asLabelOf(M)}`, { x: 9.3, y: 0.25, w: 3.55, h: 0.3, fontFace: 'Arial', fontSize: 10, color: DIM, align: 'right' });
-    s.addText(sonuc, { x: 0.5, y: 0.6, w: W - 1, h: 0.95, fontFace: 'Georgia', fontSize: 19, bold: true, color: TX, valign: 'top', fit: 'shrink' });
+    if (T.BAND) s.addShape('rect', { x: 0, y: 0, w: W, h: 0.55, fill: { color: T.BAND }, line: { type: 'none' } });
+    if (T.FOOTLINE) s.addShape('rect', { x: 0.5, y: 6.55, w: W - 1, h: 0.012, fill: { color: T.FOOTLINE }, line: { type: 'none' } });
+    s.addText(baslik.toLocaleUpperCase('tr-TR'), { x: 0.5, y: 0.13, w: 9.5, h: 0.3, fontFace: 'Arial', fontSize: 11, bold: true, color: T.BAND ? 'FFFFFF' : ACCENT, charSpacing: 1 });
+    s.addText(`${kapsamAd} · ${asLabelOf(M)}`, { x: 9.3, y: 0.13, w: 3.55, h: 0.3, fontFace: 'Arial', fontSize: 10, color: T.BAND ? 'D6DEEA' : DIM, align: 'right' });
+    s.addText(sonuc, { x: 0.5, y: 0.68, w: W - 1, h: 0.95, fontFace: 'Georgia', fontSize: 19, bold: true, color: T.TITLE || TX, valign: 'top', fit: 'shrink' });
     const foot = [];
     if (kaynak) foot.push({ text: 'Kaynak: ', options: { bold: true, color: DIM } }, { text: kaynak, options: { color: DIM, breakLine: !!hesap } });
     if (hesap) foot.push({ text: 'Hesap: ', options: { bold: true, color: DIM } }, { text: hesap, options: { color: DIM } });
@@ -4493,8 +4514,10 @@ function asBuildPresentation(D, M, kapsam, bgColorHex, textColorHex){
   // ---- 1. KAPAK + ANA SONUÇLAR ----
   {
     const s = pres.addSlide(); s.background = { color: BG }; sayfaNo++;
+    if (T.BAND) s.addShape('rect', { x: 0, y: 0, w: W, h: 0.3, fill: { color: T.BAND }, line: { type: 'none' } });
+    if (T.FOOTLINE) s.addShape('rect', { x: 0.6, y: 1.65, w: 1.2, h: 0.06, fill: { color: T.FOOTLINE }, line: { type: 'none' } });
     s.addText('ALO 144 OSMANİYE · PERSONEL PERFORMANS ANALİZİ', { x: 0.6, y: 0.5, w: 11, h: 0.35, fontFace: 'Arial', fontSize: 12, bold: true, color: ACCENT, charSpacing: 2 });
-    s.addText(`${asLabelOf(M)} — ${kapsamAd}`, { x: 0.6, y: 0.9, w: 12, h: 0.7, fontFace: 'Georgia', fontSize: 30, bold: true, color: TX });
+    s.addText(`${asLabelOf(M)} — ${kapsamAd}`, { x: 0.6, y: 0.9, w: 12, h: 0.7, fontFace: 'Georgia', fontSize: 30, bold: true, color: T.TITLE || TX });
     const bullets = [];
     if (cur && cur.n){
       const d = prev && prev.ortPuan !== null ? cur.ortPuan - prev.ortPuan : null;
