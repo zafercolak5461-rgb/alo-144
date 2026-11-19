@@ -6606,6 +6606,9 @@ let IH_ONE_CIKAN_MIN = 2;
 let IH_OFF_DAHIL = false; // günlük yoğunlukta OFF günler ortalamaya 0 olarak girsin mi (ayar: HAYIR)
 // VARDİYA'da bu yazıların olduğu günler kişinin "çalışması beklenen" günü sayılmaz.
 let IH_BEKLENMEYEN = ['HT','Resmi Tatil','Kayıt Yok','Doğum İzni','Ücretsiz Doğum İzni'];
+let IH_KISA_SINIR = 2;                       // bu kadar gün ve altı rapor "kısa rapor"
+let IH_KOPRU_DURUM = ['HT','Resmi Tatil'];    // kısa raporun önü/arkası bunlardan biriyse "tatile bitişik"
+let IH_KOPRU_MIN = 3;                         // bitişiklik deseni için en az kısa rapor
 const IH_EPS = 1e-9; // 0.2*1.5 = 0.30000000000000004 gibi kayan nokta hatası sınırdaki durumu dışlamasın
 const IH_AYAR_SHEET_ID = "1X37_Dk7DAYIZCls-ZudA5U7LOznX9eMdxPEadNqzqys";
 let ihAyarYuklendi = false;
@@ -6618,11 +6621,14 @@ async function ihAyarlariYukle(){
     (data.values || []).slice(1).forEach(r => {
       const k = String(r[0] || '').trim().toLocaleUpperCase('tr-TR'), v = typeof r[1] === 'number' ? r[1] : parseFloat(String(r[1] || '').replace(',', '.'));
       if (k.startsWith('OFF GÜNLER')){ IH_OFF_DAHIL = String(r[1] || '').trim().toLocaleUpperCase('tr-TR') !== 'HAYIR'; return; }
+      if (k.startsWith('KÖPRÜ SAYILAN')){ const l = String(r[1] || '').split(',').map(x => x.trim()).filter(Boolean); if (l.length) IH_KOPRU_DURUM = l; return; }
       if (k.startsWith('ÇALIŞMASI BEKLENMEYEN')){ const l = String(r[1] || '').split(',').map(x => x.trim()).filter(Boolean); if (l.length) IH_BEKLENMEYEN = l; ihBeklenenSrc = null; return; }
       if (isNaN(v)) return;
       if (k.startsWith('YOĞUN GÜN EŞİĞİ')) IH_THRESHOLD_PCT = v;
       else if (k === 'ÖNE ÇIKAN KATSAYI') IH_ONE_CIKAN_KAT = v;
       else if (k === 'ÖNE ÇIKAN EN AZ TEKRAR') IH_ONE_CIKAN_MIN = v;
+      else if (k.startsWith('KISA RAPOR SINIRI')) IH_KISA_SINIR = v;
+      else if (k.startsWith('KÖPRÜ EN AZ')) IH_KOPRU_MIN = v;
     });
     ihAyarYuklendi = true;
   } catch (e){ console.warn('İzin Haritası ayarları okunamadı, varsayılanlar kullanılıyor.', e); }
@@ -6630,7 +6636,7 @@ async function ihAyarlariYukle(){
 // NOT (Madde 6, 24.08.2026): Daha önce burada IH_SKEW_MIN_TOTAL diye bir min. toplam izin
 // şartı vardı (az izinli birinin tesadüfen yüksek oranla listenin başına düşmesini önlemek
 // için). Kullanıcı kararıyla KALDIRILDI - artık sıralama ORANA değil HAM SAYIYA göre yapılıyor,
-// bu da az izinli birinin yapay şekilde öne çıkmasını zaten engelliyor (bkz. ihSkewRanking).
+// bu da az izinli birinin yapay şekilde öne çıkmasını zaten engelliyor.
 const IH_DOW_NAMES = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
 const IH_MONTH_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 let ihMode = 'birlikte';
@@ -6755,6 +6761,95 @@ function ihOranYogun(counts, payda, thresholdPct){
 }
 // Bir kişinin izinlerinin bir güne/haftaya yığılıp yığılmadığı: gerçek pay, o kişinin çalışması
 // beklenen günlerinin o güne/haftaya düşen payının KATSAYI katı ve üstüyse + en az N kez.
+// ----- RAPOR ANALİZİ (19.11.2026, kullanıcı kararı) -----
+// Ardışık rapor günleri (araya yalnız çalışılmayan gün - HT, tatil vb. - girenler) TEK RAPOR sayılır.
+// Kısa rapor (≤ KISA RAPOR SINIRI gün): desen burada aranır - kısa raporlarda öne çıkan gün ve
+// tatile (HT / Resmi Tatil) bitişiklik. Uzun rapor: tıbbi nitelikte kabul edilir, yalnız adet ve gün.
+// Bitişiklik beklenen payı: kişinin çalışması beklenen günlerinden önü ya da arkası tatil olanların payı.
+// Yıllık izin planlı olduğundan gün/hafta deseni aranmaz. Personel Karnesi aynı tanımları kullanır.
+function ihKisiGunleri(year){
+  ihCacheKontrol();
+  const ck = 'kg|' + year; if (ihBeklenenCache.has(ck)) return ihBeklenenCache.get(ck);
+  const m = new Map();
+  VARDIYA_RECORDS.forEach(r => {
+    if (!ihYilUygun(r, year)) return;
+    if (!m.has(r.sicil)) m.set(r.sicil, new Map());
+    m.get(r.sicil).set(ihDateKey(r.tarih), r);
+  });
+  ihBeklenenCache.set(ck, m);
+  return m;
+}
+function ihGunEkle(d, n){ return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function ihRaporAnalizi(sicil, year){
+  const kg = ihKisiGunleri(year).get(sicil);
+  if (!kg) return null;
+  const up = x => String(x || '').trim().toLocaleUpperCase('tr-TR');
+  const yok = new Set(IH_BEKLENMEYEN.map(up)), kopru = new Set(IH_KOPRU_DURUM.map(up));
+  const durum = d => { const r = kg.get(ihDateKey(d)); return r ? up(r.durum) : ''; };
+  const RAPOR = up('Rapor');
+  const rd = [...kg.values()].filter(r => up(r.durum) === RAPOR).map(r => r.tarih).sort((a,b) => a - b);
+  const olaylar = [];
+  rd.forEach(d => {
+    const cur = olaylar[olaylar.length - 1];
+    if (cur){
+      let bagli = true;
+      for (let x = ihGunEkle(cur[cur.length-1], 1); x < d; x = ihGunEkle(x, 1)){ const du = durum(x); if (du && !yok.has(du)){ bagli = false; break; } }
+      if (bagli){ cur.push(d); return; }
+    }
+    olaylar.push([d]);
+  });
+  const bitisik = e => kopru.has(durum(ihGunEkle(e[0], -1))) || kopru.has(durum(ihGunEkle(e[e.length-1], 1)));
+  const kisa = olaylar.filter(e => e.length <= IH_KISA_SINIR), uzun = olaylar.filter(e => e.length > IH_KISA_SINIR);
+  const m = ihCalismaGunleri(year), cal = m.get(sicil) || m._genel;
+  const bekDow = new Array(7).fill(0); let bekN = 0, bekB = 0;
+  kg.forEach(r => {
+    if (yok.has(up(r.durum)) || !cal.has(r.tarih.getDay())) return;
+    bekN++; bekDow[r.tarih.getDay()]++;
+    if (kopru.has(durum(ihGunEkle(r.tarih, -1))) || kopru.has(durum(ihGunEkle(r.tarih, 1)))) bekB++;
+  });
+  const kisaGunler = [].concat(...kisa).filter(d => cal.has(d.getDay()));
+  const dowC = new Array(7).fill(0); kisaGunler.forEach(d => dowC[d.getDay()]++);
+  const oneGun = ihOneCikanlar(dowC, kisaGunler.length, bekDow, bekN, i => IH_DOW_NAMES[i]).sort((a,b) => b.count - a.count);
+  const bitisikOlaylar = kisa.filter(bitisik);
+  const pay = bekN ? bekB / bekN : 0;
+  const kopruVar = kisa.length >= IH_KOPRU_MIN && pay > 0 && bitisikOlaylar.length / kisa.length >= pay * IH_ONE_CIKAN_KAT - IH_EPS;
+  return {
+    raporGun: rd.length, kisaN: kisa.length, kisaGun: kisa.reduce((a,e) => a + e.length, 0),
+    uzunN: uzun.length, uzunGun: uzun.reduce((a,e) => a + e.length, 0),
+    bitisikN: bitisikOlaylar.length, beklenenPay: pay, kopru: kopruVar, oneGun, kisaGunDow: dowC,
+    kisaOlaylar: kisa, bitisikOlaylar, uzunOlaylar: uzun,
+  };
+}
+// Rapor analizinin tek cümlelik açıklaması (panel ve sunum ortak)
+// Sayıya iyelik eki: 1'i, 2'si, 3'ü, 6'sı, 10'u, 40'ı ...
+function ihSayiEk(n){
+  n = Math.abs(Math.round(n));
+  if (n === 0) return "'ı";
+  const b = n % 10, o = Math.floor(n / 10) % 10;
+  if (b) return "'" + ['', 'i', 'si', 'ü', 'ü', 'i', 'sı', 'si', 'i', 'u'][b];
+  if (o) return "'" + ['', 'u', 'si', 'u', 'ı', 'si', 'ı', 'i', 'i', 'ı'][o];
+  return n % 1000 ? "'ü" : "'i";
+}
+function ihRaporCumle(a){
+  if (!a || !a.raporGun) return 'Bu dönemde rapor yok.';
+  const p = x => '%' + Math.round(x * 100);
+  const parca = [`${a.raporGun} gün rapor = ${a.kisaN} kısa rapor (${a.kisaGun} gün) + ${a.uzunN} uzun rapor (${a.uzunGun} gün)`];
+  if (a.kisaN) parca.push(`kısa raporların ${a.bitisikN}${ihSayiEk(a.bitisikN)} hafta tatiline/resmi tatile bitişik (${p(a.bitisikN / a.kisaN)}; çalışma günlerine göre beklenen ${p(a.beklenenPay)})`);
+  if (a.oneGun.length) parca.push(`kısa raporlarda öne çıkan gün ${a.oneGun.map(x => `${x.label} (${x.count})`).join(', ')}`);
+  return parca.join('; ') + '.';
+}
+// Lokasyon sıralaması: kısa raporlarında tatile bitişiklik ya da öne çıkan gün olan personel
+function ihRaporRanking(year){
+  const out = [];
+  ihKisiGunleri(year).forEach((kg, sicil) => {
+    const a = ihRaporAnalizi(sicil, year);
+    if (!a || !a.kisaN || (!a.kopru && !a.oneGun.length)) return;
+    const r0 = kg.values().next().value;
+    const p = PERSONS.find(x => x.sicil === sicil);
+    out.push({ sicil, personel: (p && p.personel) || (r0 && r0.personel) || sicil, ...a });
+  });
+  return out.sort((a,b) => (b.kopru - a.kopru) || (b.bitisikN - a.bitisikN) || ((b.oneGun[0] ? b.oneGun[0].count : 0) - (a.oneGun[0] ? a.oneGun[0].count : 0)));
+}
 function ihOneCikanlar(counts, total, beklenen, beklenenToplam, etiket){
   const out = [];
   if (!total || !beklenenToplam) return out;
@@ -6957,10 +7052,8 @@ function ihPersonPattern(records, sicil, year){
   // (hafta sonu çalışmayan biri için Pazar beklenen payı 0'a yakın; ayın 5. haftası 29-31 kısa).
   const bek = ihBeklenenDagilim(year, null, sicil);
   const dz = ihBosDagilim(); ihDesenKayitlari(personRecords, year).forEach(r => ihDagilimEkle(dz, r));
-  if (dz.total > 0){
-    dowSkew.push(...ihOneCikanlar(dz.byDow, dz.total, bek.byDow, bek.total, i => IH_DOW_NAMES[i]));
-    weekSkew.push(...ihOneCikanlar(dz.byWeek, dz.total, bek.byWeek, bek.total, i => (i+1)+'. Hafta'));
-  }
+  const raporAnaliz = ihRaporAnalizi(sicil, year);
+  if (raporAnaliz) dowSkew.push(...raporAnaliz.oneGun);
   const mO = ihOranlar(dz.byMonth, bek.byMonth);
   const monthElevated = ihOranYogun(dz.byMonth, bek.byMonth);
 
@@ -6976,7 +7069,7 @@ function ihPersonPattern(records, sicil, year){
     });
   }
 
-  return { total, byMonth, byMonthTur, monthElevated, byDow, byDowTur, byWeek, byWeekTur, dowSkew, weekSkew, overlapDays, overlapDetails };
+  return { total, byMonth, byMonthTur, monthElevated, byDow, byDowTur, byWeek, byWeekTur, dowSkew, weekSkew, raporAnaliz, overlapDays, overlapDetails };
 }
 
 // GENEL (tek personel seçmeden) sıralama: her personelin izinlerinin ne kadarının çağrı-yoğun
@@ -7001,40 +7094,6 @@ function ihOverlapRanking(records, year){
     .filter(p => p.overlap > 0)
     .map(p => Object.assign(p, { ratio: p.total ? p.overlap / p.total : 0 }))
     .sort((a,b) => b.overlap - a.overlap || b.total - a.total);
-}
-
-// GENEL (tüm personel) gün-bazlı VE hafta-bazlı çarpıklık sıralaması - ihPersonPattern'daki
-// TEK KİŞİLİK skew mantığının (kendi ortalamasının %50 fazlası, en az 2 kez - EXPECTED_DOW=1/7,
-// EXPECTED_WEEK=1/5) aynısı, tüm personele tek tek uygulanıp iki ayrı liste halinde döner.
-// ihOverlapRanking ile AYNI desen (genelleştirme), sadece kaynak "çağrı çakışması" değil
-// "kişinin kendi gün/hafta dağılımı".
-function ihSkewRanking(records, year){
-  const byPerson = new Map(); // sicil -> {personel, byDow:[7], byWeek:[5], total}
-  ihDesenKayitlari(records, year).forEach(r => {
-    if (!byPerson.has(r.sicil)) byPerson.set(r.sicil, { sicil: r.sicil, personel: r.personel, byDow: new Array(7).fill(0), byWeek: [0,0,0,0,0], total: 0 });
-    const p = byPerson.get(r.sicil);
-    p.byDow[r.tarih.getDay()]++;
-    p.byWeek[ihWeekOfMonth(r.tarih.getDate())-1]++;
-    p.total++;
-  });
-  const bekKisi = ihBeklenenKisiBazli(year);
-  const dowRanking = [], weekRanking = [];
-  // Madde 6 KARARI (kullanıcı): min. toplam izin şartı (IH_SKEW_MIN_TOTAL) KALDIRILDI - az
-  // izinli kişiyi elemek yerine, sıralamanın kendisi artık HAM SAYIYA göre yapılıyor (80 gün
-  // izinden 30'u aynı güne denk gelen kişi, 10 günün 6'sı denk gelen kişinin önünde çıkar).
-  // "Çarpık mı" tespiti (beklenen payın %50 fazlası + en az 2 kez) DEĞİŞMEDİ - bu sadece hangi
-  // gün/haftanın kişi için "öne çıkan" gün/hafta olacağını belirliyor, sıralamayı değil.
-  const enIyi = arr => arr.reduce((b, x) => (!b || x.count > b.count) ? x : b, null);
-  byPerson.forEach(p => {
-    const bek = bekKisi.get(p.sicil) || ihBosDagilim();
-    const bestDow = enIyi(ihOneCikanlar(p.byDow, p.total, bek.byDow, bek.total, i => IH_DOW_NAMES[i]));
-    if (bestDow) dowRanking.push({ sicil: p.sicil, personel: p.personel, total: p.total, ...bestDow });
-    const bestWeek = enIyi(ihOneCikanlar(p.byWeek, p.total, bek.byWeek, bek.total, i => (i+1)+'. Hafta'));
-    if (bestWeek) weekRanking.push({ sicil: p.sicil, personel: p.personel, total: p.total, ...bestWeek });
-  });
-  dowRanking.sort((a,b) => b.count - a.count || b.ratio - a.ratio);
-  weekRanking.sort((a,b) => b.count - a.count || b.ratio - a.ratio);
-  return { dowRanking, weekRanking };
 }
 
 // --- Yıl/Ay/Personel seçicileri doldurur ---
@@ -7278,8 +7337,7 @@ async function ihRender(){
         <div class="metric"><div class="label">Toplam</div><div class="value ok">${pat.total}</div></div>
         <div class="metric"><div class="label">Çağrı Yoğun Günlerle Çakışan İzin</div><div class="value ${pat.overlapDays ? 'warn' : ''}">${pat.overlapDays}</div></div>
       </div>
-      ${pat.dowSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Gün bazlı çarpıklık tespit edildi: ${pat.dowSkew.map(s => `<b>${s.label}</b> (${s.count} kez, izinlerinin %${Math.round(s.ratio*100)}'i; çalışma günlerine göre beklenen %${Math.round(s.beklenen*100)})`).join(', ')} — bu kişi izinlerini belirgin şekilde bu gün(ler)e yığıyor.</div>` : ''}
-      ${pat.weekSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Hafta bazlı çarpıklık tespit edildi: ${pat.weekSkew.map(s => `<b>${s.label}</b> (${s.count} kez, izinlerinin %${Math.round(s.ratio*100)}'i; beklenen %${Math.round(s.beklenen*100)})`).join(', ')}.</div>` : ''}
+      ${ihMode !== 'yillik' && pat.raporAnaliz && pat.raporAnaliz.raporGun ? `<div class="note" style="margin-bottom:12px;${(pat.raporAnaliz.kopru || pat.raporAnaliz.oneGun.length) ? ' border-color:var(--danger,#e85d5d);' : ''}">${(pat.raporAnaliz.kopru || pat.raporAnaliz.oneGun.length) ? '⚠ ' : ''}<b>Rapor:</b> ${ihRaporCumle(pat.raporAnaliz)}${pat.raporAnaliz.bitisikOlaylar.length ? `<br><span style="font-size:12px;">Tatile bitişik kısa raporlar: ${pat.raporAnaliz.bitisikOlaylar.map(e => fmtDate(e[0]) + (e.length > 1 ? '–' + fmtDate(e[e.length-1]) : '')).join(', ')}</span>` : ''}<br><span style="font-size:11.5px; color:var(--text-dim);">Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${IH_KISA_SINIR} gün ve altı. Uzun raporlarda desen aranmaz.</span></div>` : ''}
       ${pat.overlapDays ? `<div class="note" style="margin-bottom:16px;">Çağrı yoğun günlerle çakışan tarihler: ${pat.overlapDetails.map(d => fmtDate(d.tarih)).join(', ')}</div>` : ''}
       <div class="panel"><div class="panel-head">Ay Bazlı<span id="ih-selMonth" class="count"></span></div>
         <div style="padding:0 16px;"><div style="height:220px;"><canvas id="ih-canvas-month"></canvas></div></div>
@@ -7441,32 +7499,22 @@ async function ihRender(){
       </table></div>
     </div>
     <div class="panel" style="margin-top:16px;">
-      <div class="panel-head">Belirli Gün/Haftaya Yığılma Eğilimi (Personel Sıralaması)</div>
-      <div class="note" style="margin:12px 16px 0;">İzinlerinin bir güne/haftaya düşen payı, o gün/hafta çalışması beklenen günlerinin payının ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstünde olan (en az ${IH_ONE_CIKAN_MIN} kez) personeli listeler. Hafta tatili gününe düşen rapor/izin günleri sayılmaz. Sıralama HAM SAYIYA göre (oran değil) - en çok yığılan üstte.</div>
-      <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
-        <div>
-          <div style="padding:0 16px; font-size:12px; color:var(--text-dim); font-weight:600; margin-bottom:6px;">EN ÇOK YIĞILDIĞI GÜN</div>
-          <div class="table-scroll" style="max-height:420px;"><table style="width:auto; min-width:100%;">
-            <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Gün</th><th>Toplam İzin</th><th>Pay / Beklenen</th></tr></thead>
-            <tbody>${(() => {
-              const { dowRanking } = ihSkewRanking(records, ihYear);
-              if (!dowRanking.length) return '<tr><td colspan="4" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
-              return dowRanking.map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)} / %${Math.round(p.beklenen*100)}</td></tr>`).join('');
-            })()}</tbody>
-          </table></div>
-        </div>
-        <div>
-          <div style="padding:0 16px; font-size:12px; color:var(--text-dim); font-weight:600; margin-bottom:6px;">EN ÇOK YIĞILDIĞI HAFTA</div>
-          <div class="table-scroll" style="max-height:420px;"><table style="width:auto; min-width:100%;">
-            <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Hafta</th><th>Toplam İzin</th><th>Pay / Beklenen</th></tr></thead>
-            <tbody>${(() => {
-              const { weekRanking } = ihSkewRanking(records, ihYear);
-              if (!weekRanking.length) return '<tr><td colspan="4" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
-              return weekRanking.map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)} / %${Math.round(p.beklenen*100)}</td></tr>`).join('');
-            })()}</tbody>
-          </table></div>
-        </div>
-      </div>
+      <div class="panel-head">Kısa Rapor Deseni (Personel Sıralaması)</div>
+      <div class="note" style="margin:12px 16px 0;">Ardışık rapor günleri tek rapor sayılır; desen yalnız <b>kısa raporlarda</b> (${IH_KISA_SINIR} gün ve altı) aranır, uzun raporlar tıbbi nitelikte kabul edilir. <b>Tatile bitişik</b> = raporun önceki ya da sonraki günü ${IH_KOPRU_DURUM.join(' / ')}. Kırmızı: en az ${IH_KOPRU_MIN} kısa raporu olup bitişik payı, çalışma günlerine göre beklenen payın ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstü olanlar. Öne çıkan gün: kısa rapor günlerinin o güne düşen payı beklenenin ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstü (en az ${IH_ONE_CIKAN_MIN} kez). Desen bir eğilimdir, tek başına kanıt değildir.</div>
+      ${ihMode === 'yillik' ? '<div class="empty-state">Yıllık izin planlı olduğu için gün deseni aranmaz. Rapor ya da Birlikte kapsamında görünür.</div>' : `
+      <div class="table-scroll" style="max-height:420px;"><table style="width:auto; min-width:100%;">
+        <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Rapor Günü</th><th>Kısa Rapor</th><th>Tatile Bitişik</th><th>Beklenen</th><th>Öne Çıkan Gün</th><th>Uzun Rapor</th><th></th></tr></thead>
+        <tbody>${(() => {
+          const rr = ihRaporRanking(ihYear);
+          if (!rr.length) return '<tr><td colspan="8" class="empty-state">Belirgin bir kısa rapor deseni tespit edilmedi.</td></tr>';
+          return rr.map(p => {
+            const key = 'kr-' + p.sicil;
+            ihDetailStore.set(key, { title: `${p.personel} — Tatile Bitişik Kısa Raporlar`, entries: [].concat(...p.bitisikOlaylar).map(t => ({ tarih: t, tur: 'Rapor' })) });
+            const red = p.kopru ? ' style="text-align:right; color:var(--danger,#e85d5d); font-weight:700;"' : ' style="text-align:right;"';
+            return `<tr><td>${p.personel}</td><td style="text-align:right;">${p.raporGun}</td><td style="text-align:right;">${p.kisaN} (${p.kisaGun} gün)</td><td${red}>${p.bitisikN} / ${p.kisaN} · %${Math.round(p.bitisikN / p.kisaN * 100)}</td><td style="text-align:right;">%${Math.round(p.beklenenPay * 100)}</td><td>${p.oneGun.length ? p.oneGun.map(x => `${x.label} (${x.count})`).join(', ') : '—'}</td><td style="text-align:right;">${p.uzunN ? `${p.uzunN} (${p.uzunGun} gün)` : '—'}</td><td>${p.bitisikN ? `<button class="refresh-btn ih-detail-btn" data-detail-key="${key}" style="font-size:11px; padding:3px 8px;">Detay</button>` : ''}</td></tr>`;
+          }).join('');
+        })()}</tbody>
+      </table></div>`}
     </div>`;
   ihWireDetailButtons(wrap);
   createSlotChartPanel({
@@ -7552,7 +7600,7 @@ async function ihPresGenerateLocation(year){
   const records = ihFilteredRecords();
   const monthly = ihMonthlyView(records, year);
   const ranking = ihOverlapRanking(records, year);
-  const { dowRanking, weekRanking } = ihSkewRanking(records, year);
+  const raporRanking = ihRaporRanking(year);
 
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_WIDE';
@@ -7609,25 +7657,23 @@ async function ihPresGenerateLocation(year){
     }
   }
 
-  // 4) Gün/Hafta Yığılma Eğilimi (ilk 10'ar)
+  // 4) Kısa rapor deseni (ilk 15) - ardışık rapor günleri tek rapor; desen yalnız kısa raporlarda
   {
     const s = pres.addSlide();
-    s.addText('Belirli Gün / Haftaya Yığılma Eğilimi', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: IH_PRES_NAVY, bold: true });
-    const dowHeader = ['Personel','Gün','Toplam'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:IH_PRES_NAVY, align:'center', fontSize:8.5 } }));
-    const dowBody = dowRanking.slice(0,10).map(p => [
-      { text: p.personel, options: { fontSize: 8.5 } },
-      { text: `${p.label} (${p.count})`, options: { align:'center', fontSize: 8.5 } },
-      { text: String(p.total), options: { align:'center', fontSize: 8.5 } },
+    s.addText('Kısa Rapor Deseni', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: IH_PRES_NAVY, bold: true });
+    s.addText(`Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${IH_KISA_SINIR} gün ve altı; tatile bitişik = önceki ya da sonraki gün ${IH_KOPRU_DURUM.join(' / ')}. Kırmızı: en az ${IH_KOPRU_MIN} kısa rapor ve bitişik payı beklenenin ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstü.`, { x: 0.5, y: 0.72, w: 12.3, h: 0.4, fontFace: 'Arial', fontSize: 9.5, color: IH_PRES_DIM });
+    const header = ['Personel','Rapor Günü','Kısa Rapor','Tatile Bitişik','Beklenen','Öne Çıkan Gün','Uzun Rapor'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:IH_PRES_NAVY, align:'center', fontSize:9 } }));
+    const bodyRows = raporRanking.slice(0, 15).map(p => [
+      { text: p.personel, options: { fontSize: 9 } },
+      { text: String(p.raporGun), options: { align:'center', fontSize: 9 } },
+      { text: `${p.kisaN} (${p.kisaGun} gün)`, options: { align:'center', fontSize: 9 } },
+      { text: `${p.bitisikN}/${p.kisaN} · %${Math.round(p.bitisikN / p.kisaN * 100)}`, options: { align:'center', fontSize: 9, bold: p.kopru, color: p.kopru ? IH_PRES_RED : IH_PRES_NAVY } },
+      { text: `%${Math.round(p.beklenenPay * 100)}`, options: { align:'center', fontSize: 9 } },
+      { text: p.oneGun.length ? p.oneGun.map(x => `${x.label} (${x.count})`).join(', ') : '—', options: { align:'center', fontSize: 9 } },
+      { text: p.uzunN ? `${p.uzunN} (${p.uzunGun} gün)` : '—', options: { align:'center', fontSize: 9 } },
     ]);
-    if (dowBody.length) s.addTable([dowHeader, ...dowBody], { x: 0.3, y: 0.85, w: 6.1, border: { type:'solid', color: IH_PRES_LINE, pt: 0.4 }, fontFace: 'Consolas', rowH: 0.3 });
-
-    const weekHeader = ['Personel','Hafta','Toplam'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:IH_PRES_NAVY, align:'center', fontSize:8.5 } }));
-    const weekBody = weekRanking.slice(0,10).map(p => [
-      { text: p.personel, options: { fontSize: 8.5 } },
-      { text: `${p.label} (${p.count})`, options: { align:'center', fontSize: 8.5 } },
-      { text: String(p.total), options: { align:'center', fontSize: 8.5 } },
-    ]);
-    if (weekBody.length) s.addTable([weekHeader, ...weekBody], { x: 6.6, y: 0.85, w: 6.1, border: { type:'solid', color: IH_PRES_LINE, pt: 0.4 }, fontFace: 'Consolas', rowH: 0.3 });
+    if (bodyRows.length) s.addTable([header, ...bodyRows], { x: 0.5, y: 1.2, w: 12.3, border: { type:'solid', color: IH_PRES_LINE, pt: 0.4 }, fontFace: 'Consolas', rowH: 0.3 });
+    else s.addText('Belirgin bir kısa rapor deseni tespit edilmedi.', { x: 0.5, y: 1.3, w: 10, h: 0.4, fontSize: 12, color: IH_PRES_DIM });
   }
 
   const fname = `ALO144-IzinHaritasi-Lokasyon-Sunum-${fmtDate(new Date())}.pptx`;
@@ -7676,9 +7722,13 @@ async function ihPresGeneratePerson(sicil, year){
     const s = pres.addSlide();
     s.addText('Desen Tespitleri', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: IH_PRES_NAVY, bold: true });
     const bullets = [];
-    pat.dowSkew.forEach(sk => bullets.push(`Gün bazlı çarpıklık: ${sk.label} (${sk.count} kez, izinlerin %${Math.round(sk.ratio*100)}'i; beklenen %${Math.round(sk.beklenen*100)})`));
-    pat.weekSkew.forEach(sk => bullets.push(`Hafta bazlı çarpıklık: ${sk.label} (${sk.count} kez, izinlerin %${Math.round(sk.ratio*100)}'i; beklenen %${Math.round(sk.beklenen*100)})`));
-    if (!bullets.length) bullets.push('Belirgin bir gün/hafta çarpıklığı tespit edilmedi.');
+    const ra = pat.raporAnaliz;
+    if (ihMode !== 'yillik' && ra && ra.raporGun){
+      bullets.push('Rapor: ' + ihRaporCumle(ra));
+      if (ra.bitisikOlaylar.length) bullets.push('Tatile bitişik kısa raporlar: ' + ra.bitisikOlaylar.map(e => fmtDate(e[0]) + (e.length > 1 ? '–' + fmtDate(e[e.length-1]) : '')).join(', '));
+      bullets.push(`Ardışık rapor günleri tek rapor sayılır; kısa rapor = ${IH_KISA_SINIR} gün ve altı; uzun raporlarda desen aranmaz.`);
+    }
+    if (!bullets.length) bullets.push('Bu kapsamda rapor deseni yok (yıllık izinde gün deseni aranmaz).');
     s.addText(bullets.map(t => ({ text: t, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 13, color: IH_PRES_NAVY, paraSpaceAfter: 8 } })), { x: 0.5, y: 0.85, w: 12.3, h: 2.2 });
 
     s.addText('ÇAĞRI-YOĞUN GÜNLERLE ÇAKIŞAN TARİHLER', { x: 0.5, y: 3.2, w: 10, h: 0.3, fontFace: 'Consolas', fontSize: 10, color: IH_PRES_ACCENT, bold: true, charSpacing: 1 });
