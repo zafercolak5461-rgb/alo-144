@@ -537,7 +537,7 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
         </div>
 
         <div id="pptAnalizPanel" style="display:none;">
-          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Analiz sekmesindeki tüm bulguları (genel bakış, en iyi/en kötü, dağılım, sıralamalar, trend, yıl kıyaslama, takım kıyaslama, kıdem bandı, erken uyarı, sağlık skoru, dikkat edilmesi gerekenler) kapsayan detaylı bir sunum oluşturur.</p>
+          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Analiz sekmesindeki tüm bulguları (genel bakış, en iyi/en kötü, dağılım, sıralamalar, trend, yıl kıyaslama, takım kıyaslama, kıdem bandı, erken uyarı, dikkat edilmesi gerekenler) kapsayan detaylı bir sunum oluşturur.</p>
           <div style="display:flex; gap:20px; flex-wrap:wrap;">
             <div style="min-width:140px; flex:1;">
               <div class="search-label" style="margin-bottom:6px;">Yıl</div>
@@ -4095,7 +4095,7 @@ async function generateAnalizPresentation(year, month, bgColorHex, textColorHex)
     s.addTable(tblRows, Object.assign({ x: 0.6, y: 1.3, w: 8, rowH: 0.4 }, tableOpts));
   }
 
-  // --- Genel Sağlık Özeti (Analiz sekmesindeki aynı panel - Takım Kıyaslama, Kıdem Bandı) ---
+  // --- Genel Özet (Analiz sekmesindeki aynı panel - Takım Kıyaslama, Kıdem Bandı) ---
   const saglik = computeSaglikOzeti(a, year);
   if (saglik.takimKarsilastirma.length){
     const s = pres.addSlide();
@@ -4142,25 +4142,6 @@ async function generateAnalizPresentation(year, month, bgColorHex, textColorHex)
       options: { fontFace: 'Arial', fontSize: 14, color: WARN, breakLine: true, paraSpaceAfter: 12 },
     }));
     s.addText(bulletLines, { x: 0.6, y: 1.3, w: 11.5, h: 5.3, valign: 'top' });
-  }
-
-  if (saglik.saglikSkorlari.length){
-    const s = pres.addSlide();
-    s.background = { color: DARK };
-    s.addText('En Düşük Sağlık Skoru (10 kişi)', { x: 0.5, y: 0.35, w: 11, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
-    s.addText('Skor = %50 Performans + %20 İzin Sağlığı + %15 Rapor/Tutanak Sıklığı (düşük=iyi) + %15 Kıdem.', { x: 0.5, y: 0.85, w: 11.5, h: 0.3, fontFace: 'Arial', fontSize: 9.5, color: DIM });
-    const dusukSkorlular = saglik.saglikSkorlari.slice(0, 10);
-    const tblRows = [
-      [{ text: 'Sıra', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'center' } },
-       { text: 'Personel', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY } },
-       { text: 'Skor', options: { bold: true, fill: { color: '4FC3F7' }, color: NAVY, align: 'right' } }],
-      ...dusukSkorlular.map((sk,i) => [
-        { text: String(i+1), options: { align: 'center', color: WHITE } },
-        { text: sk.name, options: { color: WHITE } },
-        { text: String(sk.skor), options: { align: 'right', bold: true, color: sk.skor < 60 ? DANGER : sk.skor < 75 ? WARN : ACCENT } },
-      ]),
-    ];
-    s.addTable(tblRows, Object.assign({ x: 0.5, y: 1.3, w: 8, rowH: 0.34 }, tableOpts));
   }
 
   {
@@ -6923,12 +6904,11 @@ function computeAnaliz(year, month){
   };
 }
 
-// ===== GENEL SAĞLIK ÖZETİ — Takım kıyaslama, bireysel trend uyarısı, kıdem bandı, birleşik
-// sağlık skoru. computeAnaliz()'in ürettiği veriyi (a) ve PERSONNEL'i kullanır - ayrı bir
+// ===== GENEL ÖZET — Takım kıyaslama, bireysel trend uyarısı, kıdem bandı. computeAnaliz()'in ürettiği veriyi (a) ve PERSONNEL'i kullanır - ayrı bir
 // Sheet okuması gerektirmez. =====
 
 // Bir personelin yılın tüm aylarındaki (seçili yıl içinde) performans değerlerini kronolojik
-// sırayla döndürür - trend uyarısı ve sağlık skoru hesaplamalarında ortak kullanılır.
+// sırayla döndürür - trend uyarısı hesaplamasında kullanılır.
 function personYearlyPerfSeries(sicil, year, perfM){
   if (!perfM) return [];
   return KARNE_MONTHS.filter(m => m.year === year).sort((a,b) => a.month - b.month)
@@ -6999,30 +6979,7 @@ function computeSaglikOzeti(a, year){
   });
   trendUyarilari.sort((p1,p2) => p2.dusus - p1.dusus);
 
-  // --- 4) Birleşik Sağlık Skoru (0-100) - şeffaf, sabit ağırlıklı ---
-  // %50 Performans + %20 İzin Sağlığı + %15 Rapor/Tutanak Sıklığı (düşük=iyi) + %15 Kıdem
-  const raporTutanakDegerleri = a.perfListEligible.map(x => {
-    const rv = a.personPeriodValue(x.sicil, raporM) || 0;
-    const tv = a.personPeriodValue(x.sicil, tutanakM) || 0;
-    return rv + tv * 2; // tutanak, rapora göre 2 kat ağır sayılır
-  });
-  const raporTutanakMax = Math.max(1, ...raporTutanakDegerleri);
-  const saglikSkorlari = a.perfListEligible.map(x => {
-    const p = PERSONNEL.find(pp => pp.sicil === x.sicil);
-    const perfPuan = x.val;
-    const izin = personelIzinHesapla(p || {});
-    const izinPuan = izin.kalanIzin !== null ? Math.max(0, Math.min(100, 50 + izin.kalanIzin * 3)) : 50;
-    const rv = a.personPeriodValue(x.sicil, raporM) || 0;
-    const tv = a.personPeriodValue(x.sicil, tutanakM) || 0;
-    const raporYuku = rv + tv * 2;
-    const raporPuan = 100 - Math.min(100, (raporYuku / raporTutanakMax) * 100);
-    const kidemYil = (p && p.iseGirisDate) ? kidemHesapla(p.iseGirisDate).totalMonths / 12 : 0;
-    const kidemPuan = Math.min(100, kidemYil * 20);
-    const toplam = perfPuan * 0.5 + izinPuan * 0.2 + raporPuan * 0.15 + kidemPuan * 0.15;
-    return { sicil: x.sicil, name: x.name, skor: Math.round(toplam), perfPuan, izinPuan, raporPuan, kidemPuan };
-  }).sort((p1,p2) => p1.skor - p2.skor);
-
-  return { takimKarsilastirma, kidemOzet, trendUyarilari, saglikSkorlari };
+  return { takimKarsilastirma, kidemOzet, trendUyarilari };
 }
 
 function computeYearComparison(yearA, yearB){
@@ -7358,16 +7315,9 @@ function renderAnalizContentHtml(){
       ${saglik.trendUyarilari.map(t => analizBadge('warn', `${t.name}: son 3 ayda ${fmtKarneVal(t.dusus)} puan geriledi (şu an ${fmtKarneVal(t.sonDeger)})`)).join('')}
     </div>` : `<div style="font-size:12.5px; color:var(--dim); margin-top:10px;">Henüz eşiğin altına düşmemiş ama gerileme eğiliminde olan personel bulunmuyor. ✓</div>`;
 
-  const dusukSkorlular = saglik.saglikSkorlari.slice(0, 10);
-  const skorRowsHtml = dusukSkorlular.length ? dusukSkorlular.map((s,i) => `
-    <tr style="border-bottom:1px solid var(--line);">
-      <td style="padding:8px 10px; color:var(--text);">${i+1}. ${s.name}</td>
-      <td style="padding:8px 10px; font-weight:700; text-align:right; color:${s.skor < 60 ? 'var(--danger)' : s.skor < 75 ? 'var(--warn)' : 'var(--accent)'};">${s.skor}</td>
-    </tr>`).join('') : '';
-
   const saglikOzetiHtml = `
     <div class="analiz-card">
-      <div class="analiz-card-title">🩺 Genel Sağlık Özeti</div>
+      <div class="analiz-card-title">📊 Genel Özet</div>
       <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:20px; align-items:start; margin-bottom:16px;">
         <div>
           <div style="font-size:12.5px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">Takım Lideri Kıyaslama <span class="hint" style="text-transform:none; font-weight:400;">(Kişi = toplam takım büyüklüğü, Ort. Performans sadece 6+ ay kıdemli ve bu dönem verisi olanlardan hesaplanır)</span></div>
@@ -7386,11 +7336,6 @@ function renderAnalizContentHtml(){
       <div style="border-top:1px solid var(--line); padding-top:14px; margin-bottom:14px;">
         <div style="font-size:12.5px; color:var(--dim); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.04em;">📉 Erken Uyarı — Henüz Düşmedi Ama Geriliyor</div>
         ${trendUyariHtml}
-      </div>
-      <div style="border-top:1px solid var(--line); padding-top:14px;">
-        <div style="font-size:12.5px; color:var(--dim); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.04em;">En Düşük Sağlık Skoru (10 kişi)</div>
-        <div class="hint" style="font-size:11.5px; margin-bottom:8px;">Skor = %50 Performans + %20 İzin Sağlığı + %15 Rapor/Tutanak Sıklığı (düşük=iyi) + %15 Kıdem. Tek bir sabit kural, dilersen ağırlıkları birlikte değiştirebiliriz.</div>
-        ${skorRowsHtml ? `<table style="width:100%; border-collapse:collapse;"><tbody>${skorRowsHtml}</tbody></table>` : `<div style="color:var(--dim); font-size:13px;">Veri bulunamadı.</div>`}
       </div>
     </div>
   `;
