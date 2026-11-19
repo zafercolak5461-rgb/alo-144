@@ -537,10 +537,19 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
         </div>
 
         <div id="pptAnalizPanel" style="display:none;">
-          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Seçilen ay için analiz sunumu hazırlar: parametreler, iş yükü, kapasite, takım kıyaslaması, puan düşüşlerinin parametre bazında açıklaması ve tekrarlayan kayıplar. Puanlar OSMANİYE-PERFORMANS &gt; <b>PUANLAMA ÖLÇEĞİ</b> sekmesinden, takımlar o ayın <b>VARDİYA</b> sekmesinden hesaplanır.</p>
+          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Seçilen ay ya da dönem için analiz sunumu hazırlar: parametreler, iş yükü, kapasite, takım kıyaslaması, puan düşüşlerinin parametre bazında açıklaması ve tekrarlayan kayıplar. Puanlar OSMANİYE-PERFORMANS &gt; <b>PUANLAMA ÖLÇEĞİ</b> sekmesinden, takımlar o ayın <b>VARDİYA</b> sekmesinden hesaplanır.</p>
+          <div class="search-label" style="margin-bottom:6px;">Süre</div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button class="refresh-btn" id="pptSureTekBtn" style="flex:1;">📅 Tek ay</button>
+            <button class="refresh-btn" id="pptSureDonemBtn" style="flex:1;">📈 Dönem (aylar arası gelişim)</button>
+          </div>
           <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:14px;">
-            <div style="min-width:180px; flex:1;">
-              <div class="search-label" style="margin-bottom:6px;">Ay</div>
+            <div id="pptBaslangicWrap" style="min-width:160px; flex:1; display:none;">
+              <div class="search-label" style="margin-bottom:6px;">Başlangıç ayı</div>
+              <select class="search" id="pptAnalizStartSelect"></select>
+            </div>
+            <div style="min-width:160px; flex:1;">
+              <div class="search-label" style="margin-bottom:6px;" id="pptAyEtiket">Ay</div>
               <select class="search" id="pptAnalizMonthSelect"><option value="">Yükleniyor…</option></select>
             </div>
           </div>
@@ -3711,6 +3720,14 @@ document.getElementById('pptModeIcBtn').addEventListener('click', () => pptSetFi
 // --- Analiz Sunumu seçim ekranı (Ay + Kapsam) ---
 let pptKapsamTip = 'lokasyon';
 let pptTema = 'beyaz';
+let pptSure = 'tek';
+function pptSureSet(t){
+  pptSure = t;
+  [['pptSureTekBtn', 'tek'], ['pptSureDonemBtn', 'donem']].forEach(([id, k]) => { const b = document.getElementById(id); const on = k === t; b.style.background = on ? 'var(--accent-soft)' : ''; b.style.borderColor = on ? 'var(--accent)' : ''; b.style.color = on ? 'var(--accent)' : ''; });
+  document.getElementById('pptBaslangicWrap').style.display = t === 'donem' ? '' : 'none';
+  document.getElementById('pptAyEtiket').textContent = t === 'donem' ? 'Bitiş ayı' : 'Ay';
+  document.getElementById('pptAnalizInfo').textContent = t === 'donem' ? 'Dönem en fazla 12 ay olabilir. Takımlar her ay o ayın VARDİYA sekmesine göre hesaplanır; takım listesi bitiş ayına göredir.' : '';
+}
 function pptTemaSet(t){
   pptTema = t;
   [['pptTemaBeyazBtn', 'beyaz'], ['pptTemaBantliBtn', 'bantli']].forEach(([id, k]) => { const b = document.getElementById(id); const on = k === t; b.style.background = on ? 'var(--accent-soft)' : ''; b.style.borderColor = on ? 'var(--accent)' : ''; b.style.color = on ? 'var(--accent)' : ''; });
@@ -3727,11 +3744,15 @@ async function pptAnalizHazirla(){
   const sel = document.getElementById('pptAnalizMonthSelect');
   pptKapsamSet(pptKapsamTip);
   pptTemaSet(pptTema);
+  pptSureSet(pptSure);
   if (pptAnalizAylar) return;
   try {
     const titles = await asFetchTabTitles(PERF_SHEET_ID);
     pptAnalizAylar = titles.map(asParseKey).filter(a => a !== null).sort((a, b) => b - a);
     sel.innerHTML = pptAnalizAylar.map(a => `<option value="${a}">${asLabelOf(a)}</option>`).join('');
+    const st = document.getElementById('pptAnalizStartSelect');
+    st.innerHTML = pptAnalizAylar.map(a => `<option value="${a}">${asLabelOf(a)}</option>`).join('');
+    if (pptAnalizAylar.length > 5) st.value = String(pptAnalizAylar[5]); // varsayılan: son 6 ay
     document.getElementById('pptAnalizInfo').textContent = '';
     if (pptKapsamTip === 'takim') pptLiderleriDoldur();
   } catch (e){
@@ -3753,6 +3774,8 @@ async function pptLiderleriDoldur(){
 }
 document.getElementById('pptKapsamLokBtn').addEventListener('click', () => pptKapsamSet('lokasyon'));
 document.getElementById('pptTemaBeyazBtn').addEventListener('click', () => pptTemaSet('beyaz'));
+document.getElementById('pptSureTekBtn').addEventListener('click', () => pptSureSet('tek'));
+document.getElementById('pptSureDonemBtn').addEventListener('click', () => pptSureSet('donem'));
 document.getElementById('pptTemaBantliBtn').addEventListener('click', () => pptTemaSet('bantli'));
 document.getElementById('pptKapsamTakimBtn').addEventListener('click', () => pptKapsamSet('takim'));
 document.getElementById('pptAnalizMonthSelect').addEventListener('change', () => { if (pptKapsamTip === 'takim') pptLiderleriDoldur(); });
@@ -3801,6 +3824,12 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
   } else {
     const abs = parseInt(document.getElementById('pptAnalizMonthSelect').value, 10);
     if (isNaN(abs)){ alert('Önce bir ay seçin.'); return; }
+    let startAbs = null;
+    if (pptSure === 'donem'){
+      startAbs = parseInt(document.getElementById('pptAnalizStartSelect').value, 10);
+      if (isNaN(startAbs) || startAbs >= abs){ alert('Başlangıç ayı, bitiş ayından önce olmalı.'); return; }
+      if (abs - startAbs > 11){ alert('Dönem en fazla 12 ay olabilir.'); return; }
+    }
     let kapsam = { tip: 'lokasyon' };
     if (pptKapsamTip === 'takim'){
       const lider = document.getElementById('pptLiderSelect').value;
@@ -3811,7 +3840,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generateAnalizPresentation(abs, kapsam, pptTema, t => { btn.textContent = '⏳ ' + t; });
+      await generateAnalizPresentation(abs, kapsam, pptTema, t => { btn.textContent = '⏳ ' + t; }, startAbs);
     } catch (e) {
       console.error(e);
       alert("Analiz sunumu oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -4299,7 +4328,7 @@ function asParseVardiya(rows){
       if (/^\d{1,2}:\d{2}/.test(cell)) { calisma++; continue; }
       sayac[cell] = (sayac[cell] || 0) + 1;
     }
-    map.set(sicil, { sicil, ad: String(r[ad] || '').trim(), takim: String(r[takim] || '').trim() || 'Takımsız', sayac, calisma });
+    map.set(sicil, { sicil, ad: String(r[ad] || '').trim(), takim: asUp(r[takim]) || 'TAKIMSIZ', sayac, calisma });
   });
   return map;
 }
@@ -4338,7 +4367,7 @@ function asParseCagri(rows){
 }
 
 // ---------- Veri yükleme ----------
-async function asLoadAll(targetAbs, onProgress){
+async function asLoadAll(targetAbs, onProgress, startAbs){
   const say = t => { if (onProgress) onProgress(t); };
   say('Ölçek ve sekme listeleri okunuyor…');
   const [olcekRows, perfTitles, vardiyaTitles, karneTitles] = await Promise.all([
@@ -4347,8 +4376,12 @@ async function asLoadAll(targetAbs, onProgress){
   ]);
   const olcek = asParseOlcek(olcekRows);
   const want = new Set();
-  for (let a = targetAbs - 5; a <= targetAbs; a++) want.add(a);
-  want.add(targetAbs - 12);
+  if (startAbs !== undefined && startAbs !== null && startAbs < targetAbs){
+    for (let a = startAbs; a <= targetAbs; a++) want.add(a);
+  } else {
+    for (let a = targetAbs - 5; a <= targetAbs; a++) want.add(a);
+    want.add(targetAbs - 12);
+  }
   const has = (titles, abs) => titles.includes(asKeyOf(abs));
   const perf = new Map(), vardiya = new Map(), karne = new Map();
   const jobs = [];
@@ -4457,17 +4490,20 @@ function asExplainChange(D, prev, cur){
 }
 
 // ---------- Sunum ----------
-async function generateAnalizPresentation(targetAbs, kapsam, temaKey, onProgress){
-  const D = await asLoadAll(targetAbs, onProgress);
+async function generateAnalizPresentation(targetAbs, kapsam, temaKey, onProgress, startAbs){
+  const donem = startAbs !== undefined && startAbs !== null && startAbs < targetAbs;
+  if (donem && targetAbs - startAbs > 11) throw new Error('Dönem en fazla 12 ay olabilir.');
+  const D = await asLoadAll(targetAbs, onProgress, donem ? startAbs : null);
   if (!D.perf.get(targetAbs)) throw new Error(`OSMANİYE-PERFORMANS tablosunda ${asKeyOf(targetAbs)} sekmesi yok.`);
   const v = D.vardiya.get(targetAbs);
   if (kapsam.tip === 'takim' && (!v || !v.size)) throw new Error(`VARDİYA tablosunda ${asKeyOf(targetAbs)} sekmesi yok ya da boş; takım bazlı sunum bu ay için hazırlanamaz.`);
-  const pres = asBuildPresentation(D, targetAbs, kapsam, temaKey);
+  const pres = asBuildPresentation(D, targetAbs, kapsam, temaKey, donem ? startAbs : null);
   const kapsamAd = kapsam.tip === 'lokasyon' ? 'Lokasyon' : kapsam.lider;
-  await pres.writeFile({ fileName: `Analiz Sunumu - ${asLabelOf(targetAbs)} - ${kapsamAd}.pptx` });
+  const donemAd = donem ? `${asLabelOf(startAbs)} - ${asLabelOf(targetAbs)}` : asLabelOf(targetAbs);
+  await pres.writeFile({ fileName: `Analiz Sunumu - ${donemAd} - ${kapsamAd}.pptx` });
 }
 
-function asBuildPresentation(D, M, kapsam, temaKey){
+function asBuildPresentation(D, M, kapsam, temaKey, A){
   const T = AS_TEMALAR[temaKey] || AS_TEMALAR.beyaz;
   const BG = T.BG, TX = T.TX, ACCENT = T.ACCENT, DIM = T.DIM, OK = T.OK, BAD = T.BAD, LINE = T.LINE, CELL = T.CELL, HEAD = T.HEAD;
   const P1 = M - 1, P2 = M - 2, Y1 = M - 12;
@@ -4497,7 +4533,7 @@ function asBuildPresentation(D, M, kapsam, temaKey){
     if (T.BAND) s.addShape('rect', { x: 0, y: 0, w: W, h: 0.55, fill: { color: T.BAND }, line: { type: 'none' } });
     if (T.FOOTLINE) s.addShape('rect', { x: 0.5, y: 6.55, w: W - 1, h: 0.012, fill: { color: T.FOOTLINE }, line: { type: 'none' } });
     s.addText(baslik.toLocaleUpperCase('tr-TR'), { x: 0.5, y: 0.13, w: 9.5, h: 0.3, fontFace: 'Arial', fontSize: 11, bold: true, color: T.BAND ? 'FFFFFF' : ACCENT, charSpacing: 1 });
-    s.addText(`${kapsamAd} · ${asLabelOf(M)}`, { x: 9.3, y: 0.13, w: 3.55, h: 0.3, fontFace: 'Arial', fontSize: 10, color: T.BAND ? 'D6DEEA' : DIM, align: 'right' });
+    s.addText(`${kapsamAd} · ${A !== undefined && A !== null && A < M ? asShort(A) + ' – ' + asShort(M) : asLabelOf(M)}`, { x: 9.3, y: 0.13, w: 3.55, h: 0.3, fontFace: 'Arial', fontSize: 10, color: T.BAND ? 'D6DEEA' : DIM, align: 'right' });
     s.addText(sonuc, { x: 0.5, y: 0.68, w: W - 1, h: 0.95, fontFace: 'Georgia', fontSize: 19, bold: true, color: T.TITLE || TX, valign: 'top', fit: 'shrink' });
     const foot = [];
     if (kaynak) foot.push({ text: 'Kaynak: ', options: { bold: true, color: DIM } }, { text: kaynak, options: { color: DIM, breakLine: !!hesap } });
@@ -4510,6 +4546,284 @@ function asBuildPresentation(D, M, kapsam, temaKey){
     ? 'Her ayın personeli, o ayın VARDİYA sekmesinde Sicil\'i olanlardır.'
     : `Her ayın personeli, o ayın VARDİYA sekmesinde "Takım" sütunu ${kapsam.lider} olanlardır (kişinin bugünkü lideri değil).`;
   const gecerliTanim = 'Ortalamalara yalnız puanı ölçekle birebir doğrulanan personel girer; değerlendirme dışı (doğum izni, eğitim vb.) ve tutmayan kayıtlar ayrıca sayılır.';
+
+  // ================= DÖNEM MODU (başlangıç–bitiş ayı) =================
+  if (A !== undefined && A !== null && A < M){
+    const aylar = []; for (let a = A; a <= M; a++) aylar.push(a);
+    const DS = {}; aylar.forEach(a => { DS[a] = asMonthStats(D, a, kapsam); });
+    const DL = {}; if (kapsam.tip === 'takim') aylar.forEach(a => { DL[a] = asMonthStats(D, a, { tip: 'lokasyon' }); });
+    const var_ = aylar.filter(a => DS[a] && DS[a].n);
+    const donemAd = `${asLabelOf(A)} – ${asLabelOf(M)}`;
+    const ilk = var_[0], son = var_[var_.length - 1];
+    const dOrt = asAvg(var_.map(a => DS[a].ortPuan));
+    const nAy = aylar.length;
+    const fs = nAy > 9 ? 8.5 : 9.5;
+    const ayKol = (labelW) => Array(nAy).fill((W - 1 - labelW) / nAy);
+    const ayBaslik = aylar.map(a => th(asShort(a)));
+    const ekD = [];
+
+    // ---- 1. Kapak ----
+    {
+      const s = pres.addSlide(); s.background = { color: BG }; sayfaNo++;
+      if (T.BAND) s.addShape('rect', { x: 0, y: 0, w: W, h: 0.3, fill: { color: T.BAND }, line: { type: 'none' } });
+      if (T.FOOTLINE) s.addShape('rect', { x: 0.6, y: 1.65, w: 1.2, h: 0.06, fill: { color: T.FOOTLINE }, line: { type: 'none' } });
+      s.addText('ALO 144 OSMANİYE · PERSONEL PERFORMANS ANALİZİ · DÖNEM', { x: 0.6, y: 0.5, w: 11, h: 0.35, fontFace: 'Arial', fontSize: 12, bold: true, color: ACCENT, charSpacing: 2 });
+      s.addText(`${donemAd} — ${kapsamAd}`, { x: 0.6, y: 0.9, w: 12.2, h: 0.7, fontFace: 'Georgia', fontSize: 28, bold: true, color: T.TITLE || TX, fit: 'shrink' });
+      const b = [];
+      if (var_.length >= 2){
+        const d = DS[son].ortPuan - DS[ilk].ortPuan;
+        b.push(`Ortalama puan ${asLabelOf(ilk)}: ${asFmt(DS[ilk].ortPuan)} → ${asLabelOf(son)}: ${asFmt(DS[son].ortPuan)} (${asSigned(d)} puan). Dönem ortalaması ${asFmt(dOrt)}.`);
+        const enY = var_.reduce((x, a) => DS[a].ortPuan > DS[x].ortPuan ? a : x, var_[0]);
+        const enD = var_.reduce((x, a) => DS[a].ortPuan < DS[x].ortPuan ? a : x, var_[0]);
+        b.push(`En yüksek ay ${asLabelOf(enY)} (${asFmt(DS[enY].ortPuan)}), en düşük ay ${asLabelOf(enD)} (${asFmt(DS[enD].ortPuan)}).`);
+        const art = puanParams.concat(kesintiParams).map(p => ({ p, d: DS[son].params[p.col].ortKayip - DS[ilk].params[p.col].ortKayip })).sort((x, y) => y.d - x.d)[0];
+        if (art && art.d > 0.05) b.push(`Dönem başına göre kişi başı kaybı en çok artan parametre ${art.p.param} (${asSigned(art.d, 2)} puan).`);
+      } else b.push('Dönemde kıyaslama için en az iki ay veri gerekiyor.');
+      s.addText(b.map(t => ({ text: t, options: { bullet: { code: '25A0' }, paraSpaceAfter: 10 } })), { x: 0.6, y: 1.9, w: 6.6, h: 3.6, fontFace: 'Arial', fontSize: 15, color: TX, valign: 'top' });
+      if (var_.length >= 2){
+        s.addChart('line', [{ name: 'Ortalama performans puanı', labels: var_.map(asShort), values: var_.map(a => Number(DS[a].ortPuan.toFixed(1))) }], {
+          x: 7.5, y: 1.8, w: 5.3, h: 3.7, chartColors: [ACCENT], lineSize: 2.5, lineDataSymbolSize: 7,
+          showValue: true, dataLabelColor: TX, dataLabelFontSize: 9, dataLabelPosition: 't', dataLabelFormatCode: '0.0',
+          catAxisLabelColor: TX, valAxisLabelColor: DIM, valAxisLabelFontSize: 9, catAxisLabelFontSize: 9,
+          valGridLine: { color: LINE, size: 0.5 }, catGridLine: { style: 'none' }, showLegend: false,
+          valAxisMinVal: Math.max(0, Math.floor((Math.min(...var_.map(a => DS[a].ortPuan)) - 5) / 10) * 10),
+          showTitle: true, title: 'Ortalama performans puanı (ay ay)', titleColor: TX, titleFontSize: 11,
+        });
+      }
+      const yedek = aylar.filter(a => DS[a] && DS[a].kapsamKaynak === 'performans').map(asLabelOf);
+      const eksik = aylar.filter(a => !DS[a] || !DS[a].n).map(asLabelOf);
+      s.addText([
+        { text: 'Kapsam: ', options: { bold: true, color: DIM } },
+        { text: `${nAy} ay. ${kapsamTanim} Dönem ortalaması = ayların ortalama puanlarının ortalaması (her ay eşit ağırlık).` + (yedek.length ? ` VARDİYA sekmesi boş olan ${yedek.join(', ')} için kapsam performans tablosundan alındı.` : '') + (eksik.length ? ` Verisi olmayan ay: ${eksik.join(', ')}.` : ''), options: { color: DIM, breakLine: true } },
+        { text: 'Kaynaklar: ', options: { bold: true, color: DIM } }, { text: 'OSMANİYE-PERFORMANS (ay sekmeleri + PUANLAMA ÖLÇEĞİ), VARDİYA, PERSONEL KARNESİ, Alo 144 Genel Çağrı Raporu.', options: { color: DIM } },
+      ], { x: 0.6, y: 5.75, w: 12.1, h: 1.0, fontFace: 'Arial', fontSize: 9.5, valign: 'top' });
+      s.addText(`Hazırlanma: ${new Date().toLocaleDateString('tr-TR')}`, { x: 0.6, y: 6.95, w: 4, h: 0.3, fontFace: 'Arial', fontSize: 9, color: DIM });
+    }
+
+    // ---- 2. Parametre gelişimi (kişi başı puan kaybı, ay ay) ----
+    {
+      let sonuc = 'Veri yok.';
+      if (var_.length >= 2){
+        const ort = p => asAvg(var_.map(a => DS[a].params[p.col].ortKayip));
+        const enCok = puanParams.concat(kesintiParams).map(p => ({ p, v: ort(p) })).sort((x, y) => y.v - x.v)[0];
+        const art = puanParams.concat(kesintiParams).map(p => ({ p, d: DS[son].params[p.col].ortKayip - DS[ilk].params[p.col].ortKayip })).sort((x, y) => y.d - x.d)[0];
+        sonuc = `Dönem boyunca kişi başı en çok puan ${enCok.p.param} parametresinden gitti (ay ortalaması ${asFmt(enCok.v, 2)}).` + (art.d > 0.05 ? ` Dönem başından sonuna en çok artan kayıp ${art.p.param} (${asSigned(art.d, 2)}).` : '');
+      }
+      const s = slide('Parametrelere göre gelişim', sonuc, 'OSMANİYE-PERFORMANS ay sekmeleri; puanlar PUANLAMA ÖLÇEĞİ sekmesinden (her ay o ay geçerli ölçek).',
+        `Hücre = o ayın kişi başı ortalama puan kaybı (en yüksek puan − alınan puan; yazılı uyarıda kesinti). Son sütun ayların ortalaması. ${gecerliTanim}`);
+      const rows = [[th('Parametre', { align: 'left' })].concat(ayBaslik).concat([th('Dönem ort.')])];
+      puanParams.concat(kesintiParams).forEach(p => {
+        const vals = aylar.map(a => DS[a] && DS[a].n ? DS[a].params[p.col].ortKayip : null);
+        const mx = Math.max(...vals.filter(v => v !== null));
+        rows.push([td(p.param, { align: 'left', bold: true })].concat(vals.map(v => td(asFmt(v, 2), { color: v !== null && v === mx && v > 0 ? BAD : TX, bold: v !== null && v === mx && v > 0 }))).concat([td(asFmt(asAvg(vals), 2), { bold: true, color: ACCENT })]));
+      });
+      rows.push([td('Ortalama puan', { align: 'left', bold: true, color: ACCENT })].concat(aylar.map(a => td(DS[a] && DS[a].n ? asFmt(DS[a].ortPuan) : '—', { bold: true, color: ACCENT }))).concat([td(asFmt(dOrt), { bold: true, color: ACCENT })]));
+      rows.push([td('Değerlendirilen kişi', { align: 'left' })].concat(aylar.map(a => td(DS[a] ? DS[a].n : '—'))).concat([td('')]));
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.5].concat(ayKol(2.5 + 0.95)).concat([0.95]), rowH: Math.min(0.36, 4.75 / rows.length), fontSize: fs }, tblBase));
+      s.addText('Kırmızı = parametrenin dönemdeki en kötü ayı.', { x: 0.5, y: 6.3, w: 8, h: 0.22, fontFace: 'Arial', fontSize: 8.5, italic: true, color: DIM });
+    }
+
+    // ---- 3. İş yükü gelişimi ----
+    {
+      const c = a => D.cagri && D.cagri.get(a);
+      const gun = a => { const o = c(a); return o && o.gun ? o.gelen / o.gun : null; };
+      const vg = aylar.filter(a => gun(a) !== null);
+      let sonuc = 'Çağrı verisi bulunamadı.';
+      if (vg.length >= 2){
+        const mx = vg.reduce((x, a) => gun(a) > gun(x) ? a : x, vg[0]), mn = vg.reduce((x, a) => gun(a) < gun(x) ? a : x, vg[0]);
+        sonuc = `Günlük ortalama gelen çağrı en yüksek ${asLabelOf(mx)} (${asFmt(gun(mx), 0)}), en düşük ${asLabelOf(mn)} (${asFmt(gun(mn), 0)}).`;
+      }
+      const s = slide('İş yükü gelişimi', sonuc, 'Alo 144 Genel Çağrı Raporu (günlük satırlar); PERSONEL KARNESİ (ÇAĞRI SAYISI, İŞ GÜNÜ).',
+        'Çağrı rakamları lokasyon geneli, yalnız çağrı alınan günlerden. Cevaplanma = cevaplanan ÷ gelen. SL = günlük SL ortalaması. Kişi başı değerler değerlendirilen personelin Karne ortalaması. Neden-sonuç iddiası taşımaz.');
+      const satir = (ad, f, d) => [td(ad, { align: 'left', bold: true })].concat(aylar.map(a => td(asFmt(f(a), d))));
+      const rows = [[th('Gösterge', { align: 'left' })].concat(ayBaslik),
+        satir('Çağrı alınan gün', a => c(a) ? c(a).gun : null, 0),
+        satir('Gelen çağrı (günlük ort.)', gun, 0),
+        satir('Kaçan çağrı (toplam)', a => c(a) ? c(a).kacan : null, 0),
+        satir('Cevaplanma oranı (%)', a => c(a) && c(a).gelen ? c(a).cevaplanan / c(a).gelen * 100 : null, 2),
+        satir('SL (günlük ort., %)', a => c(a) ? asAvg(c(a).sl) : null, 2),
+        satir('Kişi başı aylık çağrı', a => DS[a] ? DS[a].karneCagri : null, 0),
+        satir('Kişi başı iş günü', a => DS[a] ? DS[a].karneIsGunu : null, 1)];
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.9].concat(ayKol(2.9)), rowH: 0.42, fontSize: fs }, tblBase));
+    }
+
+    // ---- 4. Kapasite gelişimi ----
+    {
+      const vs = (a, k) => DS[a] && DS[a].vardiyaVar ? (DS[a].vardiyaSayac[k] || 0) : null;
+      const top = (a, col) => DS[a] && DS[a].n ? asSum(DS[a].gecerli.map(r => (r.params[col] && !r.params[col].olculmedi && r.params[col].deger) || 0)) : null;
+      const kisi = (a, col) => DS[a] && DS[a].n ? DS[a].gecerli.filter(r => r.params[col] && r.params[col].deger > 0 && !r.params[col].olculmedi).length : null;
+      const raporAy = aylar.filter(a => vs(a, 'Rapor') !== null);
+      let sonuc = 'VARDİYA verisi yok.';
+      if (raporAy.length >= 2){
+        const mx = raporAy.reduce((x, a) => vs(a, 'Rapor') > vs(x, 'Rapor') ? a : x, raporAy[0]);
+        sonuc = `VARDİYA'ya göre en çok rapor günü ${asLabelOf(mx)} ayında (${asFmt(vs(mx, 'Rapor'), 0)} gün); dönem başı ${asFmt(vs(raporAy[0], 'Rapor'), 0)}, sonu ${asFmt(vs(raporAy[raporAy.length - 1], 'Rapor'), 0)} gün.`;
+      }
+      const s = slide('Kapasite ve devam gelişimi', sonuc, 'VARDİYA ay sekmeleri; OSMANİYE-PERFORMANS ay sekmeleri.',
+        `VARDİYA satırları kapsamdaki herkesin takvim kayıtları; performans satırları değerlendirilen personelden ("kişi" = değeri 0'dan büyük olanlar). ${kapsamTanim}`);
+      const rows = [[th('Gösterge', { align: 'left' }), th('Kaynak')].concat(ayBaslik)];
+      ['Rapor', 'Yıllık İzin', 'Bildirimsiz Devamsızlık'].forEach(k => rows.push([td(`${k} (gün)`, { align: 'left', bold: true }), td('VARDİYA', { color: DIM })].concat(aylar.map(a => td(asFmt(vs(a, k), 0))))));
+      D.olcek.params.filter(p => /GEÇ LOGİN|SAATLİK|MOLA|RAPOR|YAZILI/.test(p.col)).forEach(p => {
+        const u = asUnit(D, p.col, M).trim();
+        rows.push([td(`${p.param} — toplam${u ? ' (' + u + ')' : ''}`, { align: 'left', bold: true }), td('Performans', { color: DIM })].concat(aylar.map(a => td(asFmt(top(a, p.col), 0)))));
+        rows.push([td(`${p.param} — kişi`, { align: 'left', bold: true }), td('Performans', { color: DIM })].concat(aylar.map(a => td(asFmt(kisi(a, p.col), 0)))));
+      });
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [3.1, 1.0].concat(ayKol(4.1)), rowH: Math.min(0.34, 4.75 / rows.length), fontSize: rows.length > 13 ? fs - 0.5 : fs }, tblBase));
+    }
+
+    // ---- 5. Takım gelişimi ----
+    if (kapsam.tip === 'lokasyon'){
+      const liderler = [...new Set([].concat(...aylar.map(a => { const v = D.vardiya.get(a); return v ? [...v.values()].map(x => x.takim) : []; })))].sort((a, b) => a.localeCompare(b, 'tr'));
+      const TS = {}; liderler.forEach(l => { TS[l] = {}; aylar.forEach(a => { TS[l][a] = asMonthStats(D, a, { tip: 'takim', lider: l }); }); });
+      const val = (l, a) => TS[l][a] && TS[l][a].n ? TS[l][a].ortPuan : null;
+      for (let i = liderler.length - 1; i >= 0; i--) if (!aylar.some(a => val(liderler[i], a) !== null)) liderler.splice(i, 1); // dönemde hiç değerlendirilen kişisi olmayan liderler
+      const degisim = liderler.map(l => { const vs = aylar.filter(a => val(l, a) !== null); return vs.length >= 2 ? { l, d: val(l, vs[vs.length - 1]) - val(l, vs[0]), a: vs[0], b: vs[vs.length - 1] } : null; }).filter(Boolean).sort((x, y) => x.d - y.d);
+      let sonuc = 'Takım verisi yok.';
+      if (degisim.length){
+        const k = degisim[0], y = degisim[degisim.length - 1];
+        sonuc = `Dönemde en çok düşen ${k.l} takımı (${asSigned(k.d)} puan), en çok yükselen ${y.l} takımı (${asSigned(y.d)} puan).`;
+        if (y.d <= 0) sonuc = `Dönemde tüm takımların ortalaması düştü; en çok ${k.l} (${asSigned(k.d)}), en az ${y.l} (${asSigned(y.d)}).`;
+      }
+      const s = slide('Takım gelişimi', sonuc, 'VARDİYA ay sekmeleri ("Takım" sütunu); OSMANİYE-PERFORMANS ay sekmeleri.',
+        'Her ayın takımı, o ayın VARDİYA sekmesine göre: kişi lider değiştirdiyse o ayki puanı o ayki liderine sayılır. Hücre = ortalama puan (parantez içinde değerlendirilen kişi). Değişim = takımın verisi olan ilk ay ile son ay arası. VARDİYA\'sı boş aylarda takım hesaplanmaz.');
+      const rows = [[th('Takım lideri', { align: 'left' })].concat(ayBaslik).concat([th('Değişim')])];
+      liderler.forEach(l => {
+        const dg = degisim.find(x => x.l === l);
+        rows.push([td(l, { align: 'left', bold: true })].concat(aylar.map(a => td(val(l, a) === null ? '—' : `${asFmt(val(l, a))} (${TS[l][a].n})`))).concat([td(dg ? asSigned(dg.d) : '—', { bold: true, color: dg ? (dg.d >= 0 ? OK : BAD) : TX })]));
+      });
+      rows.push([td('Lokasyon', { align: 'left', bold: true, color: ACCENT })].concat(aylar.map(a => td(DS[a] && DS[a].n ? asFmt(DS[a].ortPuan) : '—', { bold: true, color: ACCENT }))).concat([td(var_.length >= 2 ? asSigned(DS[son].ortPuan - DS[ilk].ortPuan) : '—', { bold: true, color: ACCENT })]));
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.6].concat(ayKol(2.6 + 0.9)).concat([0.9]), rowH: Math.min(0.4, 4.75 / rows.length), fontSize: nAy > 8 ? 8 : fs }, tblBase));
+    } else {
+      const fark = a => DS[a] && DS[a].n && DL[a] && DL[a].n ? DS[a].ortPuan - DL[a].ortPuan : null;
+      const vf = aylar.filter(a => fark(a) !== null);
+      let sonuc = 'Veri yok.';
+      if (vf.length){
+        const ust = vf.filter(a => fark(a) >= 0).length;
+        sonuc = `${kapsam.lider} takımı ${vf.length} ayın ${ust} tanesinde lokasyon ortalamasının üstünde; aylık farkların ortalaması ${asSigned(asAvg(vf.map(fark)))} puan.`;
+      }
+      const s = slide('Takım ve lokasyon gelişimi', sonuc, 'VARDİYA ay sekmeleri ("Takım" sütunu); OSMANİYE-PERFORMANS ay sekmeleri.',
+        `Her ay, o ayın VARDİYA sekmesinde ${kapsam.lider} altında yazanlar alınır; takımın kişileri aydan aya değişebilir. Fark = takım ortalaması − lokasyon ortalaması.`);
+      const rows = [[th('Gösterge', { align: 'left' })].concat(ayBaslik),
+        [td('Takım ort. puan', { align: 'left', bold: true })].concat(aylar.map(a => td(DS[a] && DS[a].n ? asFmt(DS[a].ortPuan) : '—', { bold: true }))),
+        [td('Lokasyon ort. puan', { align: 'left', bold: true })].concat(aylar.map(a => td(DL[a] && DL[a].n ? asFmt(DL[a].ortPuan) : '—'))),
+        [td('Fark', { align: 'left', bold: true })].concat(aylar.map(a => td(asSigned(fark(a)), { bold: true, color: fark(a) === null ? TX : fark(a) >= 0 ? OK : BAD }))),
+        [td('Takımda değerlendirilen kişi', { align: 'left' })].concat(aylar.map(a => td(DS[a] ? DS[a].n : '—')))];
+      puanParams.concat(kesintiParams).forEach(p => rows.push([td(`${p.param} kaybı (takım / lok.)`, { align: 'left', fontSize: 8.5 })].concat(aylar.map(a => td(DS[a] && DS[a].n && DL[a] && DL[a].n ? `${asFmt(DS[a].params[p.col].ortKayip, 1)} / ${asFmt(DL[a].params[p.col].ortKayip, 1)}` : '—', { fontSize: 8.5, color: DS[a] && DL[a] && DS[a].n && DS[a].params[p.col].ortKayip > DL[a].params[p.col].ortKayip + 0.05 ? BAD : TX })))));
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.9].concat(ayKol(2.9)), rowH: Math.min(0.34, 4.75 / rows.length), fontSize: fs }, tblBase));
+    }
+
+    // ---- 6. Kişi gelişimi (ilk ay → son ay) ----
+    {
+      const popM = asPopulation(D, M, kapsam);
+      const liste = [];
+      if (popM && var_.length >= 2) popM.forEach(sicil => {
+        const ra = D.perf.get(ilk) && D.perf.get(ilk).get(sicil), rb = D.perf.get(son) && D.perf.get(son).get(sicil);
+        if (!ra || !rb || ra.durum || rb.durum || !ra.tutarli || !rb.tutarli) return;
+        liste.push({ sicil, ad: asPersonName(D, M, sicil, rb.ad), eski: ra.puan, yeni: rb.puan, fark: rb.puan - ra.puan, parcalar: asExplainChange(D, ra, rb) });
+      });
+      const dusen = liste.filter(x => x.fark < 0).sort((a, b) => a.fark - b.fark);
+      const yuk = liste.filter(x => x.fark > 0).sort((a, b) => b.fark - a.fark);
+      const sonuc = liste.length
+        ? `${asLabelOf(ilk)} ile ${asLabelOf(son)} arasında ${liste.length} kişiden ${dusen.length} kişinin puanı düştü, ${yuk.length} kişinin yükseldi, ${liste.length - dusen.length - yuk.length} kişinin değişmedi.`
+        : 'Dönemin ilk ve son ayında birlikte değerlendirilen personel yok.';
+      const s = slide('Kişi gelişimi', sonuc, `OSMANİYE-PERFORMANS ${asKeyOf(ilk)} ve ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`,
+        `Kişiler ${asLabelOf(M)} kapsamına göre alınır; dönemin ilk ve son ayında değerlendirilmiş olmaları gerekir. Neden = puanı en çok değiştiren iki parametre (eski → yeni değer, puan farkı). Tam liste Ek A'da.`);
+      const tablo = (x, baslik, dizi, renk) => {
+        s.addText(baslik, { x, y: 1.6, w: 6.1, h: 0.28, fontFace: 'Arial', fontSize: 10, bold: true, color: renk });
+        if (!dizi.length){ s.addText('Yok.', { x, y: 1.95, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 10, color: DIM }); return; }
+        const r = [[th('Sicil'), th('Ad Soyad', { align: 'left' }), th(`${asShort(ilk)} → ${asShort(son)}`), th('Neden', { align: 'left' })]];
+        dizi.slice(0, 8).forEach(k => {
+          const nd = k.parcalar.filter(p => renk === BAD ? p.fark < 0 : p.fark > 0).sort((a, b) => Math.abs(b.fark) - Math.abs(a.fark)).slice(0, 2).map(p => `${p.label} ${p.eski} → ${p.yeni} (${asSigned(p.fark, 0)})`).join('\n');
+          r.push([td(k.sicil), td(k.ad, { align: 'left' }), td(`${asFmt(k.eski, 0)} → ${asFmt(k.yeni, 0)}`, { bold: true, color: renk }), td(nd, { align: 'left', fontSize: 8 })]);
+        });
+        s.addTable(r, Object.assign({ x, y: 1.9, w: 6.05, colW: [0.65, 1.7, 0.95, 2.75], rowH: 0.46, fontSize: 8.5 }, tblBase));
+      };
+      tablo(0.5, `En çok düşen ${Math.min(8, dusen.length)} kişi`, dusen, BAD);
+      tablo(6.78, `En çok yükselen ${Math.min(8, yuk.length)} kişi`, yuk, OK);
+      if (dusen.length) ekD.push(() => {
+        const PER = 10, pages = Math.ceil(dusen.length / PER);
+        for (let pg = 0; pg < pages; pg++){
+          const s2 = slide(`Ek A — Puanı düşen personel (${pg + 1}/${pages})`, `${asLabelOf(ilk)} ile ${asLabelOf(son)} arasında puanı düşen ${dusen.length} kişinin parametre bazında açıklaması.`,
+            `OSMANİYE-PERFORMANS ${asKeyOf(ilk)} ve ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`, 'Her parametre: eski → yeni değer (puan farkı). "kural değişti" = değer aynı, ölçek değiştiği için puan farklı.');
+          const rows = [[th('Sicil'), th('Ad Soyad', { align: 'left' }), th(`${asShort(ilk)} → ${asShort(son)}`), th('Fark'), th('Düşüren parametreler', { align: 'left' }), th('Yükselen', { align: 'left' })]];
+          dusen.slice(pg * PER, (pg + 1) * PER).forEach(x => {
+            const neg = x.parcalar.filter(p => p.fark < 0).map(p => `${p.label} ${p.eski} → ${p.yeni} (${asSigned(p.fark, 0)}${p.kural ? ', kural değişti' : ''})`).join(' · ');
+            const pos = x.parcalar.filter(p => p.fark > 0).map(p => `${p.label} ${asSigned(p.fark, 0)}`).join(' · ');
+            rows.push([td(x.sicil), td(x.ad, { align: 'left' }), td(`${asFmt(x.eski, 0)} → ${asFmt(x.yeni, 0)}`), td(asSigned(x.fark, 0), { color: BAD, bold: true }), td(neg, { align: 'left', fontSize: 8.5 }), td(pos || '—', { align: 'left', fontSize: 8.5, color: DIM })]);
+          });
+          s2.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [0.75, 2.1, 1.05, 0.6, 5.6, 2.23], rowH: 0.44, fontSize: 9 }, tblBase));
+        }
+      });
+    }
+
+    // ---- 7. Süreklilik ----
+    {
+      const popM = asPopulation(D, M, kapsam);
+      const kayit = [];
+      popM && popM.forEach(sicil => {
+        const recs = aylar.map(a => { const pm = D.perf.get(a); const r = pm && pm.get(sicil); return r && !r.durum && r.tutarli ? r : null; });
+        const deg = recs.filter(Boolean).length;
+        if (deg < 2) return;
+        puanParams.concat(kesintiParams).forEach(p => {
+          const kay = recs.map(r => r && r.params[p.col] ? r.params[p.col].kayip : null);
+          const say = kay.filter(k => k > 0).length;
+          if (say >= 2 && say > deg / 2) kayit.push({ sicil, ad: asPersonName(D, M, sicil, ''), p, say, deg, top: asSum(kay), kay });
+        });
+      });
+      kayit.sort((a, b) => b.say / b.deg - a.say / a.deg || b.top - a.top);
+      const kisiSay = new Set(kayit.map(k => k.sicil)).size;
+      const ozet = puanParams.concat(kesintiParams).map(p => { const ks = kayit.filter(k => k.p.col === p.col); return { p, n: ks.length, hepsi: ks.filter(k => k.say === k.deg).length, puan: asSum(ks.map(k => k.top)) }; }).filter(x => x.n).sort((a, b) => b.n - a.n);
+      const sonuc = kayit.length ? `${kisiSay} kişi, değerlendirildiği ayların yarısından fazlasında aynı parametreden puan kaybetti; en sık ${ozet.slice(0, 2).map(x => `${x.p.param} (${x.n} kişi)`).join(' ve ')}.` : 'Dönemin çoğunda aynı parametreden puan kaybeden personel yok.';
+      const s = slide('Süreklilik', sonuc, `OSMANİYE-PERFORMANS ${asKeyOf(A)} – ${asKeyOf(M)}; PUANLAMA ÖLÇEĞİ.`,
+        `Kişiler ${asLabelOf(M)} kapsamına göre. Bir parametre "sürekli" sayılır: kişinin değerlendirildiği ayların yarısından fazlasında ve en az 2 ayda o parametreden kayıp varsa. Kişi bazında tam liste Ek B'de.`);
+      if (ozet.length){
+        const rows = [[th('Parametre', { align: 'left' }), th('Kişi'), th('Her ay kaybeden'), th('Dönemde kaybedilen puan')]];
+        ozet.forEach(x => rows.push([td(x.p.param, { align: 'left', bold: true }), td(x.n, { bold: true, color: ACCENT }), td(x.hepsi, { color: x.hepsi ? BAD : TX }), td(asFmt(x.puan, 0))]));
+        s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: 5.6, colW: [2.2, 0.8, 1.2, 1.4], rowH: Math.min(0.38, 4.6 / rows.length) }, tblBase));
+        const top = kayit.slice(0, 10);
+        s.addText(`En sürekli ${top.length} kayıt`, { x: 6.4, y: 1.6, w: 6.4, h: 0.28, fontFace: 'Arial', fontSize: 10, bold: true, color: DIM });
+        const r2 = [[th('Sicil'), th('Ad Soyad', { align: 'left' }), th('Parametre', { align: 'left' }), th('Kayıp ay'), th('Kaybedilen puan')]];
+        top.forEach(k => r2.push([td(k.sicil), td(k.ad, { align: 'left' }), td(k.p.param, { align: 'left' }), td(`${k.say}/${k.deg}`, { bold: true, color: BAD }), td(asFmt(k.top, 0))]));
+        s.addTable(r2, Object.assign({ x: 6.4, y: 1.9, w: 6.43, colW: [0.7, 2.0, 1.7, 0.9, 1.13], rowH: 0.37, fontSize: 9 }, tblBase));
+        ekD.push(() => {
+          const kisiler = [];
+          kayit.forEach(k => { let o = kisiler.find(x => x.sicil === k.sicil); if (!o){ o = { sicil: k.sicil, ad: k.ad, satir: [], top: 0 }; kisiler.push(o); } o.satir.push(k); o.top += k.top; });
+          kisiler.sort((x, y) => y.top - x.top);
+          const PER = 10, pages = Math.ceil(kisiler.length / PER);
+          for (let pg = 0; pg < pages; pg++){
+            const s2 = slide(`Ek B — Süreklilik (${pg + 1}/${pages})`, `Dönemin çoğunda aynı parametreden puan kaybeden ${kisiSay} kişinin tam listesi.`,
+              `OSMANİYE-PERFORMANS ${asKeyOf(A)} – ${asKeyOf(M)}; PUANLAMA ÖLÇEĞİ.`, 'Her parametre: kayıp ay / değerlendirildiği ay, dönemde kaybedilen puan. Sıra: toplam kayıp.');
+            const rows = [[th('Sicil'), th('Ad Soyad', { align: 'left' }), th('Sürekli kayıp olan parametreler', { align: 'left' }), th('Toplam kayıp')]];
+            kisiler.slice(pg * PER, (pg + 1) * PER).forEach(o => rows.push([td(o.sicil), td(o.ad, { align: 'left' }), td(o.satir.map(k => `${k.p.param} ${k.say}/${k.deg} ay (−${asFmt(k.top, 0)})`).join(' · '), { align: 'left', fontSize: 8.5 }), td(asFmt(o.top, 0), { bold: true, color: ACCENT })]));
+            s2.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [0.8, 2.4, 7.63, 1.5], rowH: 0.44, fontSize: 9 }, tblBase));
+          }
+        });
+      }
+    }
+
+    // ---- 8. Tanımlar ve ölçek değişiklikleri ----
+    {
+      const degisen = D.olcek.params.map(p => {
+        const deg = [];
+        for (let i = 1; i < aylar.length; i++) if (asBandText(D.olcek, p.col, aylar[i]) !== asBandText(D.olcek, p.col, aylar[i - 1])) deg.push(aylar[i]);
+        return { p, deg };
+      }).filter(x => x.deg.length);
+      const sonuc = degisen.length
+        ? `Dönem içinde ölçeği değişen parametre: ${degisen.map(x => `${x.p.param} (${x.deg.map(asLabelOf).join(', ')} itibarıyla)`).join('; ')}. Her ay kendi ölçeğiyle hesaplandı.`
+        : 'Dönem boyunca puanlama ölçeği değişmedi; tüm aylar aynı ölçekle hesaplandı.';
+      const s = slide('Tanımlar ve puanlama ölçeği', sonuc, `OSMANİYE-PERFORMANS > ${AS_OLCEK_TAB} sekmesi.`,
+        `Değer, en büyük "alt sınır ≤ değer" olan banda düşer. ${gecerliTanim}`);
+      const rows = [[th('Parametre', { align: 'left' }), th('Kaynak sütun', { align: 'left' }), th('Açıklama', { align: 'left' }), th(`Ölçek (${asLabelOf(M)})`, { align: 'left' }), th('Dönemde değişiklik', { align: 'left' })]];
+      D.olcek.params.forEach(p => {
+        const b = asBandsFor(D.olcek, p.col, M);
+        const dg = degisen.find(x => x.p.col === p.col);
+        rows.push([td(p.param, { align: 'left', bold: true }), td(p.col, { align: 'left', color: DIM, fontSize: 8 }), td((b[0] && b[0].aciklama) || '', { align: 'left', fontSize: 8.5 }), td(asBandText(D.olcek, p.col, M), { align: 'left', fontSize: 8.5 }),
+          td(dg ? dg.deg.map(a => `${asLabelOf(a)}: önceki ölçek ${asBandText(D.olcek, p.col, a - 1)}`).join('\n') : '—', { align: 'left', fontSize: 8, color: dg ? BAD : DIM })]);
+      });
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [1.9, 2.1, 2.6, 3.4, 2.33], rowH: 0.38, fontSize: 9 }, tblBase));
+    }
+    ekD.forEach(f => f());
+    return pres;
+  }
 
   // ---- 1. KAPAK + ANA SONUÇLAR ----
   {
