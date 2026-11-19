@@ -2004,7 +2004,7 @@ html.gorunum-beyaz .nav-group-title::before, html.gorunum-beyaz .nav-group-title
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
-    <div class="panel-head">Kaçan Çağrının Yıl Ortalamasının Üzerinde Kaldığı Aylar <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">o yılın kendi ortalamasına göre %20 ve üzeri kalan her ay + kök neden</span></div>
+    <div class="panel-head">Kaçan Çağrının Yıl Ortalamasının Üzerinde Kaldığı Aylar <span class="hint" style="font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--text-dim-2); font-weight:400;">gün başına kaçan çağrı, o yılın günlük ortalamasının %20 ve üzerinde kalan her ay + kök neden</span></div>
     <div id="anKacanCulpritWrap" style="padding:18px;"></div>
   </div>
 
@@ -6598,7 +6598,35 @@ function renderGunlukDetay(){
 // "Elevated" (yoğun) tespiti, Analiz sayfasındaki findElevatedKacanMonths ile AYNI
 // mantığı kullanır: kendi karşılaştırma grubunun ortalamasına göre %20 ve üzeri sapma.
 // ============================================================================
-const IH_THRESHOLD_PCT = 10;
+// Eşikler OSMANİYE-PERFORMANS > "İZİN HARİTASI AYARLARI" sekmesinden okunur (Personel Karnesi de
+// aynı sekmeyi kullanır; iki program aynı rakamı verir). Okunamazsa aşağıdaki varsayılanlar geçerli.
+let IH_THRESHOLD_PCT = 10;
+let IH_ONE_CIKAN_KAT = 1.5;
+let IH_ONE_CIKAN_MIN = 2;
+let IH_OFF_DAHIL = false; // günlük yoğunlukta OFF günler ortalamaya 0 olarak girsin mi (ayar: HAYIR)
+// VARDİYA'da bu yazıların olduğu günler kişinin "çalışması beklenen" günü sayılmaz.
+let IH_BEKLENMEYEN = ['HT','Resmi Tatil','Kayıt Yok','Doğum İzni','Ücretsiz Doğum İzni'];
+const IH_EPS = 1e-9; // 0.2*1.5 = 0.30000000000000004 gibi kayan nokta hatası sınırdaki durumu dışlamasın
+const IH_AYAR_SHEET_ID = "1X37_Dk7DAYIZCls-ZudA5U7LOznX9eMdxPEadNqzqys";
+let ihAyarYuklendi = false;
+async function ihAyarlariYukle(){
+  if (ihAyarYuklendi) return;
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${IH_AYAR_SHEET_ID}/values/${encodeURIComponent("'İZİN HARİTASI AYARLARI'!A1:B20")}?valueRenderOption=UNFORMATTED_VALUE`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    (data.values || []).slice(1).forEach(r => {
+      const k = String(r[0] || '').trim().toLocaleUpperCase('tr-TR'), v = typeof r[1] === 'number' ? r[1] : parseFloat(String(r[1] || '').replace(',', '.'));
+      if (k.startsWith('OFF GÜNLER')){ IH_OFF_DAHIL = String(r[1] || '').trim().toLocaleUpperCase('tr-TR') !== 'HAYIR'; return; }
+      if (k.startsWith('ÇALIŞMASI BEKLENMEYEN')){ const l = String(r[1] || '').split(',').map(x => x.trim()).filter(Boolean); if (l.length) IH_BEKLENMEYEN = l; ihBeklenenSrc = null; return; }
+      if (isNaN(v)) return;
+      if (k.startsWith('YOĞUN GÜN EŞİĞİ')) IH_THRESHOLD_PCT = v;
+      else if (k === 'ÖNE ÇIKAN KATSAYI') IH_ONE_CIKAN_KAT = v;
+      else if (k === 'ÖNE ÇIKAN EN AZ TEKRAR') IH_ONE_CIKAN_MIN = v;
+    });
+    ihAyarYuklendi = true;
+  } catch (e){ console.warn('İzin Haritası ayarları okunamadı, varsayılanlar kullanılıyor.', e); }
+}
 // NOT (Madde 6, 24.08.2026): Daha önce burada IH_SKEW_MIN_TOTAL diye bir min. toplam izin
 // şartı vardı (az izinli birinin tesadüfen yüksek oranla listenin başına düşmesini önlemek
 // için). Kullanıcı kararıyla KALDIRILDI - artık sıralama ORANA değil HAM SAYIYA göre yapılıyor,
@@ -6634,18 +6662,113 @@ function ihFilteredRecords(){
 
 // Bir değer dizisini (örn. 12 aylık toplam) kendi ortalamasına göre değerlendirir,
 // %20+ üzerinde kalanları işaretler - findElevatedKacanMonths ile AYNI eşik/mantık.
-function ihFindElevated(values, thresholdPct){
+// valid (isteğe bağlı): hangi dönemlerin GERÇEKTEN ölçüldüğünü söyler. Verisi olmayan dönemler
+// (VARDİYA sekmesi boş ay, henüz gelmemiş ay, çağrı alınmayan OFF gün) ortalamaya 0 olarak
+// GİRMEZ ve yoğun işaretlenmez - aksi halde diğer her dönem yapay olarak "yoğun" görünüyordu.
+function ihFindElevated(values, thresholdPct, valid){
   thresholdPct = thresholdPct || IH_THRESHOLD_PCT;
-  const nonZero = values.filter(v => v > 0);
-  if (!nonZero.length) return values.map(() => false);
-  const avg = nonZero.reduce((a,b)=>a+b,0) / values.length; // sıfır olan dönemler de ortalamaya dahil (dönem uzunluğu sabit)
+  const ok = values.map((v,i) => valid ? !!valid[i] : true);
+  const vals = values.filter((v,i) => ok[i]);
+  if (!vals.length) return values.map(() => false);
+  const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
   if (!avg) return values.map(() => false);
-  return values.map(v => ((v - avg) / avg * 100) >= thresholdPct);
+  return values.map((v,i) => ok[i] && ((v - avg) / avg * 100) >= thresholdPct - IH_EPS);
+}
+// Kişinin "çalışması beklenen" günleri: VARDİYA'da bir kaydı olan ve IH_BEKLENMEYEN listesinde
+// olmayan günler (vardiya saati, Rapor, Yıllık İzin, diğer izinler). Gün/hafta/ay dağılımında
+// "beklenen pay" ve izin oranı bu günlerden hesaplanır.
+// Ayrıca kişinin HAFTA TATİLİ GÜNLERİ (kapsamdaki kayıtlarında o haftanın gününde çalışılmayan
+// günler vardiyadan fazla olan günler; çoğu kişide Cumartesi-Pazar) beklenen gün sayılmaz ve bu
+// günlere yazılan Rapor/İzin (çok günlü raporun devamı) desen hesabına katılmaz - yoksa hafta
+// sonu yapay olarak "izin yoğun gün" görünüyordu. Tablolardaki ham adetler değişmez.
+let ihBeklenenCache = new Map(), ihBeklenenSrc = null;
+function ihCacheKontrol(){ if (ihBeklenenSrc !== VARDIYA_RECORDS){ ihBeklenenCache = new Map(); ihBeklenenSrc = VARDIYA_RECORDS; } }
+function ihYilUygun(r, year){ return year === 'all' || r.tarih.getFullYear() === Number(year); }
+function ihVardiyaSaati(d){ return /^\d{1,2}:\d{2}/.test(String(d)); }
+// Map sicil -> Set(haftanın günü) kişinin normalde çalıştığı günler
+function ihCalismaGunleri(year){
+  ihCacheKontrol();
+  const ck = 'cg|' + year; if (ihBeklenenCache.has(ck)) return ihBeklenenCache.get(ck);
+  const yok = new Set(IH_BEKLENMEYEN.map(x => x.toLocaleUpperCase('tr-TR')));
+  const say = new Map(), genel = new Array(7).fill(0);
+  VARDIYA_RECORDS.forEach(r => {
+    if (!ihYilUygun(r, year)) return;
+    const v = ihVardiyaSaati(r.durum) ? 1 : (yok.has(String(r.durum).trim().toLocaleUpperCase('tr-TR')) ? -1 : 0);
+    if (!v) return;
+    if (!say.has(r.sicil)) say.set(r.sicil, new Array(7).fill(0));
+    say.get(r.sicil)[r.tarih.getDay()] += v; genel[r.tarih.getDay()] += v;
+  });
+  const set = a => new Set(a.map((x,i) => x > 0 ? i : -1).filter(i => i >= 0));
+  const genelSet = set(genel), m = new Map();
+  say.forEach((a, sc) => { const st = set(a); m.set(sc, st.size ? st : genelSet); });
+  m._genel = genelSet;
+  ihBeklenenCache.set(ck, m);
+  return m;
+}
+function ihCalismaGunuMu(r, year){
+  const m = ihCalismaGunleri(year); const st = m.get(r.sicil) || m._genel;
+  return st.has(r.tarih.getDay());
+}
+function ihBeklenenKayitlar(year){
+  ihCacheKontrol();
+  const ck = 'bk|' + year; if (ihBeklenenCache.has(ck)) return ihBeklenenCache.get(ck);
+  const yok = new Set(IH_BEKLENMEYEN.map(x => x.toLocaleUpperCase('tr-TR')));
+  const out = VARDIYA_RECORDS.filter(r => ihYilUygun(r, year) && !yok.has(String(r.durum).trim().toLocaleUpperCase('tr-TR')) && ihCalismaGunuMu(r, year));
+  ihBeklenenCache.set(ck, out);
+  return out;
+}
+// Desen hesabına girecek izin kayıtları: yalnız kişinin çalışma günlerine düşenler
+function ihDesenKayitlari(records, year){ return records.filter(r => ihYilUygun(r, year) && ihCalismaGunuMu(r, year)); }
+function ihBosDagilim(){ return { byMonth: new Array(12).fill(0), byDow: new Array(7).fill(0), byWeek: [0,0,0,0,0], total: 0 }; }
+function ihDagilimEkle(d, r){ d.byMonth[r.tarih.getMonth()]++; d.byDow[r.tarih.getDay()]++; d.byWeek[ihWeekOfMonth(r.tarih.getDate())-1]++; d.total++; }
+// year: 'all' ya da yıl; months: ay indeksleri (boş = hepsi); sicil: verilirse yalnız o kişi
+function ihBeklenenDagilim(year, months, sicil){
+  const d = ihBosDagilim();
+  ihBeklenenKayitlar(year).forEach(r => {
+    if (sicil && r.sicil !== sicil) return;
+    if (months && months.length && !months.includes(r.tarih.getMonth())) return;
+    ihDagilimEkle(d, r);
+  });
+  return d;
+}
+function ihBeklenenKisiBazli(year){
+  const m = new Map();
+  ihBeklenenKayitlar(year).forEach(r => {
+    if (!m.has(r.sicil)) m.set(r.sicil, ihBosDagilim());
+    ihDagilimEkle(m.get(r.sicil), r);
+  });
+  return m;
+}
+// izinli gün / beklenen gün oranı + geçerlilik maskesi (beklenen gün yoksa dönem ölçülmemiştir)
+function ihOranlar(counts, beklenen){
+  return { oran: counts.map((c,i) => beklenen[i] ? c / beklenen[i] : 0), valid: beklenen.map(b => b > 0) };
+}
+// Oranlı yoğunluk: dönemin oranı, TÜM dönemlerin birleşik oranının (toplam ÷ toplam payda) eşik
+// kadar üstündeyse yoğun. Basit ortalama değil, ağırlıklı - az sayıda kişinin çalıştığı hafta sonu
+// ya da kısa 5. hafta gibi küçük dönemler ortalamayı çarpıtmasın. Paydası 0 olan dönem işaretlenmez.
+function ihOranYogun(counts, payda, thresholdPct){
+  thresholdPct = thresholdPct || IH_THRESHOLD_PCT;
+  const tc = counts.reduce((a,b)=>a+b,0), tp = payda.reduce((a,b)=>a+b,0);
+  if (!tp || !tc) return counts.map(() => false);
+  const avg = tc / tp;
+  return counts.map((c,i) => payda[i] > 0 && ((c / payda[i] - avg) / avg * 100) >= thresholdPct - IH_EPS);
+}
+// Bir kişinin izinlerinin bir güne/haftaya yığılıp yığılmadığı: gerçek pay, o kişinin çalışması
+// beklenen günlerinin o güne/haftaya düşen payının KATSAYI katı ve üstüyse + en az N kez.
+function ihOneCikanlar(counts, total, beklenen, beklenenToplam, etiket){
+  const out = [];
+  if (!total || !beklenenToplam) return out;
+  counts.forEach((c,i) => {
+    const ratio = c / total, bek = beklenen[i] / beklenenToplam;
+    if (bek > 0 && c >= IH_ONE_CIKAN_MIN && ratio >= bek * IH_ONE_CIKAN_KAT - IH_EPS) out.push({ label: etiket(i), count: c, ratio, beklenen: bek });
+  });
+  return out;
 }
 
 // Gelen Arama Dağılımı'ndan günlük çağrı (Cevaplanan) toplamlarını bir kere çeker,
 // tarihe göre bir Map'e koyar - İzin Haritası açıldığında lazy-load, sonra önbellekten kullanılır.
 async function ihEnsureCallsLoaded(){
+  await ihAyarlariYukle();
   if (ihCallsByDate) return ihCallsByDate;
   ihCallsByDate = new Map();
   try {
@@ -6716,25 +6839,34 @@ function ihMonthlyView(records, year){
     pm._personel = pm._personel || new Map();
     pm._personel.set(key, r.personel);
   });
-  const elevated = ihFindElevated(byMonth);
+  // Yoğunluk ham gün sayısıyla değil İZİN ORANIYLA ölçülür (izinli gün / çalışması beklenen gün):
+  // kadro büyüklüğü ve ayın uzunluğu sonucu bozmaz; VARDİYA verisi olmayan aylar ortalamaya girmez.
+  const bekAy = ihBeklenenDagilim(year, null).byMonth;
+  const ayDesen = new Array(12).fill(0); ihDesenKayitlari(records, year).forEach(r => ayDesen[r.tarih.getMonth()]++);
+  const ayOran = ihOranlar(ayDesen, bekAy);
+  const elevated = ihOranYogun(ayDesen, bekAy);
 
   // Çağrı ile örtüşme: aynı ay için çağrı toplamı da elevated mi (kendi 12-aylık ortalamasına göre)
   const byMonthCalls = new Array(12).fill(0);
+  const byMonthCallDays = new Array(12).fill(0); // çağrı alınan gün sayısı
   if (ihCallsByDate){
     ihCallsByDate.forEach((v, key) => {
       const [y,m] = key.split('-').map(Number);
       if (year !== 'all' && y !== Number(year)) return;
       byMonthCalls[m-1] += v.gelen;
+      if (v.gelen > 0) byMonthCallDays[m-1]++;
     });
   }
-  const callsElevated = ihFindElevated(byMonthCalls);
+  // Ay toplamı değil, ÇAĞRI ALINAN GÜN BAŞINA ortalama kıyaslanır (yarım ay / farklı gün sayısı yanıltmasın)
+  const callsGunluk = byMonthCalls.map((c,i) => byMonthCallDays[i] ? c / byMonthCallDays[i] : 0);
+  const callsElevated = ihOranYogun(byMonthCalls, byMonthCallDays);
 
   return TR_MONTHS.map((name, i) => {
     const topPersons = [...byMonthPersons[i].entries()].filter(([k]) => k !== '_personel')
       .sort((a,b) => b[1]-a[1]).slice(0,5)
       .map(([sicil,count]) => ({ sicil, count, personel: (byMonthPersons[i]._personel && byMonthPersons[i]._personel.get(sicil)) || sicil }));
     return {
-      month: i, label: name, count: byMonth[i], elevated: elevated[i],
+      month: i, label: name, count: byMonth[i], elevated: elevated[i], beklenen: bekAy[i], oran: ayOran.valid[i] ? ayOran.oran[i] : null,
       yillik: byMonthYillik[i], rapor: byMonthRapor[i], overlap: byMonthOverlap[i],
       calls: byMonthCalls[i], callsElevated: callsElevated[i],
       bothElevated: elevated[i] && callsElevated[i],
@@ -6766,18 +6898,21 @@ function ihMonthDrillView(records, year, months){
   const weekLabels = months.length === 1
     ? [0,1,2,3,4].map(i => ihWeekRangeLabel(year, months[0], i))
     : [0,1,2,3,4].map(i => `${i+1}. Hafta`); // birden fazla ay birleşince tek bir tarih aralığı anlamsız - sadece sıra no
+  const bek = ihBeklenenDagilim(Number(year), [...monthSet]);
+  const dz = ihBosDagilim(); ihDesenKayitlari(records, Number(year)).forEach(r => { if (monthSet.has(r.tarih.getMonth())) ihDagilimEkle(dz, r); });
+  const wO = ihOranlar(dz.byWeek, bek.byWeek), dO = ihOranlar(dz.byDow, bek.byDow);
   return {
-    weeks, weeksTur, weekElevated: ihFindElevated(weeks), weekLabels,
-    byDow, byDowTur, byDowElevated: ihFindElevated(byDow),
+    weeks, weeksTur, weekElevated: ihOranYogun(dz.byWeek, bek.byWeek), weekLabels, weekOran: wO,
+    byDow, byDowTur, byDowElevated: ihOranYogun(dz.byDow, bek.byDow), dowOran: dO,
     topPersons: [...personMap.values()].sort((a,b)=>b.count-a.count).slice(0,8),
   };
 }
 
 // ----- Görünüm 4: Personel seçiliyken - kendi ay/hafta/gün deseni + ÇARPIKLIK tespiti -----
-// (Toplam hacim değil, dağılımın ORANI önemli - az sayıda izin bile tek bir güne/haftaya
-// yığılıyorsa yakalanır. "%20 üzeri kendi ortalaması" yerine burada PAY/TOPLAM oranı, eşit
-// dağılım varsayımına göre karşılaştırılır: gün için 1/7, hafta için 1/5 eşit pay beklenir,
-// gerçek pay bunun %50 fazlasını geçerse "çarpık" sayılır.)
+// (Toplam hacim değil, dağılımın ORANI önemli. Gerçek pay, kişinin o gün/hafta ÇALIŞMASI
+// BEKLENEN günlerinin payıyla kıyaslanır (19.11.2026'dan önce sabit 1/7 ve 1/5 kullanılıyordu;
+// hafta sonu çalışmayanlarda her hafta içi günü yapay olarak "öne çıkıyordu"). Katsayı ve en az
+// tekrar "İZİN HARİTASI AYARLARI" sekmesinden okunur.)
 // Çağrı hacminin, kendi AYININ ortalamasına göre %20+ üzerinde kaldığı günlerin kümesi -
 // hem tek personel görünümünde (ihPersonPattern) hem genel sıralamada (ihOverlapRanking)
 // ORTAK kullanılır, tek yerde hesaplanır.
@@ -6793,7 +6928,8 @@ function ihElevatedDaySet(){
   });
   Object.values(byMonthDays).forEach(days => {
     const vals = days.map(d => d.calls);
-    const elev = ihFindElevated(vals);
+    // OFF günler ortalamaya dahil değilse yalnız çağrı alınan günler kıyaslanır
+    const elev = ihFindElevated(vals, null, IH_OFF_DAHIL ? null : vals.map(v => v > 0));
     days.forEach((d, i) => { if (elev[i]) set.add(ihDateKey(d.date)); });
   });
   return set;
@@ -6817,12 +6953,16 @@ function ihPersonPattern(records, sicil, year){
   const total = personRecords.length;
   const dowSkew = [];
   const weekSkew = [];
-  if (total > 0){
-    const EXPECTED_DOW = 1/7, EXPECTED_WEEK = 1/5;
-    byDow.forEach((c,i) => { const ratio = c/total; if (ratio >= EXPECTED_DOW*1.5 && c >= 2) dowSkew.push({ label: IH_DOW_NAMES[i], count: c, ratio }); });
-    byWeek.forEach((c,i) => { const ratio = c/total; if (ratio >= EXPECTED_WEEK*1.5 && c >= 2) weekSkew.push({ label: (i+1)+'. Hafta', count: c, ratio }); });
+  // Beklenen pay artık 1/7 ya da 1/5 değil: kişinin O gün/hafta çalışması beklenen günlerinin payı
+  // (hafta sonu çalışmayan biri için Pazar beklenen payı 0'a yakın; ayın 5. haftası 29-31 kısa).
+  const bek = ihBeklenenDagilim(year, null, sicil);
+  const dz = ihBosDagilim(); ihDesenKayitlari(personRecords, year).forEach(r => ihDagilimEkle(dz, r));
+  if (dz.total > 0){
+    dowSkew.push(...ihOneCikanlar(dz.byDow, dz.total, bek.byDow, bek.total, i => IH_DOW_NAMES[i]));
+    weekSkew.push(...ihOneCikanlar(dz.byWeek, dz.total, bek.byWeek, bek.total, i => (i+1)+'. Hafta'));
   }
-  const monthElevated = ihFindElevated(byMonth);
+  const mO = ihOranlar(dz.byMonth, bek.byMonth);
+  const monthElevated = ihOranYogun(dz.byMonth, bek.byMonth);
 
   // Çağrı yoğunluğuyla çakışma: bu kişinin izin kullandığı tarihlerin, o günün çağrı
   // hacminin (o ayın kendi ortalamasına göre) elevated olduğu günlerle örtüşüp örtüşmediği.
@@ -6870,33 +7010,26 @@ function ihOverlapRanking(records, year){
 // "kişinin kendi gün/hafta dağılımı".
 function ihSkewRanking(records, year){
   const byPerson = new Map(); // sicil -> {personel, byDow:[7], byWeek:[5], total}
-  records.forEach(r => {
-    if (year !== 'all' && r.tarih.getFullYear() !== Number(year)) return;
+  ihDesenKayitlari(records, year).forEach(r => {
     if (!byPerson.has(r.sicil)) byPerson.set(r.sicil, { sicil: r.sicil, personel: r.personel, byDow: new Array(7).fill(0), byWeek: [0,0,0,0,0], total: 0 });
     const p = byPerson.get(r.sicil);
     p.byDow[r.tarih.getDay()]++;
     p.byWeek[ihWeekOfMonth(r.tarih.getDate())-1]++;
     p.total++;
   });
-  const EXPECTED_DOW = 1/7, EXPECTED_WEEK = 1/5;
+  const bekKisi = ihBeklenenKisiBazli(year);
   const dowRanking = [], weekRanking = [];
   // Madde 6 KARARI (kullanıcı): min. toplam izin şartı (IH_SKEW_MIN_TOTAL) KALDIRILDI - az
   // izinli kişiyi elemek yerine, sıralamanın kendisi artık HAM SAYIYA göre yapılıyor (80 gün
   // izinden 30'u aynı güne denk gelen kişi, 10 günün 6'sı denk gelen kişinin önünde çıkar).
   // "Çarpık mı" tespiti (beklenen payın %50 fazlası + en az 2 kez) DEĞİŞMEDİ - bu sadece hangi
   // gün/haftanın kişi için "öne çıkan" gün/hafta olacağını belirliyor, sıralamayı değil.
+  const enIyi = arr => arr.reduce((b, x) => (!b || x.count > b.count) ? x : b, null);
   byPerson.forEach(p => {
-    let bestDow = null;
-    p.byDow.forEach((c,i) => {
-      const ratio = c / p.total;
-      if (ratio >= EXPECTED_DOW * 1.5 && c >= 2 && (!bestDow || c > bestDow.count)) bestDow = { label: IH_DOW_NAMES[i], count: c, ratio };
-    });
+    const bek = bekKisi.get(p.sicil) || ihBosDagilim();
+    const bestDow = enIyi(ihOneCikanlar(p.byDow, p.total, bek.byDow, bek.total, i => IH_DOW_NAMES[i]));
     if (bestDow) dowRanking.push({ sicil: p.sicil, personel: p.personel, total: p.total, ...bestDow });
-    let bestWeek = null;
-    p.byWeek.forEach((c,i) => {
-      const ratio = c / p.total;
-      if (ratio >= EXPECTED_WEEK * 1.5 && c >= 2 && (!bestWeek || c > bestWeek.count)) bestWeek = { label: (i+1)+'. Hafta', count: c, ratio };
-    });
+    const bestWeek = enIyi(ihOneCikanlar(p.byWeek, p.total, bek.byWeek, bek.total, i => (i+1)+'. Hafta'));
     if (bestWeek) weekRanking.push({ sicil: p.sicil, personel: p.personel, total: p.total, ...bestWeek });
   });
   dowRanking.sort((a,b) => b.count - a.count || b.ratio - a.ratio);
@@ -7008,7 +7141,10 @@ function ihAggregateWeekAndDow(records, year){
     const turKey = r.durum === 'Yıllık İzin' ? 'yillik' : 'rapor';
     weeksTur[wi][turKey]++; byDowTur[dowI][turKey]++;
   });
-  return { weeks, weeksTur, weekElevated: ihFindElevated(weeks), byDow, byDowTur, byDowElevated: ihFindElevated(byDow) };
+  const bek = ihBeklenenDagilim(year, null);
+  const dz = ihBosDagilim(); ihDesenKayitlari(records, year).forEach(r => ihDagilimEkle(dz, r));
+  const wO = ihOranlar(dz.byWeek, bek.byWeek), dO = ihOranlar(dz.byDow, bek.byDow);
+  return { weeks, weeksTur, weekElevated: ihOranYogun(dz.byWeek, bek.byWeek), weekOran: wO, byDow, byDowTur, byDowElevated: ihOranYogun(dz.byDow, bek.byDow), dowOran: dO };
 }
 
 // Detay modalını açar: her satırda tarih, izin türü, o günün gelen/kaçan çağrısı ve
@@ -7142,8 +7278,8 @@ async function ihRender(){
         <div class="metric"><div class="label">Toplam</div><div class="value ok">${pat.total}</div></div>
         <div class="metric"><div class="label">Çağrı Yoğun Günlerle Çakışan İzin</div><div class="value ${pat.overlapDays ? 'warn' : ''}">${pat.overlapDays}</div></div>
       </div>
-      ${pat.dowSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Gün bazlı çarpıklık tespit edildi: ${pat.dowSkew.map(s => `<b>${s.label}</b> (${s.count} kez, %${Math.round(s.ratio*100)})`).join(', ')} — bu kişi izinlerini belirgin şekilde bu gün(ler)e yığıyor.</div>` : ''}
-      ${pat.weekSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Hafta bazlı çarpıklık tespit edildi: ${pat.weekSkew.map(s => `<b>${s.label}</b> (${s.count} kez, %${Math.round(s.ratio*100)})`).join(', ')}.</div>` : ''}
+      ${pat.dowSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Gün bazlı çarpıklık tespit edildi: ${pat.dowSkew.map(s => `<b>${s.label}</b> (${s.count} kez, izinlerinin %${Math.round(s.ratio*100)}'i; çalışma günlerine göre beklenen %${Math.round(s.beklenen*100)})`).join(', ')} — bu kişi izinlerini belirgin şekilde bu gün(ler)e yığıyor.</div>` : ''}
+      ${pat.weekSkew.length ? `<div class="note" style="margin-bottom:12px; border-color:var(--danger,#e85d5d);">⚠ Hafta bazlı çarpıklık tespit edildi: ${pat.weekSkew.map(s => `<b>${s.label}</b> (${s.count} kez, izinlerinin %${Math.round(s.ratio*100)}'i; beklenen %${Math.round(s.beklenen*100)})`).join(', ')}.</div>` : ''}
       ${pat.overlapDays ? `<div class="note" style="margin-bottom:16px;">Çağrı yoğun günlerle çakışan tarihler: ${pat.overlapDetails.map(d => fmtDate(d.tarih)).join(', ')}</div>` : ''}
       <div class="panel"><div class="panel-head">Ay Bazlı<span id="ih-selMonth" class="count"></span></div>
         <div style="padding:0 16px;"><div style="height:220px;"><canvas id="ih-canvas-month"></canvas></div></div>
@@ -7260,7 +7396,8 @@ async function ihRender(){
     <tr>
       <td>${m.label}</td>
       <td style="text-align:right;">${m.count}</td>
-      <td>${m.bothElevated ? '⚠ Çağrı da yoğun' : ''}</td>
+      <td style="text-align:right;">${m.oran === null ? '—' : '%' + (m.oran*100).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}</td>
+      <td>${m.elevated ? '▲ Yoğun' : ''}${m.bothElevated ? ' · ⚠ Çağrı da yoğun' : ''}</td>
       <td>${m.elevated && ihYear !== 'all' ? `<button class="refresh-btn ih-drill-month" data-month="${m.month}" style="font-size:11px; padding:3px 8px;">Detay</button>` : ''}</td>
     </tr>`).join('');
   const agg = ihAggregateWeekAndDow(records, ihYear);
@@ -7270,11 +7407,11 @@ async function ihRender(){
   const dowRows2 = IH_DOW_NAMES.map((name,i) => `<tr><td>${name}</td><td style="text-align:right;">${agg.byDowTur[i].yillik}</td><td style="text-align:right;">${agg.byDowTur[i].rapor}</td><td style="text-align:right;">${agg.byDow[i]}</td></tr>`).join('');
   wrap.innerHTML = `
     ${title}
-    <div class="note" style="margin-bottom:16px;">"Çağrı da yoğun" etiketi, o ayın kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığını gösterir. Belirli bir yıl seçip yoğun aylarda "Detay"a basarsan (ya da yukarıdan Ay(lar) seçersen) hafta/gün/personel kırılımına inebilirsin. Grafiklerde "Çağrı" metriğini ekleyip karşılaştırabilirsin.</div>
+    <div class="note" style="margin-bottom:16px;">Ay yoğunluğu ham gün sayısıyla değil <b>izin oranıyla</b> ölçülür (izinli gün ÷ çalışması beklenen gün); oranı, kapsamın genel izin oranının %${IH_THRESHOLD_PCT}+ üzerindeki aylar "▲ Yoğun" işaretlenir. "Çağrı da yoğun": o ayın çağrı alınan gün başına gelen çağrısı da genel günlük ortalamanın %${IH_THRESHOLD_PCT}+ üzerinde. VARDİYA verisi olmayan aylar ortalamaya girmez. Hafta tatili gününe (çoğu kişide Cumartesi-Pazar) denk gelen rapor/izin günleri (çok günlü raporun devamı) oran ve desen hesabına katılmaz; tablolardaki adetler ham sayıdır. Belirli bir yıl seçip yoğun aylarda "Detay"a basarsan (ya da yukarıdan Ay(lar) seçersen) hafta/gün/personel kırılımına inebilirsin. Grafiklerde "Çağrı" metriğini ekleyip karşılaştırabilirsin.</div>
     <div class="panel">
       <div class="panel-head">Aylara Göre İzin Yoğunluğu<span id="ih-selMonthG" class="count"></span></div>
       <div style="padding:0 16px;"><div style="height:220px;"><canvas id="ih-canvas-monthG"></canvas></div></div>
-      <div class="table-scroll"><table><thead><tr><th>Ay</th><th>Adet</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-scroll"><table><thead><tr><th>Ay</th><th>Adet</th><th title="İzinli gün ÷ çalışması beklenen gün">İzin oranı</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>
     <div class="note" style="margin:16px 0;">Aşağıdaki iki panel, ${ihYear === 'all' ? 'TÜM yıllardaki' : ihYear + ' yılındaki'} tüm kayıtları birleştirip hafta/gün ağırlığını gösterir (belirli bir aya inmeden genel eğilim).</div>
     <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
@@ -7289,7 +7426,7 @@ async function ihRender(){
     </div>
     <div class="panel" style="margin-top:16px;">
       <div class="panel-head">Çağrı Yoğun Günlerde İzin Kullanma Eğilimi (Personel Sıralaması)<span class="count">${ihCallsByDate ? '' : 'Çağrı verisi yükleniyor…'}</span></div>
-      <div class="note" style="margin:12px 16px 0;">Her personelin çağrının o AYIN kendi ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığı günlere denk gelen izinlerini gösterir. Sıralama HAM SAYIYA göre (oran değil) - en çok çakışan üstte, hacmi büyük olan personel öne çıkar.</div>
+      <div class="note" style="margin:12px 16px 0;">Her personelin çağrının o AYIN çağrı alınan günlerinin ortalamasına göre %${IH_THRESHOLD_PCT}+ üzerinde kaldığı günlere denk gelen izinlerini gösterir. Sıralama HAM SAYIYA göre (oran değil) - en çok çakışan üstte, hacmi büyük olan personel öne çıkar.</div>
       <div class="table-scroll" style="max-height:420px;"><table style="width:auto; min-width:100%;">
         <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Yıllık İzin</th><th>Rapor</th><th>Toplam İzin</th><th>Yoğun Günde Kullanılan İzin</th><th></th></tr></thead>
         <tbody>${(() => {
@@ -7305,27 +7442,27 @@ async function ihRender(){
     </div>
     <div class="panel" style="margin-top:16px;">
       <div class="panel-head">Belirli Gün/Haftaya Yığılma Eğilimi (Personel Sıralaması)</div>
-      <div class="note" style="margin:12px 16px 0;">Kendi izin dağılımının, kendi ortalamasının %50+ üzerinde belirli bir güne/haftaya yığıldığı personeli listeler. Sıralama HAM SAYIYA göre (oran değil) - en çok yığılan üstte.</div>
+      <div class="note" style="margin:12px 16px 0;">İzinlerinin bir güne/haftaya düşen payı, o gün/hafta çalışması beklenen günlerinin payının ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstünde olan (en az ${IH_ONE_CIKAN_MIN} kez) personeli listeler. Hafta tatili gününe düşen rapor/izin günleri sayılmaz. Sıralama HAM SAYIYA göre (oran değil) - en çok yığılan üstte.</div>
       <div class="panel-grid" style="grid-template-columns:1fr 1fr;">
         <div>
           <div style="padding:0 16px; font-size:12px; color:var(--text-dim); font-weight:600; margin-bottom:6px;">EN ÇOK YIĞILDIĞI GÜN</div>
           <div class="table-scroll" style="max-height:420px;"><table style="width:auto; min-width:100%;">
-            <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Gün</th><th>Toplam İzin</th><th>Oran</th></tr></thead>
+            <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Gün</th><th>Toplam İzin</th><th>Pay / Beklenen</th></tr></thead>
             <tbody>${(() => {
               const { dowRanking } = ihSkewRanking(records, ihYear);
               if (!dowRanking.length) return '<tr><td colspan="4" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
-              return dowRanking.map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
+              return dowRanking.map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)} / %${Math.round(p.beklenen*100)}</td></tr>`).join('');
             })()}</tbody>
           </table></div>
         </div>
         <div>
           <div style="padding:0 16px; font-size:12px; color:var(--text-dim); font-weight:600; margin-bottom:6px;">EN ÇOK YIĞILDIĞI HAFTA</div>
           <div class="table-scroll" style="max-height:420px;"><table style="width:auto; min-width:100%;">
-            <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Hafta</th><th>Toplam İzin</th><th>Oran</th></tr></thead>
+            <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Hafta</th><th>Toplam İzin</th><th>Pay / Beklenen</th></tr></thead>
             <tbody>${(() => {
               const { weekRanking } = ihSkewRanking(records, ihYear);
               if (!weekRanking.length) return '<tr><td colspan="4" class="empty-state">Belirgin bir çarpıklık tespit edilmedi.</td></tr>';
-              return weekRanking.map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)}</td></tr>`).join('');
+              return weekRanking.map(p => `<tr><td>${p.personel}</td><td>${p.label} (${p.count} kez)</td><td style="text-align:right;">${p.total}</td><td style="text-align:right;">%${Math.round(p.ratio*100)} / %${Math.round(p.beklenen*100)}</td></tr>`).join('');
             })()}</tbody>
           </table></div>
         </div>
@@ -7539,8 +7676,8 @@ async function ihPresGeneratePerson(sicil, year){
     const s = pres.addSlide();
     s.addText('Desen Tespitleri', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: IH_PRES_NAVY, bold: true });
     const bullets = [];
-    pat.dowSkew.forEach(sk => bullets.push(`Gün bazlı çarpıklık: ${sk.label} (${sk.count} kez, %${Math.round(sk.ratio*100)})`));
-    pat.weekSkew.forEach(sk => bullets.push(`Hafta bazlı çarpıklık: ${sk.label} (${sk.count} kez, %${Math.round(sk.ratio*100)})`));
+    pat.dowSkew.forEach(sk => bullets.push(`Gün bazlı çarpıklık: ${sk.label} (${sk.count} kez, izinlerin %${Math.round(sk.ratio*100)}'i; beklenen %${Math.round(sk.beklenen*100)})`));
+    pat.weekSkew.forEach(sk => bullets.push(`Hafta bazlı çarpıklık: ${sk.label} (${sk.count} kez, izinlerin %${Math.round(sk.ratio*100)}'i; beklenen %${Math.round(sk.beklenen*100)})`));
     if (!bullets.length) bullets.push('Belirgin bir gün/hafta çarpıklığı tespit edilmedi.');
     s.addText(bullets.map(t => ({ text: t, options: { bullet: { code: '2022' }, breakLine: true, fontSize: 13, color: IH_PRES_NAVY, paraSpaceAfter: 8 } })), { x: 0.5, y: 0.85, w: 12.3, h: 2.2 });
 
@@ -11047,23 +11184,29 @@ function renderWeeklyTable(){
 // ortalaması değil, HER YIL kendi içinde kıyaslanıyor). Ortalamanın %20 ve üzeri kalan
 // HER ay listeye giriyor - art arda gelen aylar (biri sıçrasa, sonraki de yüksek kalsa)
 // artık hiçbiri atlanmadan görünür.
+// DÜZELTME (19.11.2026): ay TOPLAMI yerine ÇAĞRI ALINAN GÜN BAŞINA kaçan çağrı kıyaslanır.
+// Toplamla kıyasta içinde bulunulan yarım ay hep "düşük", 23 iş günlü aylar 20 günlüklere göre
+// hep "yüksek" çıkıyordu. Yıl ortalaması da gün ağırlıklı: yılın toplam kaçanı ÷ çağrı alınan gün.
 function findElevatedKacanMonths(thresholdPct){
   thresholdPct = thresholdPct || 20;
-  const kacanMap = buildMonthlySumsFromRows(CALLS_ROWS, 'kacan');
-  const byYear = {};
-  [...kacanMap.values()].forEach(({year, value}) => {
-    if (!byYear[year]) byYear[year] = { sum: 0, count: 0 };
-    byYear[year].sum += value;
-    byYear[year].count++;
+  const byMonth = new Map(); // 'Y-M' -> {year, month, value, gun}
+  CALLS_ROWS.forEach(r => {
+    const gunVar = (r.gelen || 0) > 0 || (r.cevap || 0) > 0 || (r.kacan || 0) > 0;
+    if (!gunVar) return; // OFF / verisiz gün
+    const y = r.date.getFullYear(), m = r.date.getMonth() + 1, k = monthKey(y, m);
+    if (!byMonth.has(k)) byMonth.set(k, { year: y, month: m, value: 0, gun: 0 });
+    const o = byMonth.get(k); o.value += (r.kacan || 0); o.gun++;
   });
-  const yearAvg = {};
-  Object.keys(byYear).forEach(y => { yearAvg[y] = byYear[y].sum / byYear[y].count; });
-
-  return [...kacanMap.values()].map(({year, month, value}) => {
-    const avg = yearAvg[year];
-    const pctAboveAvg = avg ? ((value - avg) / avg) * 100 : null;
-    return { year, month, value, yearAvg: avg, pctAboveAvg };
-  }).filter(m => m.pctAboveAvg !== null && m.pctAboveAvg >= thresholdPct)
+  const byYear = {};
+  [...byMonth.values()].forEach(({year, value, gun}) => {
+    if (!byYear[year]) byYear[year] = { sum: 0, gun: 0 };
+    byYear[year].sum += value; byYear[year].gun += gun;
+  });
+  return [...byMonth.values()].map(({year, month, value, gun}) => {
+    const yg = byYear[year], yearAvg = yg.gun ? yg.sum / yg.gun : 0, gunluk = gun ? value / gun : 0;
+    const pctAboveAvg = yearAvg ? ((gunluk - yearAvg) / yearAvg) * 100 : null;
+    return { year, month, value, gun, gunluk, yearAvg, pctAboveAvg };
+  }).filter(m => m.pctAboveAvg !== null && m.pctAboveAvg >= thresholdPct - 1e-9)
     .sort((a,b) => (a.year - b.year) || (a.month - b.month));
 }
 
@@ -11136,7 +11279,7 @@ function renderKacanCulprits(){
 
   wrap.innerHTML = months.map(m => {
     const rc = rootCauseForMonth(m.year, m.month, 5);
-    const infoLine = `Bu ay kaçan çağrı, ${m.year} yılı ortalamasının %${m.pctAboveAvg.toFixed(1)} üzerinde (yıl ortalaması: ${Math.round(m.yearAvg).toLocaleString('tr-TR')}, bu ay: ${Math.round(m.value).toLocaleString('tr-TR')}).`;
+    const infoLine = `Bu ay günde ortalama kaçan çağrı, ${m.year} yılı günlük ortalamasının %${m.pctAboveAvg.toFixed(1)} üzerinde (yıl: ${Math.round(m.yearAvg).toLocaleString('tr-TR')}/gün, bu ay: ${Math.round(m.gunluk).toLocaleString('tr-TR')}/gün; ${m.gun} günde toplam ${Math.round(m.value).toLocaleString('tr-TR')}).`;
 
     let bodyHtml;
     if (rc.status === 'no-data'){
@@ -11355,7 +11498,7 @@ async function presAnalizGenerate(from, to){
       const s = pres.addSlide();
       s.addText('Kaçan Çağrı — Kök Neden' + (elevatedMonths.length > 1 ? ` (${idx+1}/${elevatedMonths.length})` : ''), { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: NAVY, bold: true });
       s.addText(monthLabel(m.year, m.month), { x: 0.5, y: 0.78, w: 8, h: 0.4, fontFace: 'Georgia', fontSize: 22, color: RED, bold: true });
-      s.addText(`Bu ay kaçan çağrı, ${m.year} yılı ortalamasının %${m.pctAboveAvg.toFixed(1)} üzerinde (yıl ortalaması: ${Math.round(m.yearAvg).toLocaleString('tr-TR')}, bu ay: ${Math.round(m.value).toLocaleString('tr-TR')}).`, { x: 0.5, y: 1.28, w: 11.5, h: 0.35, fontFace: 'Arial', fontSize: 13, color: DIM });
+      s.addText(`Bu ay günde ortalama kaçan çağrı, ${m.year} yılı günlük ortalamasının %${m.pctAboveAvg.toFixed(1)} üzerinde (yıl: ${Math.round(m.yearAvg).toLocaleString('tr-TR')}/gün, bu ay: ${Math.round(m.gunluk).toLocaleString('tr-TR')}/gün; ${m.gun} günde toplam ${Math.round(m.value).toLocaleString('tr-TR')}).`, { x: 0.5, y: 1.28, w: 11.5, h: 0.35, fontFace: 'Arial', fontSize: 13, color: DIM });
 
       const rc = rootCauseForMonth(m.year, m.month, 5);
       if (rc.status === 'no-data'){
