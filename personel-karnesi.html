@@ -546,22 +546,37 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
         </div>
 
         <div id="pptPersonelPanel">
-          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Tablolar her zaman tüm yılları gösterir. Buradaki seçim sadece <b>grafik ve yarım halkalar</b> için geçerlidir. Birden fazla yıl seçerseniz, grafik seçili yılların tüm aylarını kronolojik sırayla art arda gösterir.</p>
-          <div style="display:flex; gap:8px; margin-bottom:14px;">
-            <button class="refresh-btn" id="pptYearSelectAllBtn">Tümünü Seç</button>
-            <button class="refresh-btn" id="pptYearClearBtn">Temizle</button>
+          <p style="font-size:12.5px; color:var(--dim); margin:0 0 14px;">Seçili personel için dönem sunumu hazırlar: puan gelişimi (takım ve lokasyon ortalamasıyla), son ayın puan dökümü, parametre gelişimi, güçlü yönler ve tekrarlayan konular, puanı artırmak için adımlar. Takım her ay o ayın <b>VARDİYA</b> sekmesinden, puanlar <b>PUANLAMA ÖLÇEĞİ</b>'nden.</p>
+          <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom:14px;">
+            <div style="min-width:160px; flex:1;"><div class="search-label" style="margin-bottom:6px;">Başlangıç ayı</div><select class="search" id="pptKisiStart"><option value="">Yükleniyor…</option></select></div>
+            <div style="min-width:160px; flex:1;"><div class="search-label" style="margin-bottom:6px;">Bitiş ayı</div><select class="search" id="pptKisiEnd"><option value="">Yükleniyor…</option></select></div>
           </div>
-          <div id="pptYearChips" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px;"></div>
-
-          <div class="search-label" style="margin-bottom:8px;">Öne Çıkan Bulgular</div>
+          <div class="search-label" style="margin-bottom:8px;">Kime gidecek</div>
           <div style="display:flex; gap:8px; margin-bottom:6px;">
             <button class="refresh-btn" id="pptModeKisiyeBtn" style="flex:1;">✅ Kişiye Gönderilecek</button>
             <button class="refresh-btn" id="pptModeIcBtn" style="flex:1;">🔒 İç Kullanım</button>
           </div>
-          <p style="font-size:11.5px; color:var(--dim); margin:0;">
-            <b>Kişiye Gönderilecek:</b> sadece olumlu bulgular eklenir (örn. "Top 10'da").<br>
-            <b>İç Kullanım:</b> olumsuz bulgular da eklenir (örn. "en çok tutanak alanlar arasında") - sadece kendi değerlendirmen için, personele göndermen önerilmez.
+          <p style="font-size:11.5px; color:var(--dim); margin:0 0 12px;">
+            <b>Kişiye Gönderilecek:</b> başka personelin adı ya da sırası geçmez; kıyas yalnız lokasyon ve kendi takım ortalamasıyla.<br>
+            <b>İç Kullanım:</b> lokasyon/takım içindeki sırası ve parametre bazında takım–lokasyon kıyası da eklenir.
           </p>
+          <div class="search-label" style="margin-bottom:6px;">Tema</div>
+          <div style="display:flex; gap:8px; margin-bottom:12px;">
+            <button class="refresh-btn" id="pptKTemaBeyazBtn" style="flex:1;">⬜ Sade beyaz</button>
+            <button class="refresh-btn" id="pptKTemaBantliBtn" style="flex:1;">▬ Üst bantlı</button>
+          </div>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer;">
+            <input type="checkbox" id="pptKisiEkCb">
+            <span>Ek slaytları ekle <span class="hint">(eski yıllık karne tabloları — tüm yıllar, her metrik için bir slayt)</span></span>
+          </label>
+          <div id="pptKisiEkWrap" style="display:none; margin-top:10px;">
+            <p style="font-size:11.5px; color:var(--dim); margin:0 0 8px;">Ek slaytlardaki grafik ve yarım halkalar için yıl seçimi:</p>
+            <div style="display:flex; gap:8px; margin-bottom:10px;">
+              <button class="refresh-btn" id="pptYearSelectAllBtn">Tümünü Seç</button>
+              <button class="refresh-btn" id="pptYearClearBtn">Temizle</button>
+            </div>
+            <div id="pptYearChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+          </div>
         </div>
 
         <div id="pptAnalizPanel" style="display:none;">
@@ -3719,7 +3734,7 @@ function pptSetTab(tab){
   pptActiveTab = tab;
   document.getElementById('pptPersonelPanel').style.display = tab === 'personel' ? 'block' : 'none';
   document.getElementById('pptAnalizPanel').style.display = tab === 'analiz' ? 'block' : 'none';
-  document.getElementById('pptRenkSatiri').style.display = tab === 'analiz' ? 'none' : 'flex';
+  document.getElementById('pptRenkSatiri').style.display = 'none';
   const pBtn = document.getElementById('pptTabPersonelBtn'), aBtn = document.getElementById('pptTabAnalizBtn');
   pBtn.style.background = tab === 'personel' ? 'var(--accent-soft)' : '';
   pBtn.style.borderColor = tab === 'personel' ? 'var(--accent)' : '';
@@ -3794,7 +3809,7 @@ function pptSureSet(t){
 }
 function pptTemaSet(t){
   pptTema = t;
-  [['pptTemaBeyazBtn', 'beyaz'], ['pptTemaBantliBtn', 'bantli']].forEach(([id, k]) => { const b = document.getElementById(id); const on = k === t; b.style.background = on ? 'var(--accent-soft)' : ''; b.style.borderColor = on ? 'var(--accent)' : ''; b.style.color = on ? 'var(--accent)' : ''; });
+  [['pptTemaBeyazBtn', 'beyaz'], ['pptTemaBantliBtn', 'bantli'], ['pptKTemaBeyazBtn', 'beyaz'], ['pptKTemaBantliBtn', 'bantli']].forEach(([id, k]) => { const b = document.getElementById(id); const on = k === t; b.style.background = on ? 'var(--accent-soft)' : ''; b.style.borderColor = on ? 'var(--accent)' : ''; b.style.color = on ? 'var(--accent)' : ''; });
 }
 let pptAnalizAylar = null; // OSMANİYE-PERFORMANS ay sekmeleri (abs değerleri, yeniden eskiye)
 function pptKapsamSet(tip){
@@ -3815,6 +3830,8 @@ async function pptAnalizHazirla(){
     const titles = await asFetchTabTitles(PERF_SHEET_ID);
     pptAnalizAylar = titles.map(asParseKey).filter(a => a !== null).sort((a, b) => b - a);
     sel.innerHTML = pptAnalizAylar.map(a => `<option value="${a}">${asLabelOf(a)}</option>`).join('');
+    ['pptKisiStart', 'pptKisiEnd'].forEach(id => { document.getElementById(id).innerHTML = pptAnalizAylar.map(a => `<option value="${a}">${asLabelOf(a)}</option>`).join(''); });
+    if (pptAnalizAylar.length > 5) document.getElementById('pptKisiStart').value = String(pptAnalizAylar[5]);
     const st = document.getElementById('pptAnalizStartSelect');
     st.innerHTML = pptAnalizAylar.map(a => `<option value="${a}">${asLabelOf(a)}</option>`).join('');
     if (pptAnalizAylar.length > 5) st.value = String(pptAnalizAylar[5]); // varsayılan: son 6 ay
@@ -3841,6 +3858,9 @@ async function pptLiderleriDoldur(){
 }
 document.getElementById('pptKapsamLokBtn').addEventListener('click', () => pptKapsamSet('lokasyon'));
 document.getElementById('pptTemaBeyazBtn').addEventListener('click', () => pptTemaSet('beyaz'));
+document.getElementById('pptKTemaBeyazBtn').addEventListener('click', () => pptTemaSet('beyaz'));
+document.getElementById('pptKTemaBantliBtn').addEventListener('click', () => pptTemaSet('bantli'));
+document.getElementById('pptKisiEkCb').addEventListener('change', (e) => { document.getElementById('pptKisiEkWrap').style.display = e.target.checked ? '' : 'none'; });
 document.getElementById('pptSureTekBtn').addEventListener('click', () => pptSureSet('tek'));
 document.getElementById('pptOdakGenelBtn').addEventListener('click', () => pptOdakSet('genel'));
 document.getElementById('pptOdakParamBtn').addEventListener('click', () => pptOdakSet('param'));
@@ -3884,13 +3904,18 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
 
   if (pptActiveTab === 'personel'){
     if (!selectedSicil){ alert('Önce sağ üstten bir personel seçin.'); return; }
-    const years = [...pptSelectedYears].sort((a,b) => a-b);
+    const years = [...(pptSelectedYears || [])].sort((a,b) => a-b);
+    const kStart = parseInt(document.getElementById('pptKisiStart').value, 10), kEnd = parseInt(document.getElementById('pptKisiEnd').value, 10);
+    if (isNaN(kStart) || isNaN(kEnd)){ alert('Ay listesi henüz yüklenmedi, birkaç saniye sonra tekrar deneyin.'); return; }
+    if (kStart > kEnd){ alert('Başlangıç ayı, bitiş ayından sonra olamaz.'); return; }
+    if (kEnd - kStart > 11){ alert('Dönem en fazla 12 ay olabilir.'); return; }
+    const ekVar = document.getElementById('pptKisiEkCb').checked;
+    if (ekVar && !years.length){ alert('Ek slaytlar için en az bir yıl seçin ya da ek slaytları kapatın.'); return; }
     pptModalOverlay.style.display = 'none';
-    if (!years.length){ alert('En az bir yıl seçin.'); return; }
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generatePresentation(years, pptFindingsMode, bgColorHex, textColorHex);
+      await generateKisiSunum(selectedSicil, kStart, kEnd, pptFindingsMode, pptTema, ekVar, years, t => { btn.textContent = '⏳ ' + t; });
     } catch (e) {
       console.error(e);
       alert("Sunum oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -4031,20 +4056,23 @@ function personelFindings(sicil, years, mode){
   return findings;
 }
 
-async function generatePresentation(selectedYears, findingsMode, bgColorHex, textColorHex){
+async function generatePresentation(selectedYears, findingsMode, bgColorHex, textColorHex, mevcutSunum){
+  // mevcutSunum verilirse: yeni Personel Sunumu'nun EK slaytları olarak yalnız yıllık karne tabloları eklenir (kapak, bulgular ve dosya kaydı atlanır).
   const mode = findingsMode || 'kisiye';
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p) return;
   const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = textColorHex || 'FFFFFF', DIM = '5D6572', LINE = 'E3E6EF';
-  const pres = new PptxGenJS();
+  const pres = mevcutSunum || new PptxGenJS();
+  if (!mevcutSunum){
   pres.layout = 'LAYOUT_WIDE';
   pres.author = 'ZAFER ÇOLAK';
   pres.company = 'ALO 144 Osmaniye';
   pres.title = 'Personel Karnesi Sunumu';
+  }
   const allYears = exportYearsList();
 
   // --- Kapak ---
-  {
+  if (!mevcutSunum){
     const s = pres.addSlide();
     s.background = { color: DARK };
     if (p.fotoUrl){
@@ -4194,7 +4222,7 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
 
   // --- Öne Çıkan Bulgular (varsa) - EN SON slayt(lar). Bulgu sayısı fazlaysa birden fazla
   // slayta bölünür. "Kişiye Gönderilecek" modunda sadece olumlu bulgular eklenir.
-  {
+  if (!mevcutSunum){
     const findings = personelFindings(selectedSicil, selectedYears, mode);
     if (findings.length){
       const PER_SLIDE = 12;
@@ -4214,7 +4242,235 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
   }
 
   const safeName = p.adSoyad.trim().replace(/\s+/g, '_');
-  await pres.writeFile({ fileName: `${safeName}_Personel_Karnesi.pptx` });
+  if (!mevcutSunum) await pres.writeFile({ fileName: `${safeName}_Personel_Karnesi.pptx` });
+}
+
+// ===== Personel Sunum (yeniden kuruldu 19.11.2026) =====
+// Analiz Sunumu ile aynı hesaplar (as* fonksiyonları). Kişinin takımı her ay o ayın VARDİYA
+// sekmesinden; puan dökümü PUANLAMA ÖLÇEĞİ'nden. "Kişiye gönderilecek" modunda başka personelin
+// adı/sırası geçmez, kıyas yalnız lokasyon ve kişinin kendi takım ortalamasıyla yapılır.
+function asTakimOf(D, abs, sicil){ const v = D.vardiya.get(abs); const x = v && v.get(sicil); return x ? x.takim : null; }
+function asKisiKayit(D, abs, sicil){ const pm = D.perf.get(abs); return pm ? pm.get(sicil) || null : null; }
+function asSira(st, puan){ if (!st || !st.n || puan === null) return null; return 1 + st.gecerli.filter(r => r.puan > puan).length; }
+
+// Parametrede bir üst basamağa / tam puana çıkmak için gereken değer ve kazanç
+function asGelisimAdimlari(D, rec){
+  const out = [];
+  D.olcek.params.filter(p => p.tur !== 'EK PUAN').forEach(p => {
+    const info = rec.params[p.col];
+    if (!info || info.olculmedi || info.kayip <= 0) return;
+    const bands = asBandsFor(D.olcek, p.col, rec.abs); // alt sınıra göre büyükten küçüğe
+    const yuksekIyi = bands[0].puan >= bands[bands.length - 1].puan;
+    const iyiler = bands.filter(b => b.puan > info.kazanilan).sort((a, b) => a.puan - b.puan); // en yakın iyi basamak önce
+    if (!iyiler.length) return;
+    const hedef = (b) => {
+      const u = asUnit(D, p.col, rec.abs);
+      if (p.tur === 'KESİNTİ') return b.lo === 0 && (b.hi === 0 || b.hi === null) ? 'yazılı uyarı almamak' : `${asFmt(b.hi === null ? b.lo : b.hi, 2)}${u} ve altı`;
+      if (yuksekIyi) return `${asFmt(b.lo, 2)}${u} ve üstü`;
+      return b.hi === null ? `${asFmt(b.lo, 2)}${u}` : (b.lo === b.hi ? `${asFmt(b.hi, 2)}${u}` : `${asFmt(b.hi, 2)}${u} ve altı`);
+    };
+    const bir = iyiler[0], tam = iyiler[iyiler.length - 1];
+    out.push({ p, deger: asDeger(D, p.col, info, rec.abs), birHedef: hedef(bir), birKazanc: bir.puan - info.kazanilan, tamHedef: hedef(tam), tamKazanc: tam.puan - info.kazanilan, yuv: bands[0].yuv });
+  });
+  return out.sort((a, b) => b.tamKazanc - a.tamKazanc || b.birKazanc - a.birKazanc);
+}
+
+async function generateKisiSunum(sicil, startAbs, endAbs, mod, temaKey, ekSlayt, eskiYillar, onProgress){
+  const D = await asLoadAll(endAbs, onProgress, startAbs < endAbs ? startAbs : null);
+  const pres = asKisiSunumOlustur(D, sicil, startAbs, endAbs, mod, temaKey);
+  const p = (typeof PERSONNEL !== 'undefined' ? PERSONNEL : []).find(x => x.sicil === sicil);
+  if (p && p.fotoUrl && typeof fetchDrivePhotoAsDataUrl === 'function'){
+    try { const url = await fetchDrivePhotoAsDataUrl(p.fotoUrl); if (url && pres._kapak) pres._kapak.addImage({ data: url, x: 0.6, y: 0.55, w: 1.25, h: 1.25, rounding: true }); } catch(e){}
+  }
+  if (ekSlayt && typeof generatePresentation === 'function') await generatePresentation(eskiYillar || [], mod, null, null, pres);
+  const ad = p ? p.adSoyad : (asPersonName(D, endAbs, sicil, sicil));
+  await pres.writeFile({ fileName: `Personel Sunumu - ${ad} - ${startAbs < endAbs ? asLabelOf(startAbs) + ' - ' : ''}${asLabelOf(endAbs)}${mod === 'ic' ? ' (iç kullanım)' : ''}.pptx` });
+}
+
+function asKisiSunumOlustur(D, sicil, A, M, mod, temaKey){
+  const T = AS_TEMALAR[temaKey] || AS_TEMALAR.beyaz;
+  const BG = T.BG, TX = T.TX, ACCENT = T.ACCENT, DIM = T.DIM, OK = T.OK, BAD = T.BAD, LINE = T.LINE, CELL = T.CELL, HEAD = T.HEAD;
+  const W = 13.33;
+  const ic = mod === 'ic';
+  const aylar = []; for (let a = Math.min(A, M); a <= M; a++) aylar.push(a);
+  const P = (typeof PERSONNEL !== 'undefined' ? PERSONNEL : []).find(x => x.sicil === sicil);
+  const ad = P ? P.adSoyad : asPersonName(D, M, sicil, sicil);
+  const R = {}, LOK = {}, TAK = {}, TK = {}, KR = {};
+  aylar.forEach(a => {
+    R[a] = asKisiKayit(D, a, sicil);
+    LOK[a] = asMonthStats(D, a, { tip: 'lokasyon' });
+    TK[a] = asTakimOf(D, a, sicil);
+    TAK[a] = TK[a] ? asMonthStats(D, a, { tip: 'takim', lider: TK[a] }) : null;
+    const k = D.karne.get(a); KR[a] = k ? k.get(sicil) || null : null;
+  });
+  const gecerli = a => R[a] && !R[a].durum && R[a].tutarli;
+  const gAy = aylar.filter(gecerli);
+  const son = gAy[gAy.length - 1], onc = gAy.length > 1 ? gAy[gAy.length - 2] : undefined, ilk = gAy[0];
+  const puanP = D.olcek.params.filter(p => p.tur === 'PUAN'), kesP = D.olcek.params.filter(p => p.tur === 'KESİNTİ');
+  const donemAd = aylar.length > 1 ? `${asLabelOf(aylar[0])} – ${asLabelOf(M)}` : asLabelOf(M);
+
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_WIDE'; pres.author = 'ZAFER ÇOLAK'; pres.company = 'ALO 144 Osmaniye'; pres.title = 'Personel Sunumu';
+  const th = (t, o) => ({ text: t, options: Object.assign({ bold: true, color: 'FFFFFF', fill: { color: HEAD }, align: 'center', valign: 'middle' }, o || {}) });
+  const td = (t, o) => ({ text: String(t), options: Object.assign({ color: TX, align: 'center', valign: 'middle' }, o || {}) });
+  const tblBase = { border: { type: 'solid', color: LINE, pt: 0.5 }, fill: { color: CELL }, fontFace: 'Arial', fontSize: 10.5, color: TX };
+  let no = 0;
+  function slide(baslik, sonuc, kaynak, hesap){
+    const s = pres.addSlide(); s.background = { color: BG }; no++;
+    if (T.BAND) s.addShape('rect', { x: 0, y: 0, w: W, h: 0.55, fill: { color: T.BAND }, line: { type: 'none' } });
+    if (T.FOOTLINE) s.addShape('rect', { x: 0.5, y: 6.55, w: W - 1, h: 0.012, fill: { color: T.FOOTLINE }, line: { type: 'none' } });
+    s.addText(baslik.toLocaleUpperCase('tr-TR'), { x: 0.5, y: 0.13, w: 8.5, h: 0.3, fontFace: 'Arial', fontSize: 11, bold: true, color: T.BAND ? 'FFFFFF' : ACCENT, charSpacing: 1 });
+    s.addText(`${ad} · ${donemAd}`, { x: 8.3, y: 0.13, w: 4.55, h: 0.3, fontFace: 'Arial', fontSize: 10, color: T.BAND ? 'D6DEEA' : DIM, align: 'right' });
+    s.addText(sonuc, { x: 0.5, y: 0.68, w: W - 1, h: 0.95, fontFace: 'Georgia', fontSize: 19, bold: true, color: T.TITLE || TX, valign: 'top', fit: 'shrink' });
+    const f = [];
+    if (kaynak) f.push({ text: 'Kaynak: ', options: { bold: true, color: DIM } }, { text: kaynak, options: { color: DIM, breakLine: !!hesap } });
+    if (hesap) f.push({ text: 'Hesap: ', options: { bold: true, color: DIM } }, { text: hesap, options: { color: DIM } });
+    if (f.length) s.addText(f, { x: 0.5, y: 6.62, w: W - 1.4, h: 0.72, fontFace: 'Arial', fontSize: 8.5, valign: 'bottom' });
+    s.addText(String(no), { x: W - 0.8, y: 7.0, w: 0.4, h: 0.3, fontFace: 'Arial', fontSize: 9, color: DIM, align: 'right' });
+    return s;
+  }
+  const durumAd = a => R[a] ? (R[a].durum || (!R[a].tutarli ? 'tutmuyor' : null)) : 'kayıt yok';
+
+  // ---- 1. Kapak ----
+  {
+    const s = pres.addSlide(); s.background = { color: BG }; no++; pres._kapak = s;
+    if (T.BAND) s.addShape('rect', { x: 0, y: 0, w: W, h: 0.3, fill: { color: T.BAND }, line: { type: 'none' } });
+    s.addText(`ALO 144 OSMANİYE · PERSONEL SUNUMU${ic ? ' · İÇ KULLANIM' : ''}`, { x: 2.1, y: 0.75, w: 10, h: 0.35, fontFace: 'Arial', fontSize: 12, bold: true, color: ACCENT, charSpacing: 2 });
+    s.addText(ad, { x: 2.1, y: 1.1, w: 10.6, h: 0.7, fontFace: 'Georgia', fontSize: 30, bold: true, color: T.TITLE || TX, fit: 'shrink' });
+    const kidem = P && typeof kidemHesapla === 'function' && P.iseGirisDate ? kidemHesapla(P.iseGirisDate).text : null;
+    s.addText(`Sicil ${sicil}${P && P.gorevi ? '   ·   ' + P.gorevi : ''}${kidem ? '   ·   Kıdem ' + kidem : ''}   ·   ${donemAd}`, { x: 2.1, y: 1.8, w: 10.6, h: 0.35, fontFace: 'Arial', fontSize: 13, color: DIM });
+    if (T.FOOTLINE) s.addShape('rect', { x: 0.6, y: 2.35, w: 1.2, h: 0.06, fill: { color: T.FOOTLINE }, line: { type: 'none' } });
+    const b = [];
+    if (son !== undefined){
+      b.push(`${asLabelOf(son)} performans puanı ${asFmt(R[son].puan, 0)}` + (onc !== undefined ? ` (${asLabelOf(onc)}: ${asFmt(R[onc].puan, 0)}).` : '.'));
+      if (gAy.length > 1){
+        const ko = asAvg(gAy.map(a => R[a].puan)), lo = asAvg(gAy.map(a => LOK[a] && LOK[a].n ? LOK[a].ortPuan : null));
+        b.push(`Dönem ortalaması ${asFmt(ko)}; aynı ayların lokasyon ortalaması ${asFmt(lo)} (${asSigned(ko - lo)} puan).`);
+      }
+      const kayipTop = puanP.concat(kesP).map(p => ({ p, v: asSum(gAy.map(a => R[a].params[p.col] ? R[a].params[p.col].kayip : 0)), n: gAy.filter(a => R[a].params[p.col] && R[a].params[p.col].kayip > 0).length })).filter(x => x.v > 0).sort((x, y) => y.v - x.v);
+      const tamlar = puanP.filter(p => gAy.every(a => R[a].params[p.col] && !R[a].params[p.col].olculmedi && R[a].params[p.col].kayip === 0)).filter(p => !gAy.every(a => LOK[a] && LOK[a].params[p.col] && LOK[a].params[p.col].hepsiSifir));
+      if (tamlar.length) b.push(`Dönem boyunca her ay tam puan: ${tamlar.map(p => p.param).join(', ')}.`);
+      if (kayipTop.length) b.push(ic ? `En çok puan kaybı ${kayipTop[0].p.param}: ${gAy.length} ayın ${kayipTop[0].n}'inde, toplam ${asFmt(kayipTop[0].v, 0)} puan.` : `En çok gelişim alanı: ${kayipTop[0].p.param} (${gAy.length} ayın ${kayipTop[0].n}'inde tam puanın altında).`);
+    } else b.push('Seçilen dönemde değerlendirilmiş performans kaydı yok.');
+    s.addText(b.map(t => ({ text: t, options: { bullet: { code: '25A0' }, paraSpaceAfter: 10 } })), { x: 0.6, y: 2.7, w: 12.1, h: 3.0, fontFace: 'Arial', fontSize: 16, color: TX, valign: 'top' });
+    const dis = aylar.filter(a => durumAd(a)).map(a => `${asShort(a)}: ${durumAd(a)}`);
+    s.addText([{ text: 'Kaynaklar: ', options: { bold: true, color: DIM } }, { text: 'OSMANİYE-PERFORMANS (ay sekmeleri + PUANLAMA ÖLÇEĞİ), VARDİYA, PERSONEL KARNESİ.' + (dis.length ? ` Değerlendirilmeyen aylar: ${dis.join(', ')}.` : ''), options: { color: DIM } }], { x: 0.6, y: 6.2, w: 12.1, h: 0.6, fontFace: 'Arial', fontSize: 9.5, valign: 'top' });
+    s.addText(`Hazırlanma: ${new Date().toLocaleDateString('tr-TR')}`, { x: 0.6, y: 6.95, w: 4, h: 0.3, fontFace: 'Arial', fontSize: 9, color: DIM });
+  }
+
+  // ---- 2. Puan gelişimi ----
+  {
+    const ust = gAy.filter(a => LOK[a] && LOK[a].n && R[a].puan >= LOK[a].ortPuan).length;
+    const sonuc = gAy.length >= 2 ? `Puan ${asLabelOf(ilk)} ${asFmt(R[ilk].puan, 0)} → ${asLabelOf(son)} ${asFmt(R[son].puan, 0)}; değerlendirilen ${gAy.length} ayın ${ust} tanesinde lokasyon ortalamasının üstünde.`
+      : son !== undefined ? `${asLabelOf(son)} puanı ${asFmt(R[son].puan, 0)}; lokasyon ortalaması ${asFmt(LOK[son].ortPuan)}.` : 'Veri yok.';
+    const s = slide('Puan gelişimi', sonuc, 'OSMANİYE-PERFORMANS; VARDİYA (takım); PERSONEL KARNESİ (çağrı, iş günü).',
+      `Takım ortalaması = kişinin o ay VARDİYA'da bağlı olduğu takımın ortalaması (takım ay ay değişebilir).${ic ? ' Sıra = o ayın değerlendirilen personeli içinde.' : ''}`);
+    const ser = [{ name: 'Puan', labels: aylar.map(asShort), values: aylar.map(a => gecerli(a) ? R[a].puan : null) },
+      { name: 'Takım ort.', labels: aylar.map(asShort), values: aylar.map(a => TAK[a] && TAK[a].n ? Number(TAK[a].ortPuan.toFixed(1)) : null) },
+      { name: 'Lokasyon ort.', labels: aylar.map(asShort), values: aylar.map(a => LOK[a] && LOK[a].n ? Number(LOK[a].ortPuan.toFixed(1)) : null) }];
+    if (aylar.length >= 2) s.addChart('line', ser, { x: 0.5, y: 1.6, w: W - 1, h: 2.3, chartColors: [ACCENT, '9AA3B5', BAD === 'C0392B' ? '44546A' : '5B9CF6'], lineSize: 2, lineDataSymbolSize: 6, showLegend: true, legendPos: 'r', legendColor: TX, legendFontSize: 9,
+      showValue: false, catAxisLabelColor: TX, valAxisLabelColor: DIM, valAxisLabelFontSize: 8, catAxisLabelFontSize: 9, valGridLine: { color: LINE, size: 0.5 }, displayBlanksAs: 'gap' });
+    const ay = aylar.map(a => th(asShort(a)));
+    const rows = [[th('Gösterge', { align: 'left' })].concat(ay)];
+    rows.push([td('Performans puanı', { align: 'left', bold: true })].concat(aylar.map(a => gecerli(a) ? td(asFmt(R[a].puan, 0), { bold: true, color: ACCENT }) : td(durumAd(a), { color: DIM, fontSize: 8 }))));
+    rows.push([td('Takım lideri', { align: 'left', bold: true })].concat(aylar.map(a => td(TK[a] || '—', { fontSize: 7.5, color: DIM }))));
+    rows.push([td('Takım ortalaması', { align: 'left', bold: true })].concat(aylar.map(a => td(TAK[a] && TAK[a].n ? asFmt(TAK[a].ortPuan) : '—'))));
+    rows.push([td('Lokasyon ortalaması', { align: 'left', bold: true })].concat(aylar.map(a => td(LOK[a] && LOK[a].n ? asFmt(LOK[a].ortPuan) : '—'))));
+    if (ic){
+      rows.push([td('Lokasyonda sıra', { align: 'left', bold: true })].concat(aylar.map(a => td(gecerli(a) ? `${asSira(LOK[a], R[a].puan)}/${LOK[a].n}` : '—'))));
+      rows.push([td('Takımda sıra', { align: 'left', bold: true })].concat(aylar.map(a => td(gecerli(a) && TAK[a] ? `${asSira(TAK[a], R[a].puan)}/${TAK[a].n}` : '—'))));
+    }
+    rows.push([td('Çağrı sayısı (Karne)', { align: 'left', bold: true })].concat(aylar.map(a => td(KR[a] && KR[a].cagri !== null ? asFmt(KR[a].cagri, 0) : '—'))));
+    rows.push([td('İş günü (Karne)', { align: 'left', bold: true })].concat(aylar.map(a => td(KR[a] && KR[a].isGunu !== null ? asFmt(KR[a].isGunu, 0) : '—'))));
+    s.addTable(rows, Object.assign({ x: 0.5, y: aylar.length >= 2 ? 4.0 : 1.7, w: W - 1, colW: [2.4].concat(Array(aylar.length).fill((W - 3.4) / aylar.length)), rowH: 0.27, fontSize: aylar.length > 8 ? 8 : 9.5 }, tblBase));
+  }
+
+  // ---- 3. Son ayın puan dökümü ----
+  if (son !== undefined){
+    const r = R[son], o = onc !== undefined ? R[onc] : null;
+    const kayiplar = puanP.concat(kesP).filter(p => r.params[p.col] && r.params[p.col].kayip > 0).sort((a, b) => r.params[b.col].kayip - r.params[a.col].kayip);
+    const max = asSum(puanP.map(p => asMaxPuan(D.olcek, p.col, son)));
+    const sonuc = kayiplar.length ? `${asLabelOf(son)}: ${asFmt(max, 0)} üzerinden ${asFmt(r.puan, 0)}. Puan ${kayiplar.slice(0, 3).map(p => `${p.param} (−${asFmt(r.params[p.col].kayip, 0)})`).join(', ')}${kayiplar.length > 3 ? ' ve diğerlerinden' : ''} gitti.`
+      : `${asLabelOf(son)}: tüm parametrelerden tam puan (${asFmt(r.puan, 0)}).`;
+    const s = slide(`${asLabelOf(son)} puan dökümü`, sonuc, `OSMANİYE-PERFORMANS ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`, `Basamak = değerin ölçekteki aralığı. Kayıp = en yüksek puan − alınan puan; yazılı uyarıda kesinti.${o ? ` Fark: ${asLabelOf(onc)} ile.` : ''}`);
+    const rows = [[th('Parametre', { align: 'left' }), th('Değer'), th('Basamak (değer → puan)', { align: 'left' }), th('Alınan'), th('En yüksek'), th('Kayıp'), th(o ? `${asShort(onc)} değeri` : '—'), th('Puan farkı')]];
+    D.olcek.params.forEach(p => {
+      const i = r.params[p.col]; if (!i) return;
+      const bl = asBandsFor(D.olcek, p.col, son); const yv = i.deger === null ? null : (bl[0] && bl[0].yuv !== null && bl[0].yuv !== undefined ? Number(i.deger.toFixed(bl[0].yuv)) : i.deger);
+      const b = bl.find(x => x.puan === i.kazanilan && (yv === null || yv >= x.lo));
+      const oi = o && o.params[p.col];
+      const fark = oi ? i.kazanilan - oi.kazanilan : null;
+      const bas = b ? (b.hi === null ? `${asFmt(b.lo, 2)}+` : b.lo === b.hi ? asFmt(b.lo, 2) : `${asFmt(b.lo, 2)}–${asFmt(b.hi, 2)}`) + ` → ${b.puan}` : '—';
+      rows.push([td(p.param, { align: 'left', bold: true }), td(asDeger(D, p.col, i, son), { bold: true }), td(i.olculmedi ? 'ölçülmedi' : bas, { align: 'left', fontSize: 9, color: DIM }), td(asFmt(i.kazanilan, 0)),
+        td(p.tur === 'PUAN' ? asFmt(i.max, 0) : p.tur === 'KESİNTİ' ? '0' : '+' + asFmt(i.max, 0)), td(i.kayip > 0 ? `−${asFmt(i.kayip, 0)}` : '—', { bold: i.kayip > 0, color: i.kayip > 0 ? BAD : DIM }),
+        td(oi ? asDeger(D, p.col, oi, onc) : '—', { color: DIM }), td(fark === null || fark === 0 ? '—' : asSigned(fark, 0), { bold: true, color: fark > 0 ? OK : fark < 0 ? BAD : DIM })]);
+    });
+    rows.push([td('Performans puanı', { align: 'left', bold: true, color: ACCENT }), td(''), td(''), td(asFmt(r.puan, 0), { bold: true, color: ACCENT }), td(asFmt(max, 0)), td(''), td(o ? asFmt(o.puan, 0) : '—', { color: DIM }), td(o ? asSigned(r.puan - o.puan, 0) : '—', { bold: true, color: o && r.puan >= o.puan ? OK : BAD })]);
+    s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.4, 1.5, 2.9, 0.9, 1.0, 0.9, 1.5, 1.23], rowH: 0.37, fontSize: 10 }, tblBase));
+  }
+
+  // ---- 4. Parametre gelişimi ----
+  if (gAy.length >= 2){
+    const tops = puanP.concat(kesP).map(p => ({ p, v: asSum(gAy.map(a => R[a].params[p.col] ? R[a].params[p.col].kayip : 0)) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+    const sonuc = tops.length ? `Dönemde en çok puan ${tops[0].p.param} parametresinden gitti (toplam ${asFmt(tops[0].v, 0)} puan)${tops[1] ? `; ardından ${tops[1].p.param} (${asFmt(tops[1].v, 0)})` : ''}.` : 'Dönem boyunca hiçbir parametreden puan kaybı yok.';
+    const s = slide('Parametrelere göre gelişim', sonuc, 'OSMANİYE-PERFORMANS ay sekmeleri; PUANLAMA ÖLÇEĞİ (her ay kendi ölçeği).', 'Hücre = o ayki değer; kırmızı = o ay bu parametreden puan kaybı var. Son sütun dönemde kaybedilen toplam puan.');
+    const rows = [[th('Parametre', { align: 'left' })].concat(aylar.map(a => th(asShort(a)))).concat([th('Kayıp')])];
+    puanP.concat(kesP).forEach(p => {
+      rows.push([td(p.param, { align: 'left', bold: true })].concat(aylar.map(a => { if (!gecerli(a)) return td('—', { color: DIM }); const i = R[a].params[p.col]; return td(asDeger(D, p.col, i, a), { color: i && i.kayip > 0 ? BAD : TX, bold: i && i.kayip > 0, fontSize: 9 }); }))
+        .concat([td(asFmt(asSum(gAy.map(a => R[a].params[p.col] ? R[a].params[p.col].kayip : 0)), 0), { bold: true, color: ACCENT })]));
+    });
+    rows.push([td('Performans puanı', { align: 'left', bold: true, color: ACCENT })].concat(aylar.map(a => td(gecerli(a) ? asFmt(R[a].puan, 0) : '—', { bold: true, color: ACCENT }))).concat([td('')]));
+    s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.6].concat(Array(aylar.length).fill((W - 1 - 2.6 - 0.9) / aylar.length)).concat([0.9]), rowH: 0.38, fontSize: aylar.length > 8 ? 8.5 : 10 }, tblBase));
+  }
+
+  // ---- 5. Güçlü yönler ve tekrarlayan sorunlar ----
+  if (gAy.length >= 1){
+    const guclu = puanP.filter(p => gAy.every(a => R[a].params[p.col] && !R[a].params[p.col].olculmedi && R[a].params[p.col].kayip === 0))
+      .filter(p => !gAy.every(a => LOK[a] && LOK[a].params[p.col] && LOK[a].params[p.col].hepsiSifir)); // herkese 0 girilen ayları güçlü yön saymaz
+    const tekrar = puanP.concat(kesP).map(p => ({ p, n: gAy.filter(a => R[a].params[p.col] && R[a].params[p.col].kayip > 0).length, v: asSum(gAy.map(a => R[a].params[p.col] ? R[a].params[p.col].kayip : 0)) }))
+      .filter(x => x.n >= 2 && x.n > gAy.length / 2).sort((a, b) => b.n - a.n || b.v - a.v);
+    const sonuc = (guclu.length ? `${gAy.length} ayın hepsinde tam puan: ${guclu.map(p => p.param).join(', ')}.` : 'Her ay tam puan alınan parametre yok.') + ' ' +
+      (tekrar.length ? `${ic ? 'Tekrarlayan kayıp' : 'Tekrarlayan gelişim alanı'}: ${tekrar.map(x => `${x.p.param} (${x.n}/${gAy.length} ay)`).join(', ')}.` : 'Tekrarlayan kayıp yok.');
+    const s = slide('Güçlü yönler ve tekrarlayan konular', sonuc, 'OSMANİYE-PERFORMANS; PUANLAMA ÖLÇEĞİ.', '"Tekrarlayan" = değerlendirilen ayların yarısından fazlasında (en az 2 ay) puan kaybı. Herkese 0 girilen parametreler güçlü yön sayılmaz.');
+    s.addText('Güçlü yönler (her ay tam puan)', { x: 0.5, y: 1.6, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 11, bold: true, color: OK });
+    const g = [[th('Parametre', { align: 'left' }), th('Son değer'), th('Tam puan ay')]];
+    guclu.forEach(p => g.push([td(p.param, { align: 'left', bold: true }), td(asDeger(D, p.col, R[son].params[p.col], son)), td(`${gAy.length}/${gAy.length}`, { color: OK, bold: true })]));
+    if (guclu.length) s.addTable(g, Object.assign({ x: 0.5, y: 1.95, w: 5.9, colW: [2.6, 1.8, 1.5], rowH: 0.38 }, tblBase));
+    else s.addText('—', { x: 0.5, y: 2.0, w: 5, h: 0.3, fontFace: 'Arial', fontSize: 11, color: DIM });
+    s.addText(ic ? 'Tekrarlayan kayıplar' : 'Tekrarlayan gelişim alanları', { x: 6.9, y: 1.6, w: 6, h: 0.3, fontFace: 'Arial', fontSize: 11, bold: true, color: BAD });
+    const k = [[th('Parametre', { align: 'left' }), th('Kayıp ay'), th('Son değer'), th('Kaybedilen puan')]];
+    tekrar.forEach(x => k.push([td(x.p.param, { align: 'left', bold: true }), td(`${x.n}/${gAy.length}`, { color: BAD, bold: true }), td(asDeger(D, x.p.col, R[son].params[x.p.col], son)), td(asFmt(x.v, 0))]));
+    if (tekrar.length) s.addTable(k, Object.assign({ x: 6.9, y: 1.95, w: 5.93, colW: [2.2, 1.1, 1.4, 1.23], rowH: 0.38 }, tblBase));
+    else s.addText('—', { x: 6.9, y: 2.0, w: 5, h: 0.3, fontFace: 'Arial', fontSize: 11, color: DIM });
+  }
+
+  // ---- 6. Puanı artırmak için ----
+  if (son !== undefined){
+    const adim = asGelisimAdimlari(D, R[son]);
+    const sonuc = adim.length ? `En çok puan kazandıracak adımlar: ${adim.slice(0, 3).map(x => `${x.p.param} ${x.tamHedef} (+${asFmt(x.tamKazanc, 0)})`).join(', ')}.` : `${asLabelOf(son)} itibarıyla artırılabilecek puan yok; tüm parametreler tam puanda.`;
+    const s = slide('Puanı artırmak için', sonuc, `OSMANİYE-PERFORMANS ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`, `${asLabelOf(son)} değerine göre. Bir üst basamak ve tam puan için gereken değer; kazanç = alınacak puan − şimdiki puan. Anket 1 ondalığa yuvarlanarak değerlendirilir.`);
+    if (adim.length){
+      const rows = [[th('Parametre', { align: 'left' }), th('Şimdiki değer'), th('Bir üst basamak', { align: 'left' }), th('Kazanç'), th('Tam puan için', { align: 'left' }), th('Kazanç')]];
+      adim.forEach(x => rows.push([td(x.p.param, { align: 'left', bold: true }), td(x.deger, { bold: true }), td(x.birHedef, { align: 'left' }), td(`+${asFmt(x.birKazanc, 0)}`, { color: OK, bold: true }), td(x.tamHedef, { align: 'left' }), td(`+${asFmt(x.tamKazanc, 0)}`, { color: OK, bold: true })]));
+      const toplam = asSum(adim.map(x => x.tamKazanc));
+      rows.push([td('Hepsi tam puana çıkarsa', { align: 'left', bold: true, color: ACCENT }), td(''), td(''), td(''), td(`${asFmt(R[son].puan, 0)} → ${asFmt(R[son].puan + toplam, 0)}`, { align: 'left', bold: true, color: ACCENT }), td(`+${asFmt(toplam, 0)}`, { bold: true, color: ACCENT })]);
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.5, 1.6, 2.9, 1.0, 3.33, 1.0], rowH: 0.42, fontSize: 11 }, tblBase));
+    }
+  }
+
+  // ---- 7. (İç kullanım) Takım ve lokasyonla kıyas ----
+  if (ic && son !== undefined){
+    const r = R[son], lok = LOK[son], tak = TAK[son];
+    const fark = p => r.params[p.col].kayip - lok.params[p.col].ortKayip;
+    const kotu = puanP.concat(kesP).filter(p => r.params[p.col] && fark(p) > 0.5).sort((a, b) => fark(b) - fark(a));
+    const sonuc = `${asLabelOf(son)}: lokasyonda ${asSira(lok, r.puan)}./${lok.n}` + (tak ? `, takımında (${TK[son]}) ${asSira(tak, r.puan)}./${tak.n}` : '') + '.' + (kotu.length ? ` Lokasyon ortalamasından belirgin fazla kayıp: ${kotu.slice(0, 3).map(p => p.param).join(', ')}.` : '');
+    const s = slide('Takım ve lokasyonla kıyas', sonuc, `OSMANİYE-PERFORMANS ${asKeyOf(son)}; VARDİYA ${asKeyOf(son)}.`, 'Kişinin kaybı ile o ayki takımının ve lokasyonun kişi başı ortalama kaybı. Sıra: aynı puanlılar aynı sırayı alır.');
+    const rows = [[th('Parametre', { align: 'left' }), th('Kişi değeri'), th('Kişi kaybı'), th('Takım ort. kayıp'), th('Lokasyon ort. kayıp'), th('Lokasyona fark')]];
+    puanP.concat(kesP).forEach(p => { const i = r.params[p.col]; if (!i) return; const f = fark(p);
+      rows.push([td(p.param, { align: 'left', bold: true }), td(asDeger(D, p.col, i, son)), td(asFmt(i.kayip, 0), { bold: i.kayip > 0, color: i.kayip > 0 ? BAD : TX }), td(tak && tak.n ? asFmt(tak.params[p.col].ortKayip, 2) : '—'), td(asFmt(lok.params[p.col].ortKayip, 2)), td(asSigned(f, 2), { bold: true, color: f > 0.005 ? BAD : f < -0.005 ? OK : TX })]); });
+    s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.8, 1.9, 1.6, 2.0, 2.0, 2.03], rowH: 0.38, fontSize: 10.5 }, tblBase));
+  }
+  return pres;
 }
 
 // ===== Analiz Sunumu (yeniden kuruldu 19.11.2026) =====
