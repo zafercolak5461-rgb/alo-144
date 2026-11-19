@@ -600,6 +600,9 @@ body{
   .wk-gt td.wk-gt-ad{ font-family:Arial, sans-serif; font-size:13px; color:#114533; min-width:190px; text-align:left; }
   .wk-gt td.wk-gt-y{ text-align:right; }
   .wk-gt td.wk-gt-not{ border:none !important; font-size:12px; color:#444; text-align:left; padding-top:6px; }
+  .wk-gt .wk-gt-d{ font-size:11px; color:#333; margin-top:1px; }
+  .wk-gt .wk-gt-d .wk-gt-ok{ float:none; margin-right:3px; font-size:10px; }
+  .wk-gt td.wk-gt-tarih{ text-align:left; font-family:Arial, sans-serif; font-size:13px; color:#114533; }
   .wk-gt-ok{ float:left; font-size:12px; margin-right:6px; } .wk-gt-ok.yukari{ color:#00B050; } .wk-gt-ok.asagi{ color:#E03C31; }
 
   .single-metrics{
@@ -1085,7 +1088,7 @@ html.gorunum-beyaz .nav-group-title::before, html.gorunum-beyaz .nav-group-title
     <div class="tab" data-tab="detay">Detaylı Liste</div>
     <div class="tab" data-tab="tekgun">Tek Gün</div>
     <div class="tab" data-tab="aylik">Aylık Özet</div>
-    <div class="tab" data-tab="haftalik">Haftalık</div>
+    <div class="tab" data-tab="haftalik">Karşılaştırma</div>
     <div class="tab islem-only" data-tab="islem">Güncelleme</div>
   </div>
 
@@ -1198,11 +1201,16 @@ html.gorunum-beyaz .nav-group-title::before, html.gorunum-beyaz .nav-group-title
   <div class="tab-content" id="tab-haftalik">
     <div class="panel" style="margin-bottom:16px;">
       <div class="panel-head">
-        Haftalık Karşılaştırma
+        <span id="wkTitle">Haftalık Karşılaştırma</span>
         <span class="count" id="wkInfo"></span>
       </div>
       <div style="padding:14px 20px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--line);">
-        <div class="date-input-group">
+        <div class="preset-group" id="wkPeriodGroup">
+          <button class="preset-btn" data-period="gun">Günlük</button>
+          <button class="preset-btn active" data-period="hafta">Haftalık</button>
+          <button class="preset-btn" data-period="ay">Aylık</button>
+        </div>
+        <div class="date-input-group" id="wkStartDowWrap">
           <label>Hafta başlangıcı</label>
           <select id="wkStartDow">
             <option value="1">Pazartesi</option>
@@ -1214,10 +1222,12 @@ html.gorunum-beyaz .nav-group-title::before, html.gorunum-beyaz .nav-group-title
             <option value="0">Pazar</option>
           </select>
         </div>
-        <div class="date-input-group">
-          <label>Hafta</label>
+        <div class="date-input-group" id="wkSelectWrap">
+          <label id="wkSelectLabel">Hafta</label>
           <select id="wkSelect"></select>
         </div>
+        <div class="date-input-group wk-gun-only"><label>Başlangıç</label><input type="date" id="wkGunFrom"></div>
+        <div class="date-input-group wk-gun-only"><label>Bitiş</label><input type="date" id="wkGunTo"></div>
         <div class="preset-group" id="wkTopModeGroup">
           <button class="preset-btn active" data-mode="total">Toplam</button>
           <button class="preset-btn" data-mode="perday">İş günü ortalaması</button>
@@ -1239,8 +1249,8 @@ html.gorunum-beyaz .nav-group-title::before, html.gorunum-beyaz .nav-group-title
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head">
+    <div class="panel" id="wkListPanel">
+      <div class="panel-head" id="wkListPanelHead">
         Tüm Haftalar
         <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <div class="preset-group" id="wkModeGroup">
@@ -4478,19 +4488,28 @@ const aylikChart = createSlotChartPanel({
 });
 
 
-// ===== HAFTALIK (19.11.2026) =====
-// Gelen Arama Dağılımı verisinden haftalık karşılaştırma. Yeni veri kaynağı yok - ALL_ROWS,
+// ===== KARŞILAŞTIRMA SEKMESİ (19.11.2026) — Günlük / Haftalık / Aylık =====
+// Gelen Arama Dağılımı verisinden dönem karşılaştırması. Yeni veri kaynağı yok - ALL_ROWS,
 // COLUMN_DEFS ve COL kullanılır; sütunlar yine başlık adından bulunur, toplam/ortalama kuralı
 // Aylık Özet ile aynıdır (sayım -> toplam, oran/süre -> ortalama, köpük oranında 0 hariç).
 // - İş günü: Gelen Çağrı sütununda 0'dan büyük sayı olan gün. OFF günler hiç hesaba girmez.
-// - Hafta başlangıç günü yalnız bu ekrandan seçilir (varsayılan Pazartesi, kalıcı değil).
-// - İçinde bulunulan hafta "devam ediyor": toplamlar karşılaştırılmaz, sadece iş günü
-//   ortalaması karşılaştırılır.
-// - Önceki hafta = seçili haftadan önceki, en az bir iş günü olan hafta (tamamı tatil olan
-//   hafta atlanır).
+// - Haftalık: hafta başlangıç günü yalnız ekrandan seçilir (varsayılan Pazartesi, kalıcı değil).
+//   Devam eden haftada toplamlar karşılaştırılmaz, yalnız iş günü ortalaması karşılaştırılır.
+//   Önceki hafta = iş günü olan bir önceki hafta (tamamı tatil olan hafta atlanır).
+// - Aylık: tamamlanan ay tam ay ile karşılaştırılır. Devam eden ay, geçen ayın aynı tarih
+//   aralığıyla (1'inden son veri gününe kadar; geçen ay kısaysa ay sonunda kesilir) karşılaştırılır.
+//   İş günü farkı tablonun "İş Günü" satırında görünür.
+// - Günlük: seçilen aralıktaki her gün bir önceki iş günüyle karşılaştırılır.
+// Görünüm Veri Hazırlama > Günlük Tablo ile aynı (Excel tarzı tablo, resim, Excel).
+let WK_PERIOD = 'hafta';       // 'gun' | 'hafta' | 'ay'
 let WK_START_DOW = 1;          // 0=Pazar ... 6=Cumartesi
-let WK_SELECTED_KEY = null;    // seçili haftanın başlangıç tarihi (YYYY-MM-DD)
-let WK_LIST_MODE = 'total';    // 'total' | 'perday'
+const WK_SEL = { hafta:null, ay:null };   // seçili dönem anahtarı
+let WK_LIST_MODE = 'total';    // alt liste: 'total' | 'perday'
+let WK_TOP_MODE = 'total';     // üst tablo: 'total' | 'perday'
+const WK_HIDDEN = new Set();   // gizlenen sütun index'leri (yalnız ekran, kalıcı değil)
+let WK_GT = null;              // son çizilen tablo (resim/Excel aynı veriyi kullanır)
+const WK_GUN_VARSAYILAN = 15;  // Günlük'te ilk açılışta gösterilen iş günü sayısı
+const WK_GUN_ADLARI = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
 
 function wkIsWorkday(r){
   if (COL.gelen >= 0){
@@ -4507,28 +4526,71 @@ function wkStartOf(date){
   return d;
 }
 
-function wkFmt(d){ return d.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' }); }
-function wkLabel(w){ return `${wkFmt(w.start)} – ${wkFmt(w.end)}`; }
+const wkP2 = n => String(n).padStart(2, '0');
+function wkFmt(d){ return `${wkP2(d.getDate())}.${wkP2(d.getMonth() + 1)}.${d.getFullYear()}`; }
+function wkLabel(p){
+  if (p.tur === 'ay') return `${MONTH_NAMES[p.start.getMonth()]} ${p.start.getFullYear()}`;
+  if (p.tur === 'gun') return `${wkFmt(p.start)} ${WK_GUN_ADLARI[p.start.getDay()]}`;
+  return `${wkFmt(p.start)} – ${wkFmt(p.end)}`;
+}
+// Tablo başlığı için kısa etiket
+function wkKisa(p){
+  if (p.tur === 'ay') return `${MONTH_NAMES[p.start.getMonth()]} ${p.start.getFullYear()}`;
+  return `${wkP2(p.start.getDate())}.${wkP2(p.start.getMonth() + 1)}–${wkFmt(p.end)}`;
+}
 
-// Haftalar, eskiden yeniye. Yalnız iş günü olan haftalar döner.
-function wkBuildWeeks(){
+// Dönemler, eskiden yeniye. Yalnız iş günü olan dönemler döner.
+function wkBuildPeriods(tur){
+  const today = new Date(); today.setHours(0,0,0,0);
   const map = new Map();
   ALL_ROWS.forEach(r => {
     if (!wkIsWorkday(r)) return;
-    const start = wkStartOf(r.date);
-    const key = fmtDate(start);
-    if (!map.has(key)){
-      const end = new Date(start); end.setDate(end.getDate() + 6);
-      map.set(key, { key, start, end, rows: [] });
+    let start, end, key;
+    if (tur === 'gun'){
+      start = end = new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate());
+      key = fmtDate(start);
+    } else if (tur === 'ay'){
+      start = new Date(r.date.getFullYear(), r.date.getMonth(), 1);
+      end = new Date(r.date.getFullYear(), r.date.getMonth() + 1, 0);
+      key = fmtDate(start).slice(0, 7);
+    } else {
+      start = wkStartOf(r.date);
+      end = new Date(start); end.setDate(end.getDate() + 6);
+      key = fmtDate(start);
     }
+    if (!map.has(key)) map.set(key, { tur, key, start, end, rows: [] });
     map.get(key).rows.push(r);
   });
-  const today = new Date(); today.setHours(0,0,0,0);
-  return [...map.values()].sort((a,b) => a.start - b.start).map(w => {
-    w.days = w.rows.length;
-    w.inProgress = w.end >= today;
-    return w;
+  return [...map.values()].sort((a,b) => a.start - b.start).map(p => {
+    p.days = p.rows.length;
+    p.inProgress = tur !== 'gun' && p.end >= today;
+    return p;
   });
+}
+function wkBuildWeeks(){ return wkBuildPeriods('hafta'); }
+
+// Bir dönemin karşılaştırılacağı taraflar. cur/prev: { rows, days, etiket }.
+function wkPartner(periods, idx){
+  const sel = periods[idx], prev = idx > 0 ? periods[idx - 1] : null;
+  const out = {
+    cur: { rows: sel.rows, days: sel.days, etiket: wkKisa(sel) },
+    prev: prev ? { rows: prev.rows, days: prev.days, etiket: wkKisa(prev) } : null,
+    forcePerday: sel.tur === 'hafta' && sel.inProgress,
+    not: null
+  };
+  if (sel.tur === 'ay' && sel.inProgress && prev){
+    // Devam eden ay: geçen ayın aynı tarih aralığı (1 .. son veri günü; kısa ayda ay sonu).
+    const sonGun = sel.rows[sel.rows.length - 1].date.getDate();
+    const prevAySonu = prev.end.getDate();
+    const kesim = Math.min(sonGun, prevAySonu);
+    const rows = prev.rows.filter(r => r.date.getDate() <= kesim);
+    const ay = d => `${wkP2(d.getMonth() + 1)}.${d.getFullYear()}`;
+    out.cur.etiket = `01–${wkP2(sonGun)}.${ay(sel.start)}`;
+    out.prev = { rows, days: rows.length, etiket: `01–${wkP2(kesim)}.${ay(prev.start)}` };
+    out.not = `Ay devam ediyor: geçen ayın aynı tarih aralığıyla karşılaştırılıyor (iş günü farkı en üst satırda).`;
+  }
+  if (out.forcePerday) out.not = `Hafta devam ediyor (${sel.days} iş günü): sayılar iş günü ortalamasıdır.`;
+  return out;
 }
 
 function wkAgg(def, rows){
@@ -4539,12 +4601,11 @@ function wkAgg(def, rows){
   return def.agg === 'avg' ? avgForDef(values, def) : sum(values);
 }
 
-// Bir haftanın bir metrik için değeri. mode: 'total' | 'perday' (perday yalnız toplanan
-// sütunlarda farklıdır; ortalaması alınan sütunlar zaten günlük ortalamadır).
-function wkValue(def, w, mode){
-  const v = wkAgg(def, w.rows);
+// mode: 'total' | 'perday' (perday yalnız toplanan sütunlarda farklıdır).
+function wkValue(def, p, mode){
+  const v = wkAgg(def, p.rows);
   if (v === null) return null;
-  if (def.agg === 'sum' && mode === 'perday') return w.days ? v / w.days : null;
+  if (def.agg === 'sum' && mode === 'perday') return p.days ? v / p.days : null;
   return v;
 }
 
@@ -4556,9 +4617,8 @@ function wkFmtValue(v, def, mode){
   return formatMetricValue(v, def);
 }
 
-// Değişim metni. Yüzde sütunlarında (başlıkta %/oran geçen) fark "puan" olarak, diğerlerinde
-// fark + yüzde olarak yazılır. Ok ve renk, ekranda görünen yuvarlanmış farka göre belirlenir
-// (ekranda "0,0" yazarken kırmızı ok çıkmasın diye).
+// Değişim metni (alt liste). Yüzde sütunlarında fark "puan", diğerlerinde fark + yüzde.
+// Ok ve renk, ekranda görünen yuvarlanmış farka göre belirlenir.
 function wkDelta(cur, prev, def){
   if (cur === null || prev === null || cur === undefined || prev === undefined) return { html:'—', cls:'wk-flat', text:'—' };
   const diff = cur - prev;
@@ -4587,10 +4647,6 @@ function wkDelta(cur, prev, def){
   return { html: `<span class="${cls}">${text}</span>`, cls, text };
 }
 
-let WK_TOP_MODE = 'total';        // üst tablo: 'total' | 'perday' (devam eden haftada zorunlu perday)
-const WK_HIDDEN = new Set();      // tablodan gizlenen sütun index'leri (yalnız ekran, kalıcı değil)
-let WK_GT = null;                 // son çizilen tablonun verisi (Excel/resim aynı veriyi kullanır)
-
 // Günlük Tablo biçimleri: sayılar tr-TR, yüzde sütunları 2 ondalık + %, değişim yüzdesi tam sayı.
 function wkGtFmt(v, def, mode, signed){
   if (v === null || v === undefined || isNaN(v)) return '';
@@ -4605,100 +4661,228 @@ function wkGtFmt(v, def, mode, signed){
   else t = a.toLocaleString('tr-TR', { minimumFractionDigits:(a < 10 ? 2 : 1), maximumFractionDigits:(a < 10 ? 2 : 1) });
   return sign + t;
 }
+const wkOk = y => (y === null || Math.round(y * 100) === 0) ? '' : `<span class="wk-gt-ok ${y < 0 ? 'asagi' : 'yukari'}">${y < 0 ? '▼' : '▲'}</span>`;
+const wkYz = y => { if (y === null) return ''; const n = Math.round(y * 100); return (n < 0 ? '−' : '') + Math.abs(n) + '%'; };
+const wkVisibleDefs = () => COLUMN_DEFS.filter(def => !WK_HIDDEN.has(def.index));
 
-function wkGtData(selected, prev){
-  const mode = selected.inProgress ? 'perday' : WK_TOP_MODE;
-  const rows = COLUMN_DEFS.filter(def => !WK_HIDDEN.has(def.index)).map(def => {
+// --- Haftalık / Aylık: iki dönem karşılaştırma tablosu ---
+function wkGtData(partner, tur){
+  const mode = partner.forcePerday ? 'perday' : WK_TOP_MODE;
+  const { cur, prev } = partner;
+  const rows = wkVisibleDefs().map(def => {
     const m = def.agg === 'sum' ? mode : 'total';
-    const bu = wkValue(def, selected, m);
+    const bu = wkValue(def, cur, m);
     const once = prev ? wkValue(def, prev, m) : null;
     const fark = (bu !== null && once !== null) ? bu - once : null;
     const yuzde = (fark !== null && once) ? fark / Math.abs(once) : null;
     return { def, m, bu, once, fark, yuzde };
   });
-  const p2 = n => String(n).padStart(2, '0');
-  const kisa = w => `${p2(w.start.getDate())}.${p2(w.start.getMonth() + 1)}–${p2(w.end.getDate())}.${p2(w.end.getMonth() + 1)}.${w.end.getFullYear()}`;
   const ek = mode === 'perday' ? ' (gün ort.)' : '';
   const notlar = [];
-  if (selected.inProgress) notlar.push(`Hafta devam ediyor (${selected.days} iş günü): sayılar iş günü ortalamasıdır.`);
+  if (partner.not) notlar.push(partner.not);
   else if (mode === 'perday') notlar.push('Sayılar iş günü ortalamasıdır.');
   notlar.push('Oran ve süre satırları günlük değerlerin ortalamasıdır.');
+  const turAd = tur === 'ay' ? 'Aylık' : 'Haftalık';
   return {
-    rows, mode, notlar,
-    buEtiket: kisa(selected) + ek, onceEtiket: prev ? kisa(prev) + ek : 'Önceki hafta yok',
-    buGun: selected.days, onceGun: prev ? prev.days : null,
-    dosyaAdi: `Haftalık Karşılaştırma ${fmtDate(selected.start)}`
+    kind: 'donem', rows, mode, notlar, baslik: `ALO 144 — ${turAd}`,
+    buEtiket: cur.etiket + ek, onceEtiket: prev ? prev.etiket + ek : `Önceki ${tur === 'ay' ? 'ay' : 'hafta'} yok`,
+    buGun: cur.days, onceGun: prev ? prev.days : null,
+    dosyaAdi: `${turAd} Karşılaştırma ${cur.etiket.replace(/[\/\\:*?"<>|]/g, '-')}`
   };
 }
 
 function wkGtHtml(d){
-  const ok = y => (y === null || Math.round(y * 100) === 0) ? '' : `<span class="wk-gt-ok ${y < 0 ? 'asagi' : 'yukari'}">${y < 0 ? '▼' : '▲'}</span>`;
-  const yz = y => y === null ? '' : (y < 0 ? '−' : '') + Math.abs(Math.round(y * 100)) + '%';
-  let h = `<table class="wk-gt"><tr><th rowspan="2" class="wk-gt-acik">AÇIKLAMA</th><th colspan="4" class="wk-gt-144">ALO 144 — Haftalık</th></tr>`;
+  if (d.kind === 'gun') return wkGunHtml(d);
+  let h = `<table class="wk-gt"><tr><th rowspan="2" class="wk-gt-acik">AÇIKLAMA</th><th colspan="4" class="wk-gt-144">${d.baslik}</th></tr>`;
   h += `<tr><th class="wk-gt-once">${d.onceEtiket}</th><th class="wk-gt-bu">${d.buEtiket}</th><th>Fark</th><th>Yüzde</th></tr>`;
   h += `<tr><td class="wk-gt-ad">İş Günü</td><td>${d.onceGun ?? ''}</td><td>${d.buGun}</td><td>${d.onceGun !== null ? wkGtFmt(d.buGun - d.onceGun, { agg:'sum' }, 'total', true) : ''}</td><td></td></tr>`;
   d.rows.forEach(r => {
     h += `<tr><td class="wk-gt-ad">${r.def.name}</td><td>${wkGtFmt(r.once, r.def, r.m)}</td><td>${wkGtFmt(r.bu, r.def, r.m)}</td>` +
-         `<td>${wkGtFmt(r.fark, r.def, r.m, true)}</td><td class="wk-gt-y">${ok(r.yuzde)}${yz(r.yuzde)}</td></tr>`;
+         `<td>${wkGtFmt(r.fark, r.def, r.m, true)}</td><td class="wk-gt-y">${wkOk(r.yuzde)}${wkYz(r.yuzde)}</td></tr>`;
   });
   d.notlar.forEach(n => { h += `<tr><td colspan="5" class="wk-gt-not">${n}</td></tr>`; });
   return h + '</table>';
 }
 
+// --- Günlük: seçilen aralıktaki her gün, bir önceki iş günüyle ---
+function wkGunData(days, allDays){
+  const defs = wkVisibleDefs();
+  const gunler = days.map(p => {
+    const i = allDays.indexOf(p);
+    const prev = i > 0 ? allDays[i - 1] : null;
+    return {
+      tarih: wkLabel(p),
+      onceTarih: prev ? wkLabel(prev) : null,
+      hucreler: defs.map(def => {
+        const bu = wkValue(def, p, 'total');
+        const once = prev ? wkValue(def, prev, 'total') : null;
+        const yuzde = (bu !== null && once !== null && once) ? (bu - once) / Math.abs(once) : null;
+        return { bu, yuzde };
+      })
+    };
+  });
+  const ilk = days[0], son = days[days.length - 1];
+  return {
+    kind: 'gun', defs, gunler,
+    baslik: 'ALO 144 — Günlük (bir önceki iş gününe göre değişim)',
+    notlar: ['OFF günler atlanır; Pazartesi bir önceki Cuma ile karşılaştırılır.'],
+    dosyaAdi: `Günlük Karşılaştırma ${wkFmt(ilk.start)}-${wkFmt(son.start)}`
+  };
+}
+function wkGunHtml(d){
+  let h = `<table class="wk-gt"><tr><th rowspan="2" class="wk-gt-acik">TARİH</th><th colspan="${d.defs.length}" class="wk-gt-144">${d.baslik}</th></tr>`;
+  h += '<tr>' + d.defs.map(def => `<th class="wk-gt-bu">${def.name}</th>`).join('') + '</tr>';
+  d.gunler.forEach(g => {
+    h += `<tr><td class="wk-gt-tarih">${g.tarih}</td>` + g.hucreler.map((c, k) =>
+      `<td>${wkGtFmt(c.bu, d.defs[k], 'total')}<div class="wk-gt-d">${wkOk(c.yuzde)}${wkYz(c.yuzde)}</div></td>`
+    ).join('') + '</tr>';
+  });
+  d.notlar.forEach(n => { h += `<tr><td colspan="${d.defs.length + 1}" class="wk-gt-not">${n}</td></tr>`; });
+  return h + '</table>';
+}
+
+function wkShowControls(){
+  const isGun = WK_PERIOD === 'gun';
+  document.querySelectorAll('#wkPeriodGroup .preset-btn').forEach(b => b.classList.toggle('active', b.dataset.period === WK_PERIOD));
+  document.getElementById('wkStartDowWrap').style.display = WK_PERIOD === 'hafta' ? '' : 'none';
+  document.getElementById('wkSelectWrap').style.display = isGun ? 'none' : '';
+  document.getElementById('wkSelectLabel').textContent = WK_PERIOD === 'ay' ? 'Ay' : 'Hafta';
+  document.querySelectorAll('#tab-haftalik .wk-gun-only').forEach(e => e.style.display = isGun ? '' : 'none');
+  document.getElementById('wkTopModeGroup').style.display = isGun ? 'none' : '';
+  document.getElementById('wkListPanel').style.display = isGun ? 'none' : '';
+  document.getElementById('wkTitle').textContent = { gun:'Günlük Karşılaştırma', hafta:'Haftalık Karşılaştırma', ay:'Aylık Karşılaştırma' }[WK_PERIOD];
+}
+
 function renderWeekly(){
   const sel = document.getElementById('wkSelect');
+  if (!sel) return;
   const info = document.getElementById('wkInfo');
   const cHead = document.getElementById('wkCompareHead');
   const wrap = document.getElementById('wkGtWrap');
   const chips = document.getElementById('wkRowChips');
-  if (!sel) return;
+  wkShowControls();
 
-  const weeks = wkBuildWeeks();
-  if (!weeks.length){
+  const periods = wkBuildPeriods(WK_PERIOD);
+  if (!periods.length){
     sel.innerHTML = ''; info.textContent = ''; cHead.innerHTML = ''; chips.innerHTML = ''; WK_GT = null;
     wrap.innerHTML = `<div class="empty-state">${ALL_ROWS.length ? 'İş günü verisi bulunamadı.' : 'Veri çekilmedi — Yenile\'ye basın.'}</div>`;
-    renderWeeklyList(weeks);
+    renderWeeklyList(periods);
     return;
   }
-
-  // Seçim korunur: seçili haftanın başlangıç günü yeni hafta düzeninde hangi haftaya düşüyorsa o seçilir.
-  let selected = null;
-  if (WK_SELECTED_KEY){
-    const k = fmtDate(wkStartOf(new Date(WK_SELECTED_KEY + 'T00:00:00')));
-    selected = weeks.find(w => w.key === k) || null;
-  }
-  if (!selected) selected = weeks[weeks.length - 1];
-  WK_SELECTED_KEY = selected.key;
-
-  sel.innerHTML = [...weeks].reverse().map(w =>
-    `<option value="${w.key}">${wkLabel(w)} (${w.days} gün)${w.inProgress ? ' — devam ediyor' : ''}</option>`
-  ).join('');
-  sel.value = selected.key;
-  info.textContent = `${weeks.length} hafta`;
-
-  const idx = weeks.indexOf(selected);
-  const prev = idx > 0 ? weeks[idx - 1] : null;
-
-  // Devam eden haftada Toplam seçilemez (yalnız iş günü ortalaması karşılaştırılır).
-  document.querySelectorAll('#wkTopModeGroup .preset-btn').forEach(b => {
-    const m = selected.inProgress ? 'perday' : WK_TOP_MODE;
-    b.classList.toggle('active', b.dataset.mode === m);
-    b.disabled = selected.inProgress && b.dataset.mode === 'total';
-    b.title = b.disabled ? 'Hafta bitmediği için toplam karşılaştırılmıyor' : '';
-  });
-
-  cHead.innerHTML =
-    `<div>Seçili hafta: <b>${wkLabel(selected)}</b> (${selected.days} iş günü)${selected.inProgress ? '<span class="wk-badge">devam ediyor</span>' : ''}</div>` +
-    `<div>Önceki hafta: ${prev ? `<b>${wkLabel(prev)}</b> (${prev.days} iş günü)` : '<b>yok</b>'}</div>`;
 
   chips.innerHTML = COLUMN_DEFS.map(def =>
     `<button class="month-chip ${WK_HIDDEN.has(def.index) ? '' : 'active'}" data-wkcol="${def.index}">${def.name}</button>`
   ).join('');
 
-  WK_GT = wkGtData(selected, prev);
+  if (WK_PERIOD === 'gun'){
+    const fromEl = document.getElementById('wkGunFrom'), toEl = document.getElementById('wkGunTo');
+    fromEl.min = toEl.min = periods[0].key;
+    fromEl.max = toEl.max = periods[periods.length - 1].key;
+    if (!fromEl.value || !toEl.value){
+      toEl.value = periods[periods.length - 1].key;
+      fromEl.value = periods[Math.max(0, periods.length - WK_GUN_VARSAYILAN)].key;
+    }
+    const days = periods.filter(p => p.key >= fromEl.value && p.key <= toEl.value);
+    info.textContent = `${periods.length} iş günü`;
+    if (!days.length){
+      cHead.innerHTML = ''; WK_GT = null;
+      wrap.innerHTML = `<div class="empty-state">Seçilen aralıkta iş günü yok.</div>`;
+      return;
+    }
+    cHead.innerHTML = `<div>Seçili aralık: <b>${wkFmt(days[0].start)} – ${wkFmt(days[days.length - 1].start)}</b> (${days.length} iş günü)</div>` +
+      `<div>Her gün, bir önceki iş günüyle karşılaştırılıyor.</div>`;
+    WK_GT = wkGunData(days, periods);
+    wrap.innerHTML = wkGtHtml(WK_GT);
+    return;
+  }
+
+  // Haftalık / Aylık: seçim korunur. Haftada, hafta başlangıcı değişince eski seçimin başlangıç
+  // günü yeni düzende hangi haftaya düşüyorsa o seçilir.
+  let selected = null;
+  const k0 = WK_SEL[WK_PERIOD];
+  if (k0){
+    const k = WK_PERIOD === 'hafta' ? fmtDate(wkStartOf(new Date(k0 + 'T00:00:00'))) : k0;
+    selected = periods.find(p => p.key === k) || null;
+  }
+  if (!selected) selected = periods[periods.length - 1];
+  WK_SEL[WK_PERIOD] = selected.key;
+
+  sel.innerHTML = [...periods].reverse().map(p =>
+    `<option value="${p.key}">${wkLabel(p)} (${p.days} gün)${p.inProgress ? ' — devam ediyor' : ''}</option>`
+  ).join('');
+  sel.value = selected.key;
+  info.textContent = `${periods.length} ${WK_PERIOD === 'ay' ? 'ay' : 'hafta'}`;
+
+  const idx = periods.indexOf(selected);
+  const partner = wkPartner(periods, idx);
+  const prevP = idx > 0 ? periods[idx - 1] : null;
+
+  document.querySelectorAll('#wkTopModeGroup .preset-btn').forEach(b => {
+    const m = partner.forcePerday ? 'perday' : WK_TOP_MODE;
+    b.classList.toggle('active', b.dataset.mode === m);
+    b.disabled = partner.forcePerday && b.dataset.mode === 'total';
+    b.title = b.disabled ? 'Hafta bitmediği için toplam karşılaştırılmıyor' : '';
+  });
+
+  const ad = WK_PERIOD === 'ay' ? 'ay' : 'hafta';
+  cHead.innerHTML =
+    `<div>Seçili ${ad}: <b>${wkLabel(selected)}</b> (${selected.days} iş günü)${selected.inProgress ? '<span class="wk-badge">devam ediyor</span>' : ''}</div>` +
+    `<div>Önceki ${ad}: ${prevP ? `<b>${wkLabel(prevP)}</b> (${prevP.days} iş günü)` : '<b>yok</b>'}</div>` +
+    (WK_PERIOD === 'ay' && selected.inProgress && partner.prev ? `<div>Karşılaştırılan aralık: <b>${partner.cur.etiket}</b> ↔ <b>${partner.prev.etiket}</b></div>` : '');
+
+  WK_GT = wkGtData(partner, WK_PERIOD);
   wrap.innerHTML = wkGtHtml(WK_GT);
 
-  renderWeeklyList(weeks);
+  renderWeeklyList(periods);
+}
+
+function renderWeeklyList(periods){
+  const head = document.getElementById('wkListHead');
+  const body = document.getElementById('wkListBody');
+  const count = document.getElementById('wkListCount');
+  const fromEl = document.getElementById('wkListFrom');
+  const toEl = document.getElementById('wkListTo');
+  const panelHead = document.getElementById('wkListPanelHead');
+  const turAd = WK_PERIOD === 'ay' ? 'ay' : 'hafta';
+  const tn = [...panelHead.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+  if (tn) tn.textContent = WK_PERIOD === 'ay' ? 'Tüm Aylar ' : 'Tüm Haftalar ';
+  if (WK_PERIOD === 'gun') return;
+  if (!periods.length){
+    head.innerHTML = ''; body.innerHTML = ''; count.textContent = '';
+    return;
+  }
+  fromEl.min = toEl.min = fmtDate(periods[0].start);
+  fromEl.max = toEl.max = fmtDate(periods[periods.length - 1].end);
+
+  const from = fromEl.value ? new Date(fromEl.value + 'T00:00:00') : null;
+  const to = toEl.value ? new Date(toEl.value + 'T00:00:00') : null;
+
+  head.innerHTML = `<th>${WK_PERIOD === 'ay' ? 'Ay' : 'Hafta'}</th><th>İş günü</th>` + COLUMN_DEFS.map(def => {
+    const prefix = def.agg === 'sum' ? (WK_LIST_MODE === 'perday' ? 'Gün ort. ' : '') : 'Ort. ';
+    return `<th>${prefix}${def.name}</th>`;
+  }).join('');
+
+  const rowsHtml = [];
+  for (let i = periods.length - 1; i >= 0; i--){
+    const p = periods[i];
+    if (from && p.end < from) continue;
+    if (to && p.start > to) continue;
+    const partner = wkPartner(periods, i);
+    const cells = COLUMN_DEFS.map(def => {
+      // Devam eden haftada toplanan sütunlar her zaman iş günü ortalamasıyla karşılaştırılır.
+      const mode = (def.agg === 'sum' && partner.forcePerday) ? 'perday' : WK_LIST_MODE;
+      const cur = wkValue(def, p, mode);
+      const cmpCur = wkValue(def, partner.cur, mode);
+      const prv = partner.prev ? wkValue(def, partner.prev, mode) : null;
+      const d = partner.prev ? wkDelta(cmpCur, prv, def) : null;
+      const note = (def.agg === 'sum' && partner.forcePerday && WK_LIST_MODE === 'total') ? ' <span class="wk-flat">(gün ort.)</span>' : '';
+      return `<td><div>${wkFmtValue(cur, def, mode)}${note}</div>${d ? `<div class="wk-d ${d.cls}">${d.text}</div>` : ''}</td>`;
+    }).join('');
+    const kiyas = (p.tur === 'ay' && p.inProgress && partner.prev) ? `<div class="wk-d wk-flat">${partner.cur.etiket} ↔ ${partner.prev.etiket}</div>` : '';
+    rowsHtml.push(`<tr><td class="date">${wkLabel(p)}${p.inProgress ? '<span class="wk-badge">devam ediyor</span>' : ''}${kiyas}</td><td>${p.days}</td>${cells}</tr>`);
+  }
+  body.innerHTML = rowsHtml.length ? rowsHtml.join('') : `<tr><td class="empty-state" colspan="99">Seçilen aralıkta ${turAd} yok.</td></tr>`;
+  count.textContent = `${rowsHtml.length} ${turAd}`;
 }
 
 function wkDurum(msg, err){
@@ -4707,56 +4891,85 @@ function wkDurum(msg, err){
   el.style.color = err ? 'var(--danger)' : 'var(--text-dim)';
 }
 
-// Excel: Günlük Tablo'daki gibi kenarlıklı, renkli başlık; Yüzde sütununda 3 ok simge seti.
+// --- Excel: Günlük Tablo'daki gibi kenarlıklı, renkli başlık; yüzde sütunlarında 3 ok simge seti ---
+function wkExcelBicim(def, mode){
+  if (def.type === 'dur') return { bicim:'[h]:mm:ss', cevir: v => v / 86400 };
+  if (def.percentSymbol) return { bicim:'0.00%', cevir: v => v / 100 };
+  if (def.agg === 'sum') return { bicim: mode === 'perday' ? '#,##0.0' : '#,##0', cevir: v => v };
+  return { bicim:'#,##0.00', cevir: v => v };
+}
 async function wkExcel(){
   const d = WK_GT;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Zafer Çolak'; wb.lastModifiedBy = 'Zafer Çolak';
-  const ws = wb.addWorksheet('Haftalık');
-  ws.columns = [{ width:3 }, { width:30 }, { width:20 }, { width:20 }, { width:14 }, { width:12 }];
+  const ws = wb.addWorksheet(d.kind === 'gun' ? 'Günlük' : (d.baslik.includes('Aylık') ? 'Aylık' : 'Haftalık'));
   const ince = { style:'thin', color:{ argb:'FF000000' } };
   const kenar = { top:ince, left:ince, bottom:ince, right:ince };
-  const hucre = (adr, deger, o = {}) => {
-    const c = ws.getCell(adr);
-    if (deger !== undefined) c.value = deger;
-    c.font = { name: o.font || 'Calibri', size: o.size || 11, bold: !!o.kalin, color: o.renk ? { argb:'FF' + o.renk } : undefined };
-    c.alignment = { horizontal: o.yatay || 'center', vertical:'middle' };
-    if (o.dolgu) c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF' + o.dolgu } };
-    if (o.bicim) c.numFmt = o.bicim;
-    c.border = kenar;
-    return c;
+  const hucre = (r, c, deger, o = {}) => {
+    const x = ws.getCell(r, c);
+    if (deger !== undefined) x.value = deger;
+    x.font = { name: o.font || 'Calibri', size: o.size || 11, bold: !!o.kalin, color: o.renk ? { argb:'FF' + o.renk } : undefined };
+    x.alignment = { horizontal: o.yatay || 'center', vertical:'middle', wrapText: !!o.sar };
+    if (o.dolgu) x.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF' + o.dolgu } };
+    if (o.bicim) x.numFmt = o.bicim;
+    x.border = kenar;
+    return x;
   };
-  hucre('B2', 'AÇIKLAMA', { kalin:true, dolgu:'E2EFDA' }); hucre('B3', undefined, { dolgu:'E2EFDA' }); ws.mergeCells('B2:B3');
-  ['C2','D2','E2','F2'].forEach(a => hucre(a, undefined, { kalin:true, dolgu:'0070C0', renk:'FFFFFF' }));
-  ws.mergeCells('C2:F2'); hucre('C2', 'ALO 144 — Haftalık', { kalin:true, dolgu:'0070C0', renk:'FFFFFF' });
-  hucre('C3', d.onceEtiket, { dolgu:'FFE699' }); hucre('D3', d.buEtiket, { kalin:true, dolgu:'BDD7EE' });
-  hucre('E3', 'Fark', { kalin:true }); hucre('F3', 'Yüzde', { kalin:true });
-
+  const birles = (r1, c1, r2, c2, deger, o) => {
+    for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) hucre(r, c, undefined, o);
+    ws.mergeCells(r1, c1, r2, c2); hucre(r1, c1, deger, o);
+  };
+  const okSeti = (ref, priority) => ws.addConditionalFormatting({ ref, rules:[{ priority, type:'iconSet', iconSet:'3Arrows',
+    cfvo:[{ type:'percent', value:0 }, { type:'num', value:0 }, { type:'num', value:0 }] }] });
   const ad = { font:'Arial', size:10, renk:'114533', yatay:'left' };
-  let r = 4;
-  hucre(`B${r}`, 'İş Günü', ad); hucre(`C${r}`, d.onceGun, { bicim:'0' }); hucre(`D${r}`, d.buGun, { bicim:'0' });
-  hucre(`E${r}`, d.onceGun !== null ? d.buGun - d.onceGun : null, { bicim:'+0;-0;0' }); hucre(`F${r}`, null);
-  const ilk = r + 1;
-  d.rows.forEach(x => {
-    r++;
-    const def = x.def;
-    let bicim, cevir = v => v;
-    if (def.type === 'dur'){ bicim = '[h]:mm:ss'; cevir = v => v / 86400; }
-    else if (def.percentSymbol){ bicim = '0.00%'; cevir = v => v / 100; }
-    else if (def.agg === 'sum') bicim = x.m === 'perday' ? '#,##0.0' : '#,##0';
-    else bicim = '#,##0.00';
-    const deg = v => v === null ? null : cevir(v);
-    hucre(`B${r}`, def.name, ad);
-    hucre(`C${r}`, deg(x.once), { bicim });
-    hucre(`D${r}`, deg(x.bu), { bicim });
-    hucre(`E${r}`, deg(x.fark), { bicim: '+' + bicim + ';-' + bicim + ';' + bicim });
-    hucre(`F${r}`, x.yuzde, { bicim:'0%' });
-  });
-  if (r >= ilk){
-    ws.addConditionalFormatting({ ref:`F${ilk}:F${r}`, rules:[{ priority:1, type:'iconSet', iconSet:'3Arrows',
-      cfvo:[{ type:'percent', value:0 }, { type:'num', value:0 }, { type:'num', value:0 }] }] });
+  const harf = c => ws.getColumn(c).letter;
+  let r;
+
+  if (d.kind === 'gun'){
+    // B: Tarih; her metrik için iki sütun: değer + değişim yüzdesi
+    ws.getColumn(1).width = 3; ws.getColumn(2).width = 18;
+    birles(2, 2, 3, 2, 'TARİH', { kalin:true, dolgu:'E2EFDA' });
+    const son = 2 + d.defs.length * 2;
+    birles(2, 3, 2, son, d.baslik, { kalin:true, dolgu:'0070C0', renk:'FFFFFF' });
+    d.defs.forEach((def, k) => {
+      const c = 3 + k * 2;
+      ws.getColumn(c).width = 14; ws.getColumn(c + 1).width = 8;
+      birles(3, c, 3, c + 1, def.name, { kalin:true, dolgu:'BDD7EE', sar:true, size:10 });
+    });
+    ws.getRow(3).height = 30;
+    r = 3;
+    d.gunler.forEach(g => {
+      r++;
+      hucre(r, 2, g.tarih, ad);
+      g.hucreler.forEach((cl, k) => {
+        const c = 3 + k * 2, b = wkExcelBicim(d.defs[k], 'total');
+        hucre(r, c, cl.bu === null ? null : b.cevir(cl.bu), { bicim: b.bicim });
+        hucre(r, c + 1, cl.yuzde, { bicim:'0%', size:10 });
+      });
+    });
+    d.defs.forEach((def, k) => { const c = 4 + k * 2; okSeti(`${harf(c)}4:${harf(c)}${r}`, k + 1); });
+  } else {
+    ws.columns = [{ width:3 }, { width:30 }, { width:20 }, { width:20 }, { width:14 }, { width:12 }];
+    birles(2, 2, 3, 2, 'AÇIKLAMA', { kalin:true, dolgu:'E2EFDA' });
+    birles(2, 3, 2, 6, d.baslik, { kalin:true, dolgu:'0070C0', renk:'FFFFFF' });
+    hucre(3, 3, d.onceEtiket, { dolgu:'FFE699' }); hucre(3, 4, d.buEtiket, { kalin:true, dolgu:'BDD7EE' });
+    hucre(3, 5, 'Fark', { kalin:true }); hucre(3, 6, 'Yüzde', { kalin:true });
+    r = 4;
+    hucre(r, 2, 'İş Günü', ad); hucre(r, 3, d.onceGun, { bicim:'0' }); hucre(r, 4, d.buGun, { bicim:'0' });
+    hucre(r, 5, d.onceGun !== null ? d.buGun - d.onceGun : null, { bicim:'+0;-0;0' }); hucre(r, 6, null);
+    const ilk = r + 1;
+    d.rows.forEach(x => {
+      r++;
+      const b = wkExcelBicim(x.def, x.m), deg = v => v === null ? null : b.cevir(v);
+      hucre(r, 2, x.def.name, ad);
+      hucre(r, 3, deg(x.once), { bicim: b.bicim });
+      hucre(r, 4, deg(x.bu), { bicim: b.bicim });
+      hucre(r, 5, deg(x.fark), { bicim: '+' + b.bicim + ';-' + b.bicim + ';' + b.bicim });
+      hucre(r, 6, x.yuzde, { bicim:'0%' });
+    });
+    if (r >= ilk) okSeti(`F${ilk}:F${r}`, 1);
   }
-  d.notlar.forEach(n => { r++; const c = ws.getCell(`B${r}`); c.value = n; c.font = { name:'Calibri', size:10, italic:true, color:{ argb:'FF444444' } }; });
+  d.notlar.forEach(n => { r++; const c = ws.getCell(r, 2); c.value = n; c.font = { name:'Calibri', size:10, italic:true, color:{ argb:'FF444444' } }; });
 
   const buf = await wb.xlsx.writeBuffer();
   const a = document.createElement('a');
@@ -4765,7 +4978,7 @@ async function wkExcel(){
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
-// Resim (WhatsApp için) - Günlük Tablo ile aynı yöntem (html2canvas, gerektiğinde yüklenir).
+// --- Resim (WhatsApp için) - Günlük Tablo ile aynı yöntem (html2canvas, gerektiğinde yüklenir) ---
 let wkH2cYuk = null;
 function wkH2c(){
   if (window.html2canvas) return Promise.resolve(window.html2canvas);
@@ -4788,6 +5001,25 @@ async function wkResim(){
   } finally { kap.remove(); }
 }
 
+// --- Olaylar ---
+document.getElementById('wkPeriodGroup').addEventListener('click', (e) => {
+  const btn = e.target.closest('.preset-btn');
+  if (!btn) return;
+  WK_PERIOD = btn.dataset.period;
+  document.getElementById('wkListFrom').value = '';
+  document.getElementById('wkListTo').value = '';
+  wkDurum('');
+  renderWeekly();
+});
+document.getElementById('wkStartDow').addEventListener('change', (e) => {
+  WK_START_DOW = parseInt(e.target.value, 10);
+  renderWeekly();
+});
+document.getElementById('wkSelect').addEventListener('change', (e) => {
+  WK_SEL[WK_PERIOD] = e.target.value;
+  renderWeekly();
+});
+['wkGunFrom','wkGunTo'].forEach(id => document.getElementById(id).addEventListener('change', () => renderWeekly()));
 document.getElementById('wkTopModeGroup').addEventListener('click', (e) => {
   const btn = e.target.closest('.preset-btn');
   if (!btn || btn.disabled) return;
@@ -4800,6 +5032,19 @@ document.getElementById('wkRowChips').addEventListener('click', (e) => {
   const i = parseInt(btn.dataset.wkcol, 10);
   if (WK_HIDDEN.has(i)) WK_HIDDEN.delete(i); else WK_HIDDEN.add(i);
   renderWeekly();
+});
+document.getElementById('wkModeGroup').addEventListener('click', (e) => {
+  const btn = e.target.closest('.preset-btn');
+  if (!btn) return;
+  WK_LIST_MODE = btn.dataset.mode;
+  document.querySelectorAll('#wkModeGroup .preset-btn').forEach(b => b.classList.toggle('active', b === btn));
+  renderWeeklyList(wkBuildPeriods(WK_PERIOD));
+});
+['wkListFrom','wkListTo'].forEach(id => document.getElementById(id).addEventListener('change', () => renderWeeklyList(wkBuildPeriods(WK_PERIOD))));
+document.getElementById('wkListClearBtn').addEventListener('click', () => {
+  document.getElementById('wkListFrom').value = '';
+  document.getElementById('wkListTo').value = '';
+  renderWeeklyList(wkBuildPeriods(WK_PERIOD));
 });
 document.getElementById('wkExcelBtn').addEventListener('click', async () => {
   if (!WK_GT) return;
@@ -4823,70 +5068,6 @@ document.getElementById('wkResimIndirBtn').addEventListener('click', async () =>
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     wkDurum('✓ Resim indirildi.');
   } catch(err){ wkDurum('✗ Resim oluşturulamadı: ' + err.message, true); }
-});
-
-function renderWeeklyList(weeks){
-  const head = document.getElementById('wkListHead');
-  const body = document.getElementById('wkListBody');
-  const count = document.getElementById('wkListCount');
-  const fromEl = document.getElementById('wkListFrom');
-  const toEl = document.getElementById('wkListTo');
-  if (!weeks.length){
-    head.innerHTML = ''; body.innerHTML = ''; count.textContent = '';
-    return;
-  }
-  fromEl.min = toEl.min = fmtDate(weeks[0].start);
-  fromEl.max = toEl.max = fmtDate(weeks[weeks.length - 1].end);
-
-  const from = fromEl.value ? new Date(fromEl.value + 'T00:00:00') : null;
-  const to = toEl.value ? new Date(toEl.value + 'T00:00:00') : null;
-
-  head.innerHTML = `<th>Hafta</th><th>İş günü</th>` + COLUMN_DEFS.map(def => {
-    const prefix = def.agg === 'sum' ? (WK_LIST_MODE === 'perday' ? 'Gün ort. ' : '') : 'Ort. ';
-    return `<th>${prefix}${def.name}</th>`;
-  }).join('');
-
-  const rowsHtml = [];
-  for (let i = weeks.length - 1; i >= 0; i--){
-    const w = weeks[i];
-    if (from && w.end < from) continue;
-    if (to && w.start > to) continue;
-    const prev = i > 0 ? weeks[i - 1] : null;
-    const cells = COLUMN_DEFS.map(def => {
-      // Devam eden haftada toplanan sütunlar her zaman iş günü ortalamasıyla karşılaştırılır.
-      const mode = (def.agg === 'sum' && w.inProgress) ? 'perday' : WK_LIST_MODE;
-      const cur = wkValue(def, w, mode);
-      const prv = prev ? wkValue(def, prev, mode) : null;
-      const d = prev ? wkDelta(cur, prv, def) : null;
-      const note = (def.agg === 'sum' && w.inProgress && WK_LIST_MODE === 'total') ? ' <span class="wk-flat">(gün ort.)</span>' : '';
-      return `<td><div>${wkFmtValue(cur, def, mode)}${note}</div>${d ? `<div class="wk-d ${d.cls}">${d.text}</div>` : ''}</td>`;
-    }).join('');
-    rowsHtml.push(`<tr><td class="date">${wkLabel(w)}${w.inProgress ? '<span class="wk-badge">devam ediyor</span>' : ''}</td><td>${w.days}</td>${cells}</tr>`);
-  }
-  body.innerHTML = rowsHtml.length ? rowsHtml.join('') : `<tr><td class="empty-state" colspan="99">Seçilen aralıkta hafta yok.</td></tr>`;
-  count.textContent = `${rowsHtml.length} hafta`;
-}
-
-document.getElementById('wkStartDow').addEventListener('change', (e) => {
-  WK_START_DOW = parseInt(e.target.value, 10);
-  renderWeekly();
-});
-document.getElementById('wkSelect').addEventListener('change', (e) => {
-  WK_SELECTED_KEY = e.target.value;
-  renderWeekly();
-});
-document.getElementById('wkModeGroup').addEventListener('click', (e) => {
-  const btn = e.target.closest('.preset-btn');
-  if (!btn) return;
-  WK_LIST_MODE = btn.dataset.mode;
-  document.querySelectorAll('#wkModeGroup .preset-btn').forEach(b => b.classList.toggle('active', b === btn));
-  renderWeeklyList(wkBuildWeeks());
-});
-['wkListFrom','wkListTo'].forEach(id => document.getElementById(id).addEventListener('change', () => renderWeeklyList(wkBuildWeeks())));
-document.getElementById('wkListClearBtn').addEventListener('click', () => {
-  document.getElementById('wkListFrom').value = '';
-  document.getElementById('wkListTo').value = '';
-  renderWeeklyList(wkBuildWeeks());
 });
 
 // --- Sunum Oluştur: Özet + Detaylı Liste (ay ay) + Aylık Özet, seçili Yıl/Ay için ---
