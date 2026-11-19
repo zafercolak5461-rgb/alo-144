@@ -188,6 +188,9 @@
   .anz-sort-ok{ opacity:0.5; font-size:10px; }
   .anz-liste.kisa:not(.acik) tr.anz-ek{ display:none; }
   .anz-liste.acik .anz-kaydir{ max-height:65vh; overflow:auto; }
+  .tle-genis .anz-kaydir{ overflow-x:auto; }
+  .tle-genis .anz-tablo td, .tle-genis .anz-tablo th{ white-space:nowrap; }
+  .tle-genis .anz-tablo tr.anz-detay > td{ white-space:normal; }
   .anz-tumu{ margin-top:8px; }
   .anz-ara{ margin-bottom:8px; max-width:320px; }
   .anz-bos{ color:var(--dim); font-size:13px; padding:18px 4px; }
@@ -389,6 +392,7 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
     <button class="sidebar-nav-item pageaccess-only" data-lefttab="parametre" data-ikon="liste" data-grup="Personel"><span class="nav-ikon"></span>Parametre</button>
     <div class="nav-bolum">Analiz</div>
     <button class="sidebar-nav-item analiz-only" data-lefttab="analiz" data-ikon="nabiz" data-grup="Analiz"><span class="nav-ikon"></span>Analiz</button>
+    <button class="sidebar-nav-item analiz-only" data-lefttab="tletki" data-ikon="kisiler" data-grup="Analiz"><span class="nav-ikon"></span>Takım Lideri Etkisi</button>
     <button class="sidebar-nav-item performans-only" data-lefttab="performans" data-ikon="grafik" data-grup="Analiz"><span class="nav-ikon"></span>Personel Performansı</button>
     <div class="nav-bolum">Yönetim</div>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn" data-ikon="yenile" data-grup="Yönetim"><span class="nav-ikon"></span>Güncelleme</button>
@@ -448,6 +452,7 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
           <button class="refresh-btn" id="exportModeKarneBtn" style="background:var(--accent-soft); color:var(--accent); border-color:var(--accent);">Personel Karnesi</button>
           <button class="refresh-btn" id="exportModeIzinBtn">Personel Yıllık İzin</button>
           <button class="refresh-btn" id="exportModeOzelBtn">Excel Veri Oluşturma</button>
+          <button class="refresh-btn" id="exportModeTleBtn">Takım Lideri Etkisi</button>
         </div>
         <div id="exportKarneSection">
           <div style="display:flex; gap:8px; margin-bottom:14px;">
@@ -482,6 +487,15 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
             <div id="exportOzelMonthChips" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
           </div>
           <button class="refresh-btn" id="ozelBosSablonBtn">📥 Boş Şablon İndir (Sadece Başlıklar)</button>
+        </div>
+        <div id="exportTleSection" style="display:none;">
+          <p class="hint" style="font-size:13px; line-height:1.6; margin:0 0 14px 0;">İki ay arasında her personelin takım lideri (o ayların VARDİYA "Takım" sütunu) ve performans göstergelerindeki değişim — "Takım Lideri Etkisi" sekmesiyle aynı hesap. Dosyada 4 sayfa olur: Personel, TL Özeti, Geçişler, Açıklama. Biçimlendirme şablonu yüklenirse "Personel" sayfasına uygulanır (başlıklar adıyla eşleşir).</p>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+            <div><div class="search-label">Önceki ay</div><select class="search" id="exportTleA" style="width:auto; padding:6px 10px;"><option value="">Yükleniyor…</option></select></div>
+            <div><div class="search-label">Sonraki ay</div><select class="search" id="exportTleB" style="width:auto; padding:6px 10px;"><option value="">Yükleniyor…</option></select></div>
+          </div>
+          <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:12.5px; cursor:pointer;"><input type="checkbox" id="exportTleSadece"> <span>Yalnız takım lideri değişenler</span></label>
+          <button class="refresh-btn" id="tleBosSablonBtn">📥 Boş Şablon İndir (Sadece Başlıklar)</button>
         </div>
         <div id="exportSablonSection" style="display:none;" class="formatpanel-only">
           <div class="search-label" style="border-top:1px solid var(--line); padding-top:14px;">Biçimlendirme Şablonu (Sadece Süper Yetkili) — <span id="exportSablonHedefAdi"></span></div>
@@ -625,6 +639,10 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
           <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12.5px; cursor:pointer;">
             <input type="checkbox" id="pptEkSlaytCb">
             <span>Ek slaytları ekle <span class="hint">(tanımlar, ayrıntılı tablolar, kişi listeleri)</span></span>
+          </label>
+          <label id="pptTleWrap" style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12.5px; cursor:pointer;">
+            <input type="checkbox" id="pptTleCb">
+            <span>Takım lideri etkisi slaytını ekle <span class="hint">(lideri değişenlerin önceki aya / dönem başına göre değişimi)</span></span>
           </label>
           <div id="pptAnalizInfo" style="font-size:11.5px; color:var(--dim); margin-top:8px;"></div>
         </div>
@@ -2210,7 +2228,8 @@ async function extractIzinTemplateFromFile(file){
 // Genelleştirilmiş şablon sekmesi fonksiyonları - hem "İzin Şablonu" hem "Özel Rapor Şablonu"
 // (ve ileride eklenecek başka export türleri) AYNI mekanizmayı, sadece farklı sekme adıyla
 // kullanır - yeni bir sistem kurulmuyor, mevcut olan parametrik hale getirildi.
-const EXPORT_TEMPLATE_TABS = { izin: 'İzin Şablonu', ozel: 'Özel Rapor Şablonu' };
+const EXPORT_TEMPLATE_TABS = { izin: 'İzin Şablonu', ozel: 'Özel Rapor Şablonu', tletki: 'TL Etkisi Şablonu' };
+const EXPORT_TEMPLATE_LABELS = { izin: 'Personel Yıllık İzin', ozel: 'Excel Veri Oluşturma', tletki: 'Takım Lideri Etkisi' };
 
 async function ensureSablonTabExists(tabName){
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${EXPORT_FORMAT_SHEET_ID}?fields=sheets.properties(sheetId,title)`;
@@ -3081,7 +3100,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
 // --- Modal aç/kapa + seçim mantığı ---
 const exportModalOverlay = document.getElementById('exportModalOverlay');
 const exportMetricChecklist = document.getElementById('exportMetricChecklist');
-let exportMode = 'karne'; // 'karne' | 'izin' | 'ozel'
+let exportMode = 'karne'; // 'karne' | 'izin' | 'ozel' | 'tletki'
 
 function setExportMode(mode){
   exportMode = mode;
@@ -3092,13 +3111,16 @@ function setExportMode(mode){
   karneBtn.style.cssText = mode === 'karne' ? activeStyle : '';
   izinBtn.style.cssText = mode === 'izin' ? activeStyle : '';
   ozelBtn.style.cssText = mode === 'ozel' ? activeStyle : '';
+  document.getElementById('exportModeTleBtn').style.cssText = mode === 'tletki' ? activeStyle : '';
+  document.getElementById('exportTleSection').style.display = mode === 'tletki' ? '' : 'none';
+  if (mode === 'tletki') tleExportAylariDoldur();
   document.getElementById('exportKarneSection').style.display = mode === 'karne' ? '' : 'none';
   document.getElementById('exportIzinSection').style.display = mode === 'izin' ? '' : 'none';
   document.getElementById('exportOzelSection').style.display = mode === 'ozel' ? '' : 'none';
   // Şablon yükleme kutusu - İzin/Özel'in İKİSİ de aynı mekanizmayı, sadece farklı sekme
   // hedefiyle kullanıyor. Mod değişince yükleme sıfırlanır (yanlış moda kaydetme riskini önler).
   const sablonSection = document.getElementById('exportSablonSection');
-  const sablonHedefLabel = { izin: 'Personel Yıllık İzin', ozel: 'Excel Veri Oluşturma' }[mode];
+  const sablonHedefLabel = EXPORT_TEMPLATE_LABELS[mode];
   sablonSection.style.display = sablonHedefLabel ? '' : 'none';
   if (sablonHedefLabel){
     document.getElementById('exportSablonHedefAdi').textContent = sablonHedefLabel;
@@ -3160,6 +3182,7 @@ function setExportMode(mode){
 document.getElementById('exportModeKarneBtn').addEventListener('click', () => setExportMode('karne'));
 document.getElementById('exportModeIzinBtn').addEventListener('click', () => setExportMode('izin'));
 document.getElementById('exportModeOzelBtn').addEventListener('click', () => setExportMode('ozel'));
+document.getElementById('exportModeTleBtn').addEventListener('click', () => setExportMode('tletki'));
 
 document.getElementById('ozelAddColumnBtn').addEventListener('click', () => {
   ozelColumns.push({ id: ozelNextId(ozelColumns), kaynak: null, headerKey: null });
@@ -3234,6 +3257,185 @@ document.getElementById('exportOzelMonthClearBtn').addEventListener('click', () 
   renderExportOzelMonthChips();
 });
 document.getElementById('ozelBosSablonBtn').addEventListener('click', () => exportOzelBosSablonIndir());
+// ===== Excel'e Aktar > "Takım Lideri Etkisi" (20.11.2026) =====
+// "Takım Lideri Etkisi" sekmesiyle aynı hesap (tleHesapla). 4 sayfa: Personel, TL Özeti, Geçişler, Açıklama.
+// Biçimlendirme şablonu yüklenmişse "Personel" sayfasına uygulanır; başlıklar adıyla eşleşir
+// (ay adı başlıkta yok, böylece şablon her ay çalışır).
+function tleXlsxSutunlar(T){
+  const evetHayir = v => v ? 'Evet' : 'Hayır';
+  const cols = [
+    { h: 'Sicil', w: 10, f: k => izinAsNumberIfDigits(k.sicil) },
+    { h: 'Ad Soyad', w: 24, f: k => k.ad, sol: true },
+    { h: 'Önceki Lider', w: 22, f: k => k.tA, sol: true },
+    { h: 'Sonraki Lider', w: 22, f: k => k.tB, sol: true },
+    { h: 'Lider Değişti', w: 12, f: k => evetHayir(k.degisti) },
+    { h: 'Durum', w: 28, f: k => k.gecerli ? 'Karşılaştırıldı' : 'Karşılaştırılamadı: ' + k.neden, sol: true },
+  ];
+  T.G.forEach(g => {
+    cols.push({ h: `${g.label} Önceki`, w: 12, f: k => k.gecerli && k.d[g.key] ? k.d[g.key].a : null, sayi: true });
+    cols.push({ h: `${g.label} Sonraki`, w: 12, f: k => k.gecerli && k.d[g.key] ? k.d[g.key].b : null, sayi: true });
+    cols.push({ h: `${g.label} Fark`, w: 11, f: k => k.gecerli && k.d[g.key] ? k.d[g.key].fark : null, fark: true, g });
+  });
+  cols.push({ h: 'İyileşen Gösterge', w: 12, f: k => k.gecerli ? k.iyi : null });
+  cols.push({ h: 'Kötüleşen Gösterge', w: 12, f: k => k.gecerli ? k.kotu : null });
+  return cols;
+}
+function tleXlsxBaslik(ws, basliklar, genislikler){
+  ws.columns = genislikler.map(w => ({ width: w }));
+  const r = ws.getRow(1);
+  basliklar.forEach((h, i) => { const c = r.getCell(i + 1); c.value = h; c.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002060' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
+  r.height = 32;
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+}
+const TLE_XLSX_KENAR = { top: { style: 'thin', color: { argb: 'FFBFBFBF' } }, left: { style: 'thin', color: { argb: 'FFBFBFBF' } }, bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } }, right: { style: 'thin', color: { argb: 'FFBFBFBF' } } };
+const TLE_XLSX_FARK_FMT = '+0.00;-0.00;0';
+function tleXlsxHucre(cell, deger, o){
+  o = o || {};
+  if (typeof deger === 'number' && o.fmt === TLE_XLSX_FARK_FMT) deger = Number(deger.toFixed(2));
+  cell.value = deger === undefined ? null : deger;
+  cell.font = { name: 'Calibri', size: 11, bold: !!o.kalin, color: o.renk ? { argb: o.renk } : undefined };
+  cell.alignment = { horizontal: o.sol ? 'left' : 'center', vertical: 'middle', wrapText: !!o.kaydir };
+  cell.border = TLE_XLSX_KENAR;
+  if (o.fmt) cell.numFmt = o.fmt;
+}
+function tleXlsxRenk(v, g){ if (v === null || v === undefined || Math.abs(v) < 1e-9) return null; return (v > 0) === g.yuksekIyi ? 'FF1E8449' : 'FFC0392B'; }
+
+async function tleXlsxVeri(A, B){
+  const key = `${A}|${B}`;
+  let D = ANZ_CACHE.get(key);
+  if (!D){ D = await asLoadAll(B, null, A); ANZ_CACHE.set(key, D); if (ANZ_CACHE.size > 6) ANZ_CACHE.delete(ANZ_CACHE.keys().next().value); }
+  return { D, T: tleHesapla(D, A, B) };
+}
+async function exportTleToExcel(A, B, sadeceDegisen){
+  const btn = document.getElementById('openExportModalBtn');
+  const eski = btn ? btn.textContent : '';
+  try {
+    if (btn){ btn.textContent = '⏳ Hazırlanıyor…'; btn.disabled = true; }
+    const [{ D, T }, template] = await Promise.all([tleXlsxVeri(A, B), loadSablonFromSheet(EXPORT_TEMPLATE_TABS.tletki)]);
+    const kisiler = T.kisiler.filter(k => !sadeceDegisen || k.degisti)
+      .sort((a, b) => (b.degisti - a.degisti) || a.tB.localeCompare(b.tB, 'tr') || a.ad.localeCompare(b.ad, 'tr'));
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'ALO 144 Osmaniye'; wb.lastModifiedBy = 'ALO 144 Osmaniye'; wb.created = new Date();
+    const cols = tleXlsxSutunlar(T);
+    const colMap = {}; cols.forEach(c => { colMap[c.h.trim().toLocaleUpperCase('tr')] = c; });
+
+    // --- 1. Personel ---
+    const ws = wb.addWorksheet('Personel');
+    if (template && template.header && template.header.length){
+      const headers = template.header;
+      const colCount = template.colCount || headers.length;
+      headers.forEach((h, i) => { ws.getColumn(i + 1).width = (template.colWidths && template.colWidths[i]) || 14; });
+      const hr = ws.getRow(1);
+      headers.forEach((h, i) => { hr.getCell(i + 1).value = h; });
+      (template.rowRuns[1] || []).forEach(([cs, ce, st]) => { for (let c = cs; c <= Math.min(ce, colCount); c++) applyImportedCellStyle(hr.getCell(c), st); });
+      const veriSatirlari = Object.keys(template.rowRuns).map(Number).filter(n => n > 1).sort((a, b) => a - b);
+      const dongu = veriSatirlari.length || 1;
+      kisiler.forEach((k, idx) => {
+        const row = ws.getRow(idx + 2);
+        headers.forEach((h, i) => { const c = colMap[String(h).trim().toLocaleUpperCase('tr')]; row.getCell(i + 1).value = c ? c.f(k) : null; });
+        const tr = veriSatirlari.length ? veriSatirlari[idx % dongu] : 2;
+        (template.rowRuns[tr] || []).forEach(([cs, ce, st]) => { for (let c = cs; c <= Math.min(ce, colCount); c++) applyImportedCellStyle(row.getCell(c), st); });
+        headers.forEach((h, i) => {
+          const key = String(h).trim().toLocaleUpperCase('tr');
+          if (!template.condRules || !template.condRules[key]) return;
+          const cell = row.getCell(i + 1);
+          const color = resolveConditionalColor(template.condRules, h, cell.value);
+          if (color) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+        });
+      });
+    } else {
+      tleXlsxBaslik(ws, cols.map(c => c.h), cols.map(c => c.w));
+      kisiler.forEach((k, idx) => {
+        const row = ws.getRow(idx + 2);
+        cols.forEach((c, i) => {
+          const v = c.f(k);
+          tleXlsxHucre(row.getCell(i + 1), v, { sol: c.sol, fmt: c.fark ? TLE_XLSX_FARK_FMT : (c.sayi ? '0.##' : undefined), kalin: c.fark || (i === 3 && k.degisti), renk: c.fark ? tleXlsxRenk(v, c.g) : null });
+        });
+      });
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+    }
+
+    // --- 2. TL Özeti ---
+    const ws2 = wb.addWorksheet('TL Özeti');
+    const b2 = ['Takım Lideri', 'Gösterge', 'Gelen Kişi', 'Gelen Ort. Fark', 'Giden Kişi', 'Giden Ort. Fark', 'Kalan Kişi', 'Kalan Ort. Fark', 'Değişmeyenler Ort. Fark (Lokasyon)', 'Gelenler − Değişmeyenler'];
+    tleXlsxBaslik(ws2, b2, [24, 26, 10, 13, 10, 13, 10, 13, 18, 16]);
+    let r2 = 2;
+    T.takimlar.forEach((t, ti) => {
+      T.G.forEach((g, gi) => {
+        const ge = tleOrt(t.gelen, g.key), gd = tleOrt(t.giden, g.key), ka = tleOrt(t.kalan, g.key), sa = tleOrt(T.sabit, g.key);
+        const net = ge.ort !== null && sa.ort !== null ? ge.ort - sa.ort : null;
+        const row = ws2.getRow(r2++);
+        const v = [gi === 0 ? t.L : '', g.label, ge.n, ge.ort, gd.n, gd.ort, ka.n, ka.ort, sa.ort, net];
+        v.forEach((x, i) => tleXlsxHucre(row.getCell(i + 1), x, { sol: i < 2, kalin: i === 0 || g.key === '__PUAN' || i === 9, fmt: [3, 5, 7, 8, 9].includes(i) ? TLE_XLSX_FARK_FMT : undefined, renk: [3, 5, 7, 8, 9].includes(i) ? tleXlsxRenk(x, g) : null }));
+        if (ti % 2 === 0) row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F5FA' } }; });
+      });
+    });
+
+    // --- 3. Geçişler ---
+    const ws3 = wb.addWorksheet('Geçişler');
+    tleXlsxBaslik(ws3, ['Önceki Lider', 'Sonraki Lider', 'Kişi', 'Ort. Puan Farkı', 'Kişiler'], [24, 24, 8, 14, 70]);
+    T.gecisler.forEach((x, i) => {
+      const o = tleOrt(x.kisiler.filter(k => k.gecerli), '__PUAN');
+      const row = ws3.getRow(i + 2);
+      [x.from, x.to, x.kisiler.length, o.ort, x.kisiler.map(k => k.ad).join(', ')].forEach((v, j) => tleXlsxHucre(row.getCell(j + 1), v, { sol: j !== 2 && j !== 3, kaydir: j === 4, fmt: j === 3 ? TLE_XLSX_FARK_FMT : undefined, renk: j === 3 ? tleXlsxRenk(v, T.G[0]) : null, kalin: j === 3 }));
+    });
+
+    // --- 4. Açıklama ---
+    const ws4 = wb.addWorksheet('Açıklama');
+    ws4.columns = [{ width: 120 }];
+    [
+      `Takım Lideri Etkisi — ${asLabelOf(A)} (önceki) → ${asLabelOf(B)} (sonraki)`,
+      `Kaynak: VARDİYA ${asKeyOf(A)} ve ${asKeyOf(B)} ("Takım" sütunu); OSMANİYE-PERFORMANS ${asKeyOf(A)} ve ${asKeyOf(B)}; PUANLAMA ÖLÇEĞİ.`,
+      'Personel sayfasındaki "Önceki" = ' + asLabelOf(A) + ', "Sonraki" = ' + asLabelOf(B) + '. Fark = sonraki − önceki.',
+      'Takım = o ayın VARDİYA sekmesindeki "Takım" sütunu (kişinin bugünkü lideri değil). Personel Sicil ile eşleştirilir.',
+      'Ortalamalara yalnız iki ayda da değerlendirilen ve puanı ölçekle birebir tutan kişiler girer (değerlendirme dışı: doğum izni, eğitim, rapor vb.).',
+      'Gelen = önceki ay başka liderde olup sonraki ay bu lidere geçen; Giden = bu liderden başka lidere geçen; Kalan = iki ayda da bu liderde.',
+      '"Değişmeyenler" = lideri değişmeyen herkes (lokasyon). "Gelenler − Değişmeyenler" genel dalgalanmayı ayırmak içindir; pozitif/negatifin iyi mi kötü mü olduğu göstergenin yönüne bağlıdır.',
+      'Renk: yeşil = iyileşme, kırmızı = kötüleşme. Yön PUANLAMA ÖLÇEĞİ\'nden okunur (yüksek değer daha çok puan alıyorsa artış iyidir; örn. Rapor, ACHT, Geç Login için azalış iyidir).',
+      'İyileşen/Kötüleşen Gösterge = değeri iyi/kötü yönde değişen parametre sayısı (Performans puanı hariç).',
+      `Yalnız bir ayda VARDİYA'da olanlar karşılaştırılmadı: yeni gelen ${T.yeniGelen}, ayrılan ${T.ayrilan}.`,
+      '3 kişiden az gruplarda ortalama yanıltıcı olabilir.',
+    ].forEach((t, i) => { const c = ws4.getRow(i + 1).getCell(1); c.value = t; c.font = { name: 'Calibri', size: i === 0 ? 13 : 11, bold: i === 0 }; c.alignment = { wrapText: true, vertical: 'top' }; });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Takım Lideri Etkisi - ${asLabelOf(A)} - ${asLabelOf(B)}${sadeceDegisen ? ' - lideri değişenler' : ''}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  } catch (e){
+    alert('Takım lideri etkisi raporu hazırlanamadı: ' + e.message);
+  } finally {
+    if (btn){ btn.textContent = eski; btn.disabled = false; }
+  }
+}
+async function tleBosSablonIndir(){
+  try {
+    const olcek = asParseOlcek(await asFetchValues(PERF_SHEET_ID, `'${AS_OLCEK_TAB}'!A1:Z500`));
+    const sahte = { G: [{ key: '__PUAN', label: 'Performans puanı' }].concat(olcek.params.map(p => ({ key: p.col, label: p.param }))) };
+    const basliklar = tleXlsxSutunlar(sahte).map(c => c.h);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Sayfa1');
+    ws.getRow(1).values = basliklar;
+    ws.columns = basliklar.map(() => ({ width: 16 }));
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'takim-lideri-etkisi-sablon-basliklar.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  } catch (e){ alert('Boş şablon hazırlanamadı: ' + e.message); }
+}
+async function tleExportAylariDoldur(){
+  const a = document.getElementById('exportTleA'), b = document.getElementById('exportTleB');
+  if (!a || a.options.length > 1) return;
+  try {
+    const ay = await tleAyListesi();
+    const opt = sel => ay.map(x => `<option value="${x}" ${x === sel ? 'selected' : ''}>${asLabelOf(x)}</option>`).join('');
+    const B = TLE.B !== null ? TLE.B : ay[0], A = TLE.A !== null ? TLE.A : ay[1];
+    a.innerHTML = opt(A); b.innerHTML = opt(B);
+  } catch (e){ a.innerHTML = b.innerHTML = '<option value="">Ay listesi okunamadı</option>'; }
+}
+document.getElementById('tleBosSablonBtn').addEventListener('click', () => tleBosSablonIndir());
 document.getElementById('ozelKolonKaydetBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('ozelKolonKaydetStatus');
   const btn = document.getElementById('ozelKolonKaydetBtn');
@@ -3296,7 +3498,7 @@ document.getElementById('izinSablonSaveBtn').addEventListener('click', async () 
   const saveBtn = document.getElementById('izinSablonSaveBtn');
   if (!pendingIzinTemplate) return;
   const hedefTab = EXPORT_TEMPLATE_TABS[exportMode]; // hangi mod aktifse (izin/ozel) o sekmeye kaydedilir
-  const hedefLabel = { izin: 'Personel Yıllık İzin', ozel: 'Excel Veri Oluşturma' }[exportMode];
+  const hedefLabel = EXPORT_TEMPLATE_LABELS[exportMode];
   if (!hedefTab) return;
   saveBtn.disabled = true;
   try {
@@ -3322,7 +3524,7 @@ document.getElementById('izinSablonDeleteBtn').addEventListener('click', async (
   const deleteBtn = document.getElementById('izinSablonDeleteBtn');
   const durumEl = document.getElementById('exportSablonMevcutDurum');
   const hedefTab = EXPORT_TEMPLATE_TABS[exportMode];
-  const hedefLabel = { izin: 'Personel Yıllık İzin', ozel: 'Excel Veri Oluşturma' }[exportMode];
+  const hedefLabel = EXPORT_TEMPLATE_LABELS[exportMode];
   if (!hedefTab) return;
   if (!confirm(`"${hedefLabel}" için kayıtlı şablonu silmek istediğine emin misin? Bundan sonraki export'lar varsayılan (sabit) görünümü kullanacak.`)) return;
   deleteBtn.disabled = true;
@@ -3365,6 +3567,15 @@ document.getElementById('exportClearBtn').addEventListener('click', () => {
   exportMetricChecklist.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
 });
 document.getElementById('exportConfirmBtn').addEventListener('click', () => {
+  if (exportMode === 'tletki'){
+    const A = parseInt(document.getElementById('exportTleA').value, 10), B = parseInt(document.getElementById('exportTleB').value, 10);
+    if (isNaN(A) || isNaN(B)){ alert('Ay listesi henüz yüklenmedi.'); return; }
+    if (!(A < B)){ alert('Önceki ay, sonraki aydan önce olmalı.'); return; }
+    if (B - A > 11){ alert('İki ay arası en fazla 12 ay olabilir.'); return; }
+    exportModalOverlay.style.display = 'none';
+    exportTleToExcel(A, B, document.getElementById('exportTleSadece').checked);
+    return;
+  }
   if (exportMode === 'izin'){
     if (!PERSONNEL.length){ alert('Henüz personel verisi yok. Önce "Yenile"ye basın.'); return; }
     exportYillikIzinToExcel();
@@ -3787,6 +3998,7 @@ function pptOdakSet(t){
   pptOdak = t;
   [['pptOdakGenelBtn', 'genel'], ['pptOdakParamBtn', 'param']].forEach(([id, k]) => { const b = document.getElementById(id); const on = k === t; b.style.background = on ? 'var(--accent-soft)' : ''; b.style.borderColor = on ? 'var(--accent)' : ''; b.style.color = on ? 'var(--accent)' : ''; });
   document.getElementById('pptParamWrap').style.display = t === 'param' ? '' : 'none';
+  document.getElementById('pptTleWrap').style.display = t === 'param' ? 'none' : 'flex';
   if (t === 'param') pptParamleriDoldur();
 }
 function pptParamChipCiz(){
@@ -3947,7 +4159,7 @@ document.getElementById('pptConfirmBtn').addEventListener('click', async () => {
     btn.textContent = '⏳ Oluşturuluyor…';
     btn.disabled = true;
     try {
-      await generateAnalizPresentation(abs, kapsam, pptTema, t => { btn.textContent = '⏳ ' + t; }, startAbs, document.getElementById('pptEkSlaytCb').checked, paramCols);
+      await generateAnalizPresentation(abs, kapsam, pptTema, t => { btn.textContent = '⏳ ' + t; }, startAbs, document.getElementById('pptEkSlaytCb').checked, paramCols, !paramCols && document.getElementById('pptTleCb').checked);
     } catch (e) {
       console.error(e);
       alert("Analiz sunumu oluşturulurken bir hata oluştu:\n" + e.message + "\n\nTarayıcı konsolunu (F12) kontrol edebilirsiniz.");
@@ -5040,20 +5252,20 @@ function asExplainChange(D, prev, cur){
 }
 
 // ---------- Sunum ----------
-async function generateAnalizPresentation(targetAbs, kapsam, temaKey, onProgress, startAbs, ekSlayt, paramCols){
+async function generateAnalizPresentation(targetAbs, kapsam, temaKey, onProgress, startAbs, ekSlayt, paramCols, tleSlayt){
   const donem = startAbs !== undefined && startAbs !== null && startAbs < targetAbs;
   if (donem && targetAbs - startAbs > 11) throw new Error('Dönem en fazla 12 ay olabilir.');
   const D = await asLoadAll(targetAbs, onProgress, donem ? startAbs : null);
   if (!D.perf.get(targetAbs)) throw new Error(`OSMANİYE-PERFORMANS tablosunda ${asKeyOf(targetAbs)} sekmesi yok.`);
   const v = D.vardiya.get(targetAbs);
   if (kapsam.tip === 'takim' && (!v || !v.size)) throw new Error(`VARDİYA tablosunda ${asKeyOf(targetAbs)} sekmesi yok ya da boş; takım bazlı sunum bu ay için hazırlanamaz.`);
-  const pres = asBuildPresentation(D, targetAbs, kapsam, temaKey, donem ? startAbs : null, !!ekSlayt, paramCols);
+  const pres = asBuildPresentation(D, targetAbs, kapsam, temaKey, donem ? startAbs : null, !!ekSlayt, paramCols, !!tleSlayt);
   const kapsamAd = kapsam.tip === 'lokasyon' ? 'Lokasyon' : kapsam.lider;
   const donemAd = donem ? `${asLabelOf(startAbs)} - ${asLabelOf(targetAbs)}` : asLabelOf(targetAbs);
   await pres.writeFile({ fileName: `${paramCols && paramCols.length ? 'Parametre Analizi' : 'Analiz Sunumu'} - ${donemAd} - ${kapsamAd}.pptx` });
 }
 
-function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols){
+function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSlayt){
   const T = AS_TEMALAR[temaKey] || AS_TEMALAR.beyaz;
   const BG = T.BG, TX = T.TX, ACCENT = T.ACCENT, DIM = T.DIM, OK = T.OK, BAD = T.BAD, LINE = T.LINE, CELL = T.CELL, HEAD = T.HEAD;
   const P1 = M - 1, P2 = M - 2, Y1 = M - 12;
@@ -5095,6 +5307,62 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols){
   const kapsamTanim = kapsam.tip === 'lokasyon'
     ? 'Her ayın personeli, o ayın VARDİYA sekmesinde Sicil\'i olanlardır.'
     : `Her ayın personeli, o ayın VARDİYA sekmesinde "Takım" sütunu ${kapsam.lider} olanlardır (kişinin bugünkü lideri değil).`;
+  // ---- Takım lideri etkisi (isteğe bağlı; "Takım Lideri Etkisi" sekmesiyle aynı hesap) ----
+  function tleSlaytlari(A0, B0){
+    let T;
+    try { T = tleHesapla(D, A0, B0); }
+    catch (e){ slide('Takım lideri etkisi', e.message, 'VARDİYA.', ''); return; }
+    const kaynak = `VARDİYA ${asKeyOf(A0)} ve ${asKeyOf(B0)} ("Takım" sütunu); OSMANİYE-PERFORMANS ${asKeyOf(A0)} ve ${asKeyOf(B0)}; PUANLAMA ÖLÇEĞİ.`;
+    const hesap = `Fark = ${asShort(B0)} − ${asShort(A0)}; yalnız iki ayda da değerlendirilen ve puanı tutan kişiler. Gelen = ${asShort(B0)}'da bu lidere geçen; giden = bu liderden ayrılan; kalan = iki ayda da bu liderde. "Değişmeyenler" = lideri değişmeyen herkes (lokasyon); gelenler bununla kıyaslanır. * = 3'ten az kişi.`;
+    const fRenk = (v, g) => v === null ? TX : (Math.abs(v) < 1e-9 ? TX : ((v > 0) === g.yuksekIyi ? OK : BAD));
+    const fTd = (o, g, ek) => td(o.ort === null ? '—' : asSigned(o.ort, 2), Object.assign({ color: fRenk(o.ort, g), bold: true }, ek || {}));
+    const nTd = o => td(`${o.n}${o.n && o.n < 3 ? ' *' : ''}`);
+    const gP = T.G[0];
+    const sab = tleOrt(T.sabit, '__PUAN');
+    const ilgili = kapsam.tip === 'takim' ? T.degisen.filter(k => k.tA === kapsam.lider || k.tB === kapsam.lider) : T.degisen;
+    if (kapsam.tip === 'lokasyon'){
+      const deg = tleOrt(T.gecerli.filter(k => k.degisti), '__PUAN');
+      const satir = T.takimlar.map(t => ({ t, ge: tleOrt(t.gelen, '__PUAN'), gi: tleOrt(t.giden, '__PUAN'), ka: tleOrt(t.kalan, '__PUAN') })).map(x => Object.assign(x, { net: x.ge.ort !== null && sab.ort !== null ? x.ge.ort - sab.ort : null }));
+      let sonuc = `${asLabelOf(A0)} → ${asLabelOf(B0)}: ${T.kisiler.length} kişiden ${T.degisen.length} kişinin takım lideri değişti.`;
+      if (sab.ort !== null) sonuc += ` Puan farkı ortalaması lideri değişmeyenlerde ${asSigned(sab.ort, 1)}` + (deg.ort !== null ? `, değişenlerde ${asSigned(deg.ort, 1)}.` : '.');
+      const s = slide('Takım lideri etkisi', sonuc, kaynak, hesap);
+      const rows = [[th('Takım lideri', { align: 'left' }), th('Gelen'), th('Gelen ort.\npuan farkı'), th('Giden'), th('Giden ort.\npuan farkı'), th('Kalan'), th('Kalan ort.\npuan farkı'), th('Gelenler −\ndeğişmeyenler')]];
+      satir.forEach(x => rows.push([td(x.t.L, { align: 'left', bold: true }), nTd(x.ge), fTd(x.ge, gP), nTd(x.gi), fTd(x.gi, gP), nTd(x.ka), fTd(x.ka, gP), td(x.net === null ? '—' : asSigned(x.net, 2), { bold: true, color: fRenk(x.net, gP) })]));
+      rows.push([td('Lideri değişmeyenler (lokasyon)', { align: 'left', bold: true, color: ACCENT }), td(''), td(''), td(''), td(''), td(String(sab.n)), fTd(sab, gP, { color: ACCENT }), td('')]);
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [3.78, 0.9, 1.45, 0.9, 1.45, 0.9, 1.45, 1.5], rowH: Math.min(0.4, 4.7 / rows.length), fontSize: 10 }, tblBase));
+    } else {
+      const L = kapsam.lider;
+      const t = T.takimlar.find(x => x.L === L) || { gelen: [], giden: [], kalan: [], gelenTum: 0, gidenTum: 0 };
+      const iyi = [], kotu = [];
+      const rows = [[th('Gösterge', { align: 'left' }), th(`Gelenler (${t.gelen.length})`), th(`Gidenler (${t.giden.length})`), th(`Kalanlar (${t.kalan.length})`), th(`Değişmeyenler (${T.sabit.length})`), th('Gelenler −\ndeğişmeyenler')]];
+      T.G.forEach(g => {
+        const ge = tleOrt(t.gelen, g.key), gi = tleOrt(t.giden, g.key), ka = tleOrt(t.kalan, g.key), sa = tleOrt(T.sabit, g.key);
+        const net = ge.ort !== null && sa.ort !== null ? ge.ort - sa.ort : null;
+        if (net !== null && Math.abs(net) > 1e-9 && g.key !== '__PUAN') ((net > 0) === g.yuksekIyi ? iyi : kotu).push(g.label);
+        rows.push([td(g.label + (g.key === '__PUAN' ? '' : asUnit(D, g.key, B0) ? ` (${asUnit(D, g.key, B0).trim()})` : ''), { align: 'left', bold: true, color: g.key === '__PUAN' ? ACCENT : TX }), fTd(ge, g), fTd(gi, g), fTd(ka, g), fTd(sa, g), td(net === null ? '—' : asSigned(net, 2), { bold: true, color: fRenk(net, g) })]);
+      });
+      const sonuc = `${asLabelOf(A0)} → ${asLabelOf(B0)}: ${L} takımına ${t.gelenTum} kişi geldi, ${t.gidenTum} kişi ayrıldı.` +
+        (t.gelen.length ? ` Gelenler, lideri değişmeyenlere göre ${iyi.length ? iyi.join(', ') + ' göstergelerinde daha iyi' : 'hiçbir parametrede daha iyi değil'}${kotu.length ? '; ' + kotu.join(', ') + ' göstergelerinde daha kötü.' : '.'}` : '');
+      const s = slide('Takım lideri etkisi', sonuc, kaynak, hesap + ' Hücre = kişi başı ortalama fark.');
+      s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [3.33, 1.8, 1.8, 1.8, 1.8, 1.8], rowH: Math.min(0.38, 4.7 / rows.length), fontSize: 10 }, tblBase));
+    }
+    if (!ilgili.length) return;
+    const liste = ilgili.slice().sort((a, b) => (b.gecerli - a.gecerli) || ((a.gecerli ? a.d.__PUAN.fark : 0) - (b.gecerli ? b.d.__PUAN.fark : 0)) || a.ad.localeCompare(b.ad, 'tr'));
+    const PER = 10, pages = Math.ceil(liste.length / PER);
+    for (let pg = 0; pg < pages; pg++){
+      const s2 = slide(`Takım lideri değişen personel${pages > 1 ? ` (${pg + 1}/${pages})` : ''}`, `${liste.length} kişinin ${asLabelOf(A0)} → ${asLabelOf(B0)} değişimi; puanı en çok düşenden başlayarak.`, kaynak,
+        'Neden = puanı en çok değiştiren göstergeler: önceki → sonraki değer (puan farkı). "Karşılaştırılamadı" = bir ayda değerlendirme dışı ya da kayıt yok.');
+      const rows = [[th('Sicil'), th('Ad Soyad', { align: 'left' }), th('Önceki → sonraki lider', { align: 'left' }), th(`${asShort(A0)} → ${asShort(B0)}`), th('Fark'), th('Neden', { align: 'left' })]];
+      liste.slice(pg * PER, (pg + 1) * PER).forEach(k => {
+        if (!k.gecerli){ rows.push([td(k.sicil), td(k.ad, { align: 'left' }), td(`${k.tA} → ${k.tB}`, { align: 'left', fontSize: 8.5 }), td('—'), td('—'), td('Karşılaştırılamadı: ' + k.neden, { align: 'left', fontSize: 8.5, color: DIM })]); return; }
+        const p = k.d.__PUAN;
+        const neden = T.G.filter(g => g.key !== '__PUAN' && k.d[g.key] && k.d[g.key].pFark).sort((a, b) => Math.abs(k.d[b.key].pFark) - Math.abs(k.d[a.key].pFark)).slice(0, 3)
+          .map(g => `${g.label} ${tleDegerMetni(D, g, k.d[g.key].a, A0)} → ${tleDegerMetni(D, g, k.d[g.key].b, B0)} (${asSigned(k.d[g.key].pFark, 0)})`).join('\n');
+        rows.push([td(k.sicil), td(k.ad, { align: 'left' }), td(`${k.tA} → ${k.tB}`, { align: 'left', fontSize: 8.5 }), td(`${asFmt(p.a, 0)} → ${asFmt(p.b, 0)}`), td(asSigned(p.fark, 0), { bold: true, color: p.fark > 0 ? OK : p.fark < 0 ? BAD : TX }), td(neden || 'Puanı değiştiren gösterge yok', { align: 'left', fontSize: 8.5 })]);
+      });
+      s2.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [0.75, 2.0, 2.9, 1.05, 0.65, 4.98], rowH: 0.44, fontSize: 9 }, tblBase));
+    }
+  }
   const gecerliTanim = 'Ortalamalara yalnız puanı ölçekle birebir doğrulanan personel girer; değerlendirme dışı (doğum izni, eğitim vb.) ve tutmayan kayıtlar ayrıca sayılır.';
 
   // ================= PARAMETRE ODAKLI SUNUM =================
@@ -5614,6 +5882,8 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols){
       }
     }
 
+    if (tleSlayt) tleSlaytlari(A, M);
+
     // ---- EK: Tanımlar ve ölçek değişiklikleri (eklerin başına) ----
     ekD.unshift(() => {
       const degisen = D.olcek.params.map(p => {
@@ -5947,6 +6217,8 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols){
       });
     }
   }
+
+  if (tleSlayt) tleSlaytlari(P1, M);
 
   // ---- EK: TANIMLAR VE ÖLÇEK (eklerin başına) ----
   ekler.unshift(() => {
@@ -6415,7 +6687,7 @@ sidebarEl.addEventListener('click', (e) => {
   if (!btn) return;
   selectedLeftTab = btn.dataset.lefttab;
   sidebarEl.querySelectorAll('[data-lefttab]').forEach(b => b.classList.toggle('active', b === btn));
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'performans'){
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans'){
     identityStrip.innerHTML = '';
     document.getElementById('marqueeWrap').style.display = 'none';
   } else {
@@ -6425,7 +6697,7 @@ sidebarEl.addEventListener('click', (e) => {
     document.getElementById('analizMarqueeWrap').style.display = 'none';
   }
   const searchStackWrap = document.getElementById('searchStackWrap');
-  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz' || selectedLeftTab === 'performans') ? 'none' : '';
+  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans') ? 'none' : '';
   renderContentArea();
 });
 document.getElementById('hamburgerBtn').addEventListener('click', () => {
@@ -6471,7 +6743,7 @@ document.addEventListener('click', (e) => {
 });
 
 function renderIdentityStrip(){
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'performans'){ identityStrip.innerHTML = ''; return; }
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans'){ identityStrip.innerHTML = ''; return; }
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p){ identityStrip.innerHTML = ''; return; }
   const avatarHtml = p.fotoUrl
@@ -6792,6 +7064,12 @@ function renderContentArea(){
     Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
     contentArea.innerHTML = renderAnalizTab();
     wireAnalizTab();
+    return;
+  }
+  if (selectedLeftTab === 'tletki'){
+    Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
+    contentArea.innerHTML = renderTleTab();
+    wireTleTab();
     return;
   }
   if (selectedLeftTab === 'performans'){
@@ -9676,14 +9954,14 @@ function anzIcerikOlaylari(){
   const el = document.getElementById('contentArea') || contentArea;
   if (el.dataset.anzBagli) return; el.dataset.anzBagli = '1';
   el.addEventListener('click', (e) => {
-    if (selectedLeftTab !== 'analiz') return;
+    if (selectedLeftTab !== 'analiz' && selectedLeftTab !== 'tletki') return;
     const tumu = e.target.closest('[data-anz-tumu]');
     if (tumu){ const l = document.getElementById(tumu.dataset.anzTumu); const acik = l.classList.toggle('acik'); tumu.textContent = acik ? 'Kısalt' : `Tümünü göster (${l.querySelectorAll('tbody > tr:not(.anz-detay)').length})`; const ara = l.querySelector('.anz-ara'); if (ara){ ara.style.display = acik ? '' : 'none'; if (!acik){ ara.value = ''; l.querySelectorAll('tbody > tr').forEach(tr => tr.style.removeProperty('display')); anzKisaltYenile(l); } } return; }
     const th = e.target.closest('[data-anz-sort]');
     if (th){ const tbl = th.closest('table'); const i = parseInt(th.dataset.anzSort, 10); const tb = tbl.tBodies[0]; const yon = th.dataset.yon === 'asc' ? 'desc' : 'asc'; tbl.querySelectorAll('th').forEach(x => delete x.dataset.yon); th.dataset.yon = yon;
       const rows = [...tb.rows].filter(r => !r.classList.contains('anz-detay'));
       rows.sort((a, b) => { const x = a.cells[i].dataset.v, y = b.cells[i].dataset.v; const nx = parseFloat(x), ny = parseFloat(y); const c = (!isNaN(nx) && !isNaN(ny)) ? nx - ny : String(x).localeCompare(String(y), 'tr'); return yon === 'asc' ? c : -c; });
-      rows.forEach(r => tb.appendChild(r)); anzKisaltYenile(th.closest('.anz-liste')); return; }
+      rows.forEach(r => { tb.appendChild(r); if (r.dataset.anzAc){ const d = tb.querySelector(`[data-anz-detay="${r.dataset.anzAc}"]`); if (d) tb.appendChild(d); } }); anzKisaltYenile(th.closest('.anz-liste')); return; }
     const ac = e.target.closest('[data-anz-ac]');
     if (ac && !e.target.closest('[data-anz-sicil] td a')){ const d = ac.parentElement.querySelector(`[data-anz-detay="${ac.dataset.anzAc}"]`); if (d){ const g = d.style.display === 'none'; d.style.display = g ? '' : 'none'; const ok = ac.querySelector('.anz-ok'); if (ok) ok.textContent = g ? '▾' : '▸'; } return; }
     const k = e.target.closest('[data-anz-sicil]');
@@ -9695,6 +9973,7 @@ function anzIcerikOlaylari(){
     if (e.target.id === 'anzTrendSelect'){ ANZ.trendKey = e.target.value; anzIcerikCiz(); }
   });
   el.addEventListener('input', (e) => {
+    if (selectedLeftTab !== 'analiz' && selectedLeftTab !== 'tletki') return;
     if (!e.target.classList || !e.target.classList.contains('anz-ara')) return;
     const q = e.target.value.trim().toLocaleLowerCase('tr');
     e.target.closest('.anz-liste').querySelectorAll('tbody > tr:not(.anz-detay)').forEach(tr => { tr.style.display = !q || tr.textContent.toLocaleLowerCase('tr').includes(q) ? '' : 'none'; });
@@ -9820,6 +10099,353 @@ async function kisiSekmeDoldur(){
     const el = document.getElementById(sekme === 'genel' ? 'kisiDonemWrap' : 'kisiTakimGecmisi');
     if (el) el.innerHTML = `<span class="hint">Performans verisi okunamadı: ${anzEsc(e.message)}</span>`;
   }
+}
+
+// ===== TAKIM LİDERİ ETKİSİ (20.11.2026) =====
+// İki ay arasında her personelin takım lideri (o ayların VARDİYA "Takım" sütunu) ve performans
+// göstergelerindeki değişim. Göstergeler = Performans puanı + PUANLAMA ÖLÇEĞİ'ndeki parametreler
+// (liste ve "yüksek değer iyi mi" bilgisi tablodan okunur, koda gömülü değil).
+// Ortalamalara yalnız iki ayda da değerlendirilmiş ve puanı ölçekle tutan kayıtlar girer (Analiz ile aynı kural).
+// Hesap fonksiyonları sekme, sunum ek slaytı ve Excel modu tarafından ortak kullanılır.
+function tleGostergeler(D, B){
+  return [{ key: '__PUAN', label: 'Performans puanı', yuksekIyi: true, tur: 'TOPLAM' }]
+    .concat(D.olcek.params.map(p => ({ key: p.col, label: p.param, yuksekIyi: anzYuksekIyi(D, p.col, B), tur: p.tur })));
+}
+function tleDeger(rec, g){
+  if (!rec) return null;
+  if (g.key === '__PUAN') return rec.puan;
+  const i = rec.params[g.key];
+  if (!i || i.olculmedi || i.deger === null || i.deger === undefined) return null;
+  return i.deger;
+}
+function tleNeden(r, abs){
+  if (!r) return `${asShort(abs)} performans kaydı yok`;
+  if (r.durum) return `${asShort(abs)}: ${r.durum}`;
+  if (!r.tutarli) return `${asShort(abs)}: puan tutmuyor`;
+  return '';
+}
+function tleHesapla(D, A, B){
+  const vA = D.vardiya.get(A), vB = D.vardiya.get(B);
+  if (!vA || !vA.size) throw new Error(`VARDİYA tablosunda ${asKeyOf(A)} sekmesi yok ya da boş; takım lideri karşılaştırması bu ay için yapılamaz.`);
+  if (!vB || !vB.size) throw new Error(`VARDİYA tablosunda ${asKeyOf(B)} sekmesi yok ya da boş; takım lideri karşılaştırması bu ay için yapılamaz.`);
+  const pA = D.perf.get(A) || new Map(), pB = D.perf.get(B) || new Map();
+  const G = tleGostergeler(D, B);
+  const kisiler = [];
+  let yeniGelen = 0, ayrilan = 0;
+  vA.forEach((x, s) => { if (!vB.has(s)) ayrilan++; });
+  vB.forEach((y, sicil) => {
+    const x = vA.get(sicil);
+    if (!x){ yeniGelen++; return; }
+    const rA = pA.get(sicil) || null, rB = pB.get(sicil) || null;
+    const gecA = !!(rA && !rA.durum && rA.tutarli), gecB = !!(rB && !rB.durum && rB.tutarli);
+    const k = { sicil, ad: asPersonName(D, B, sicil, (rB && rB.ad) || (rA && rA.ad)), tA: x.takim, tB: y.takim, degisti: x.takim !== y.takim,
+      rA, rB, gecerli: gecA && gecB, neden: [gecA ? '' : tleNeden(rA, A), gecB ? '' : tleNeden(rB, B)].filter(Boolean).join('; '), d: {}, iyi: 0, kotu: 0 };
+    if (k.gecerli){
+      G.forEach(g => {
+        const a = tleDeger(rA, g), b = tleDeger(rB, g);
+        const fark = a !== null && b !== null ? b - a : null;
+        let pFark = null;
+        if (g.key === '__PUAN') pFark = fark;
+        else { const ia = rA.params[g.key], ib = rB.params[g.key]; if (ia && ib) pFark = ib.kazanilan - ia.kazanilan; }
+        const yon = fark === null || Math.abs(fark) < 1e-9 ? 0 : ((fark > 0) === g.yuksekIyi ? 1 : -1);
+        k.d[g.key] = { a, b, fark, pFark, yon };
+        if (g.key !== '__PUAN'){ if (yon > 0) k.iyi++; else if (yon < 0) k.kotu++; }
+      });
+    }
+    kisiler.push(k);
+  });
+  const gecerli = kisiler.filter(k => k.gecerli);
+  const sabit = gecerli.filter(k => !k.degisti);
+  const degisen = kisiler.filter(k => k.degisti);
+  const liderler = [...new Set(kisiler.map(k => k.tA).concat(kisiler.map(k => k.tB)))].sort((a, b) => a.localeCompare(b, 'tr'));
+  const takimlar = liderler.map(L => ({
+    L,
+    gelen: gecerli.filter(k => k.degisti && k.tB === L), giden: gecerli.filter(k => k.degisti && k.tA === L), kalan: gecerli.filter(k => !k.degisti && k.tB === L),
+    gelenTum: degisen.filter(k => k.tB === L).length, gidenTum: degisen.filter(k => k.tA === L).length,
+  })).filter(t => t.gelenTum || t.gidenTum || t.kalan.length);
+  const gecisMap = new Map();
+  degisen.forEach(k => {
+    const key = k.tA + '\u0000' + k.tB;
+    if (!gecisMap.has(key)) gecisMap.set(key, { from: k.tA, to: k.tB, kisiler: [] });
+    gecisMap.get(key).kisiler.push(k);
+  });
+  const gecisler = [...gecisMap.values()].sort((a, b) => b.kisiler.length - a.kisiler.length || a.from.localeCompare(b.from, 'tr'));
+  return { A, B, G, kisiler, gecerli, sabit, degisen, takimlar, gecisler, yeniGelen, ayrilan };
+}
+// Bir kişi listesinin bir göstergedeki ortalama farkı (değeri olmayanlar sayılmaz).
+function tleOrt(liste, key){
+  const v = liste.map(k => k.d[key] ? k.d[key].fark : null).filter(x => x !== null && x !== undefined && !isNaN(x));
+  return { n: v.length, ort: v.length ? asAvg(v) : null };
+}
+function tleBirim(D, g, abs){ return g.key === '__PUAN' ? '' : asUnit(D, g.key, abs); }
+function tleDegerMetni(D, g, v, abs){ if (v === null || v === undefined) return '—'; return asFmt(v, 2) + tleBirim(D, g, abs); }
+function tleHesapNotu(T){
+  return `Fark = ${asLabelOf(T.B)} − ${asLabelOf(T.A)}. Takım = o ayın VARDİYA "Takım" sütunu (bugünkü lider değil). Ortalamalara yalnız iki ayda da değerlendirilen ve puanı ölçekle tutan kişiler girer. ` +
+    `"Değişmeyenler" = iki ayda da aynı liderde kalan herkes (lokasyon); gelenlerin farkı bununla kıyaslanır ki genel dalgalanma TL etkisi sanılmasın. ` +
+    `Renk: yeşil = iyileşme, kırmızı = kötüleşme (yön ölçekten okunur: ölçekte yüksek değer daha çok puan alıyorsa artış iyidir). 3 kişiden az gruplarda (*) ortalama yanıltıcı olabilir.`;
+}
+
+// ---------- Sekme ----------
+let TLE = { A: null, B: null, gosterge: '__PUAN', lider: '', sadeceDegisen: true, gorunum: 'liste', sira: 'dus', idx: 0, D: null, key: null, hata: null, yukleniyor: false };
+function tleSiraliListe(T){
+  let l = T.kisiler.slice();
+  if (TLE.sadeceDegisen) l = l.filter(k => k.degisti);
+  if (TLE.lider) l = l.filter(k => k.tA === TLE.lider || k.tB === TLE.lider);
+  const pf = k => k.gecerli && k.d.__PUAN && k.d.__PUAN.fark !== null ? k.d.__PUAN.fark : null;
+  const sonaAt = (x, y, f) => (x === null) - (y === null) || (x === null ? 0 : f(x, y));
+  const ad = (a, b) => a.ad.localeCompare(b.ad, 'tr');
+  const sira = {
+    dus: (a, b) => sonaAt(pf(a), pf(b), (x, y) => x - y) || ad(a, b),
+    art: (a, b) => sonaAt(pf(a), pf(b), (x, y) => y - x) || ad(a, b),
+    kotu: (a, b) => (b.gecerli - a.gecerli) || (b.kotu - a.kotu) || sonaAt(pf(a), pf(b), (x, y) => x - y) || ad(a, b),
+    ad,
+    tl: (a, b) => a.tB.localeCompare(b.tB, 'tr') || ad(a, b),
+  }[TLE.sira] || ad;
+  return l.sort(sira);
+}
+function renderTleTab(){
+  const ay = ANZ.aylar || [];
+  const opt = sel => ay.map(a => `<option value="${a}" ${a === sel ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
+  const btn = (id, on, txt) => `<button class="refresh-btn anz-sec ${on ? 'anz-sec-on' : ''}" id="${id}">${txt}</button>`;
+  const T = TLE.T;
+  const G = T ? T.G : [];
+  const liderler = T ? [...new Set(T.kisiler.map(k => k.tA).concat(T.kisiler.map(k => k.tB)))].sort((a, b) => a.localeCompare(b, 'tr')) : [];
+  return `
+    <div class="topbar" style="margin-bottom:24px;">
+      <div class="topbar-left"><div><div class="eyebrow">ALO 144 · ANALİZ</div><h1>Takım Lideri Etkisi</h1></div></div>
+    </div>
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-body anz-secici">
+        <div><div class="search-label">Önceki ay</div><select class="search" id="tleA">${ay.length ? opt(TLE.A) : '<option>Yükleniyor…</option>'}</select></div>
+        <div><div class="search-label">Sonraki ay</div><select class="search" id="tleB">${ay.length ? opt(TLE.B) : '<option>Yükleniyor…</option>'}</select></div>
+        <div><div class="search-label">Özet göstergesi</div><select class="search" id="tleGosterge">${G.map(g => `<option value="${anzEsc(g.key)}" ${g.key === TLE.gosterge ? 'selected' : ''}>${anzEsc(g.label)}</option>`).join('') || '<option>—</option>'}</select></div>
+        <div><div class="search-label">Takım lideri</div><select class="search" id="tleLider"><option value="">Tümü</option>${liderler.map(l => `<option value="${anzEsc(l)}" ${l === TLE.lider ? 'selected' : ''}>${anzEsc(l)}</option>`).join('')}</select></div>
+        <div><div class="search-label">Personel</div><div class="anz-grup">${btn('tleDegisen', TLE.sadeceDegisen, '🔀 TL değişenler')}${btn('tleHerkes', !TLE.sadeceDegisen, '👥 Herkes')}</div></div>
+      </div>
+    </div>
+    <div id="tleIcerik"><div class="anz-bos">Yükleniyor…</div></div>
+  `;
+}
+function tleGrupHucre(D, g, grup, sabitOrt){
+  const o = tleOrt(grup, g.key);
+  return { o, n: anzTd(`${o.n}${o.n && o.n < 3 ? ' *' : ''}`, { v: o.n }), f: anzTd(o.ort === null ? '—' : anzFark(o.ort, g.yuksekIyi), { v: o.ort === null ? '' : o.ort }) };
+}
+function tleOzetHtml(D, T, g){
+  const sab = tleOrt(T.sabit, g.key), deg = tleOrt(T.gecerli.filter(k => k.degisti), g.key);
+  const b = tleBirim(D, g, T.B);
+  let sonuc = `${asLabelOf(T.A)} → ${asLabelOf(T.B)}: iki ayda da VARDİYA'da olan ${T.kisiler.length} kişiden ${T.degisen.length} kişinin takım lideri değişti.`;
+  if (sab.ort !== null) sonuc += ` ${g.label} ortalama farkı: lideri değişmeyenlerde ${asSigned(sab.ort, 2)}${b}` + (deg.ort !== null ? `, değişenlerde ${asSigned(deg.ort, 2)}${b}.` : '.');
+  const satirlar = T.takimlar.map(t => {
+    const ge = tleGrupHucre(D, g, t.gelen), gi = tleGrupHucre(D, g, t.giden), ka = tleGrupHucre(D, g, t.kalan);
+    const net = ge.o.ort !== null && sab.ort !== null ? ge.o.ort - sab.ort : null;
+    return { t, net, cells: [anzTd(`<b>${anzEsc(t.L)}</b>`, { al: 'left', v: t.L }), ge.n, ge.f, gi.n, gi.f, ka.n, ka.f, anzTd(net === null ? '—' : anzFark(net, g.yuksekIyi), { v: net === null ? '' : net })] };
+  });
+  const sirali = satirlar.filter(s => s.net !== null).sort((a, b) => g.yuksekIyi ? b.net - a.net : a.net - b.net);
+  if (sirali.length >= 2){
+    const ilk = sirali[0], son = sirali[sirali.length - 1];
+    sonuc += ` Gelenlerin farkı değişmeyenlere göre en iyi ${anzEsc(ilk.t.L)} takımında (${asSigned(ilk.net, 2)}${b}, ${ilk.t.gelen.length} kişi), en zayıf ${anzEsc(son.t.L)} takımında (${asSigned(son.net, 2)}${b}, ${son.t.gelen.length} kişi).`;
+  }
+  const rows = satirlar.map(s => ({ cells: s.cells }));
+  rows.push({ cells: [anzTd('<b style="color:var(--accent);">Lideri değişmeyenler (lokasyon)</b>', { al: 'left', v: 'zzz' }), anzTd(''), anzTd(''), anzTd(''), anzTd(''), anzTd(String(sab.n), { v: sab.n }), anzTd(sab.ort === null ? '—' : anzFark(sab.ort, g.yuksekIyi), { v: sab.ort === null ? '' : sab.ort }), anzTd('')] });
+  const tablo = anzTable([{ t: 'Takım lideri', al: 'left' }, { t: 'Gelen' }, { t: 'Gelen ort. fark' }, { t: 'Giden' }, { t: 'Giden ort. fark' }, { t: 'Kalan' }, { t: 'Kalan ort. fark' }, { t: 'Gelenler − değişmeyenler' }], rows, { siralanir: true, bos: 'Takım verisi yok.' });
+  return anzCard(`👥 Takım liderlerine göre — ${anzEsc(g.label)}`, sonuc, tablo,
+    `VARDİYA ${asKeyOf(T.A)} ve ${asKeyOf(T.B)} ("Takım" sütunu); OSMANİYE-PERFORMANS ${asKeyOf(T.A)} ve ${asKeyOf(T.B)}; PUANLAMA ÖLÇEĞİ.`,
+    `Gelen = ${asEk(T.A, 'bulunma')} başka liderde olup ${asEk(T.B, 'bulunma')} bu lidere geçen; giden = bu liderden başkasına geçen; kalan = iki ayda da bu liderde. ` + tleHesapNotu(T) +
+    (T.yeniGelen || T.ayrilan ? ` Yalnız bir ayda VARDİYA'da olanlar karşılaştırılmadı (yeni: ${T.yeniGelen}, ayrılan: ${T.ayrilan}).` : ''));
+}
+function tleGostergeHtml(D, T){
+  const L = TLE.lider;
+  let headers, rows, sonuc;
+  if (L){
+    const t = T.takimlar.find(x => x.L === L) || { gelen: [], giden: [], kalan: [] };
+    headers = [{ t: 'Gösterge', al: 'left' }, { t: `Gelenler (${t.gelen.length})` }, { t: `Gidenler (${t.giden.length})` }, { t: `Kalanlar (${t.kalan.length})` }, { t: `Değişmeyenler (${T.sabit.length})` }, { t: 'Gelenler − değişmeyenler' }];
+    const iyi = [], kotu = [];
+    rows = T.G.map(g => {
+      const ge = tleOrt(t.gelen, g.key), gi = tleOrt(t.giden, g.key), ka = tleOrt(t.kalan, g.key), sa = tleOrt(T.sabit, g.key);
+      const net = ge.ort !== null && sa.ort !== null ? ge.ort - sa.ort : null;
+      if (net !== null && Math.abs(net) > 1e-9 && g.key !== '__PUAN') ((net > 0) === g.yuksekIyi ? iyi : kotu).push(g.label);
+      const f = o => anzTd(o.ort === null ? '—' : anzFark(o.ort, g.yuksekIyi), { v: o.ort === null ? '' : o.ort });
+      return { cells: [anzTd(`<b>${anzEsc(g.label)}</b>${tleBirim(D, g, T.B) ? ` <span class="hint">(${tleBirim(D, g, T.B).trim()})</span>` : ''}`, { al: 'left', v: g.label }), f(ge), f(gi), f(ka), f(sa), anzTd(net === null ? '—' : anzFark(net, g.yuksekIyi), { v: net === null ? '' : net })] };
+    });
+    sonuc = !t.gelen.length ? `${anzEsc(L)} takımına ${asLabelOf(T.B)} için değerlendirilebilen yeni gelen yok; gelen sütunu boş.` :
+      `${anzEsc(L)} takımına gelen ${t.gelen.length} kişi, lideri değişmeyenlere göre ` + (iyi.length ? `${iyi.map(anzEsc).join(', ')} göstergelerinde daha iyi` : 'hiçbir parametrede daha iyi değil') + (kotu.length ? `; ${kotu.map(anzEsc).join(', ')} göstergelerinde daha kötü.` : '; daha kötü olduğu parametre yok.');
+  } else {
+    const deg = T.gecerli.filter(k => k.degisti);
+    headers = [{ t: 'Gösterge', al: 'left' }, { t: `Lideri değişenler (${deg.length})` }, { t: `Değişmeyenler (${T.sabit.length})` }, { t: 'Değişenler − değişmeyenler' }];
+    const iyi = [], kotu = [];
+    rows = T.G.map(g => {
+      const a = tleOrt(deg, g.key), s = tleOrt(T.sabit, g.key);
+      const net = a.ort !== null && s.ort !== null ? a.ort - s.ort : null;
+      if (net !== null && Math.abs(net) > 1e-9 && g.key !== '__PUAN') ((net > 0) === g.yuksekIyi ? iyi : kotu).push(g.label);
+      const f = o => anzTd(o.ort === null ? '—' : anzFark(o.ort, g.yuksekIyi), { v: o.ort === null ? '' : o.ort });
+      return { cells: [anzTd(`<b>${anzEsc(g.label)}</b>`, { al: 'left', v: g.label }), f(a), f(s), anzTd(net === null ? '—' : anzFark(net, g.yuksekIyi), { v: net === null ? '' : net })] };
+    });
+    sonuc = !deg.length ? 'İki ayda da değerlendirilen ve lideri değişen kimse yok.' :
+      `Lideri değişenler, değişmeyenlere göre ` + (iyi.length ? `${iyi.map(anzEsc).join(', ')} göstergelerinde daha iyi` : 'hiçbir parametrede daha iyi değil') + (kotu.length ? `; ${kotu.map(anzEsc).join(', ')} göstergelerinde daha kötü.` : '; daha kötü olduğu parametre yok.');
+  }
+  return anzCard(L ? `🎯 ${anzEsc(L)} — gösterge bazında` : '🎯 Gösterge bazında', sonuc, anzTable(headers, rows), `OSMANİYE-PERFORMANS ${asKeyOf(T.A)} ve ${asKeyOf(T.B)}; VARDİYA; PUANLAMA ÖLÇEĞİ.`, 'Hücre = ortalama fark (kişi başı). Takım lideri seçince o liderin gelen/giden/kalan grupları ayrı gösterilir. ' + tleHesapNotu(T));
+}
+function tleGecisHtml(D, T){
+  let g = T.gecisler;
+  if (TLE.lider) g = g.filter(x => x.from === TLE.lider || x.to === TLE.lider);
+  const rows = g.map(x => {
+    const gec = x.kisiler.filter(k => k.gecerli);
+    const o = tleOrt(gec, '__PUAN');
+    return { cells: [anzTd(anzEsc(x.from), { al: 'left' }), anzTd('→', { al: 'center' }), anzTd(`<b>${anzEsc(x.to)}</b>`, { al: 'left', v: x.to }), anzTd(String(x.kisiler.length), { v: x.kisiler.length }), anzTd(o.ort === null ? '—' : anzFark(o.ort, true), { v: o.ort === null ? '' : o.ort }),
+      anzTd(x.kisiler.map(k => anzEsc(k.ad)).join(', '), { al: 'left', st: 'font-size:12px;' })] };
+  });
+  const sonuc = g.length ? `${g.length} farklı geçiş var; en sık ${anzEsc(g[0].from)} → ${anzEsc(g[0].to)} (${g[0].kisiler.length} kişi).` : 'Takım lideri değişen kimse yok.';
+  return anzCard('🔀 Geçişler', sonuc, anzTable([{ t: 'Önceki lider', al: 'left' }, { t: '', al: 'center' }, { t: 'Sonraki lider', al: 'left' }, { t: 'Kişi' }, { t: 'Ort. puan farkı' }, { t: 'Kişiler', al: 'left' }], rows, { siralanir: true, ilk: 8, bos: 'Takım lideri değişen kimse yok.' }),
+    `VARDİYA ${asKeyOf(T.A)} ve ${asKeyOf(T.B)}.`, 'Ortalama puan farkına yalnız iki ayda da değerlendirilen kişiler girer.');
+}
+function tleKisiDetayHtml(D, T, k){
+  const bas = `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+      <span><b>${anzEsc(k.ad)}</b> <span class="hint">(${anzEsc(k.sicil)})</span></span>
+      <span style="font-size:12.5px;">${anzEsc(k.tA)} → <b>${anzEsc(k.tB)}</b> ${k.degisti ? '<span style="font-size:11px; font-weight:700; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent); padding:2px 8px; border-radius:20px;">TL değişti</span>' : '<span class="hint">(aynı lider)</span>'}</span>
+      <a href="javascript:void 0" data-anz-sicil="${anzEsc(k.sicil)}" style="margin-left:auto; font-size:12.5px; color:var(--accent);">Karnesini aç ↗</a>
+    </div>`;
+  if (!k.gecerli) return bas + `<div class="anz-bos" style="padding:6px 0;">Karşılaştırılamadı: ${anzEsc(k.neden)}.</div>`;
+  const iyi = T.G.filter(g => g.key !== '__PUAN' && k.d[g.key] && k.d[g.key].yon > 0).map(g => g.label);
+  const kotu = T.G.filter(g => g.key !== '__PUAN' && k.d[g.key] && k.d[g.key].yon < 0).map(g => g.label);
+  const pf = k.d.__PUAN.fark;
+  const cumle = `Puan ${asFmt(k.d.__PUAN.a, 0)} → ${asFmt(k.d.__PUAN.b, 0)} (${asSigned(pf, 0)}). ` + (iyi.length ? `İyileşen: ${iyi.join(', ')}. ` : '') + (kotu.length ? `Kötüleşen: ${kotu.join(', ')}.` : (iyi.length ? '' : 'Göstergelerde değişiklik yok.'));
+  const rows = T.G.map(g => {
+    const x = k.d[g.key] || {};
+    return { cells: [anzTd(`<b>${anzEsc(g.label)}</b>`, { al: 'left' }), anzTd(tleDegerMetni(D, g, x.a, T.A)), anzTd(`<b>${tleDegerMetni(D, g, x.b, T.B)}</b>`), anzTd(x.fark === null || x.fark === undefined ? '—' : anzFark(x.fark, g.yuksekIyi)),
+      anzTd(g.key === '__PUAN' || x.pFark === null || x.pFark === undefined || x.pFark === 0 ? '—' : anzFark(x.pFark, true))] };
+  });
+  return bas + `<div style="font-size:13px; margin-bottom:8px;">${anzEsc(cumle)}</div>` + anzTable([{ t: 'Gösterge', al: 'left' }, { t: asShort(T.A) }, { t: asShort(T.B) }, { t: 'Fark' }, { t: 'Puan farkı' }], rows);
+}
+// Geniş tabloda açılan ayrıntı, yatay kaydırmadan bağımsız olarak görünür alanda kalsın.
+function tleDetaySar(h){ return `<div style="position:sticky; left:12px; width:min(1080px, 78vw);">${h}</div>`; }
+function tlePersonelHtml(D, T){
+  const liste = tleSiraliListe(T);
+  const btn = (id, on, txt) => `<button class="refresh-btn anz-sec ${on ? 'anz-sec-on' : ''}" id="${id}">${txt}</button>`;
+  const siraSec = `<select class="search" id="tleSira" style="width:auto; padding:6px 10px;">${[['dus', 'Puanı en çok düşen önce'], ['art', 'Puanı en çok artan önce'], ['kotu', 'En çok kötüleşen gösterge'], ['tl', 'Sonraki lidere göre'], ['ad', 'Ada göre']].map(([v, t]) => `<option value="${v}" ${v === TLE.sira ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+  const arac = `<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">${btn('tleListe', TLE.gorunum === 'liste', '📋 Liste')}${btn('tleTek', TLE.gorunum === 'tek', '👤 Tek tek')}<span style="margin-left:auto;"></span>${siraSec}</div>`;
+  const kapsamAd = (TLE.sadeceDegisen ? 'Lideri değişen' : 'İki ayda da VARDİYA\'da olan') + (TLE.lider ? ` ve ${anzEsc(TLE.lider)} ile ilgili` : '');
+  const kot = liste.filter(k => k.gecerli && k.d.__PUAN.fark < 0).length, art = liste.filter(k => k.gecerli && k.d.__PUAN.fark > 0).length, ka = liste.filter(k => !k.gecerli).length;
+  const sonuc = liste.length ? `${kapsamAd} ${liste.length} kişi: ${art} kişinin puanı arttı, ${kot} kişinin düştü` + (ka ? `, ${ka} kişi karşılaştırılamadı.` : '.') : `${kapsamAd} kimse yok.`;
+  let icerik;
+  if (!liste.length) icerik = '<div class="anz-bos">Seçime uyan personel yok.</div>';
+  else if (TLE.gorunum === 'tek'){
+    TLE.idx = Math.max(0, Math.min(TLE.idx, liste.length - 1));
+    const k = liste[TLE.idx];
+    icerik = `<div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+        <button class="refresh-btn" id="tleOnceki" ${TLE.idx === 0 ? 'disabled' : ''}>◀ Önceki</button>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:13px;">${TLE.idx + 1} / ${liste.length}</span>
+        <button class="refresh-btn" id="tleSonraki" ${TLE.idx >= liste.length - 1 ? 'disabled' : ''}>Sonraki ▶</button>
+        <span class="hint" style="margin-left:8px;">Klavyede ← → ile de geçebilirsiniz.</span>
+      </div>` + tleKisiDetayHtml(D, T, k);
+  } else {
+    const params = T.G.filter(g => g.key !== '__PUAN');
+    const headers = [{ t: 'Sicil' }, { t: 'Ad Soyad', al: 'left' }, { t: asShort(T.A) + ' lider', al: 'left' }, { t: asShort(T.B) + ' lider', al: 'left' }, { t: 'Puan' }, { t: 'Puan farkı' }, { t: 'İyileşen' }, { t: 'Kötüleşen' }].concat(params.map(g => ({ t: anzEsc(g.label) })));
+    const rows = liste.map(k => {
+      const ac = anzId('tlek');
+      const tlStil = k.degisti ? 'font-weight:700;' : 'color:var(--dim);';
+      if (!k.gecerli) return { ac, detay: tleDetaySar(tleKisiDetayHtml(D, T, k)), cells: [anzTd(anzEsc(k.sicil), { v: k.sicil }), anzTd(`<span class="anz-ok">▸</span> ${anzEsc(k.ad)}`, { al: 'left', v: k.ad }), anzTd(anzEsc(k.tA), { al: 'left', st: 'color:var(--dim);' }), anzTd(anzEsc(k.tB), { al: 'left', st: tlStil }),
+        anzTd(`<span class="hint">${anzEsc(k.neden)}</span>`, { v: '' }), anzTd('—', { v: '' }), anzTd('—', { v: '' }), anzTd('—', { v: '' })].concat(params.map(() => anzTd('—', { v: '' }))) };
+      const p = k.d.__PUAN;
+      return { ac, detay: tleDetaySar(tleKisiDetayHtml(D, T, k)), cells: [anzTd(anzEsc(k.sicil), { v: k.sicil }), anzTd(`<span class="anz-ok">▸</span> <b>${anzEsc(k.ad)}</b>`, { al: 'left', v: k.ad }), anzTd(anzEsc(k.tA), { al: 'left', st: 'color:var(--dim);' }), anzTd(anzEsc(k.tB), { al: 'left', st: tlStil }),
+        anzTd(`${asFmt(p.a, 0)} → <b>${asFmt(p.b, 0)}</b>`, { v: p.b }), anzTd(anzFark(p.fark, true), { v: p.fark }), anzTd(k.iyi ? `<span style="color:${ANZ_IYI_RENK}; font-weight:700;">${k.iyi}</span>` : '—', { v: k.iyi }), anzTd(k.kotu ? `<span style="color:${ANZ_KAYIP_RENK}; font-weight:700;">${k.kotu}</span>` : '—', { v: k.kotu })]
+        .concat(params.map(g => { const x = k.d[g.key]; return anzTd(!x || x.fark === null ? '—' : (x.fark === 0 ? '<span class="hint">0</span>' : anzFark(x.fark, g.yuksekIyi)), { v: !x || x.fark === null ? '' : x.fark }); })) };
+    });
+    icerik = `<div class="tle-genis">${anzTable(headers, rows, { siralanir: true, ilk: 15 })}</div>`;
+  }
+  return anzCard('🧑‍💼 Personel bazında', sonuc, arac + icerik, `VARDİYA ${asKeyOf(T.A)} ve ${asKeyOf(T.B)}; OSMANİYE-PERFORMANS ${asKeyOf(T.A)} ve ${asKeyOf(T.B)}; PUANLAMA ÖLÇEĞİ.`,
+    'Satıra tıklayınca gösterge gösterge ayrıntı açılır. İyileşen/Kötüleşen = değeri iyi/kötü yönde değişen parametre sayısı. Parametre sütunları = değer farkı (sonraki − önceki). ' + tleHesapNotu(T));
+}
+function tleIcerikCiz(){
+  const el = document.getElementById('tleIcerik'); if (!el) return;
+  if (TLE.hata){ el.innerHTML = `<div class="error-box">${anzEsc(TLE.hata)}</div>`; return; }
+  if (!TLE.T){ el.innerHTML = `<div class="anz-bos">${TLE.yukleniyor ? `Veriler okunuyor… <span class="hint">${anzEsc(TLE.yukleniyor === true ? '' : TLE.yukleniyor)}</span>` : 'Yükleniyor…'}</div>`; return; }
+  const D = TLE.D, T = TLE.T;
+  const g = T.G.find(x => x.key === TLE.gosterge) || T.G[0];
+  try {
+    el.innerHTML = tleOzetHtml(D, T, g) + tleGostergeHtml(D, T) + tleGecisHtml(D, T) + tlePersonelHtml(D, T);
+  } catch (e){ console.error(e); el.innerHTML = `<div class="error-box">Takım lideri etkisi hazırlanırken hata: ${anzEsc(e.message)}</div>`; return; }
+  const on = (id, f) => { const e = document.getElementById(id); if (e) e.addEventListener('click', f); };
+  on('tleListe', () => { TLE.gorunum = 'liste'; tleIcerikCiz(); });
+  on('tleTek', () => { TLE.gorunum = 'tek'; tleIcerikCiz(); });
+  on('tleOnceki', () => { TLE.idx--; tleIcerikCiz(); });
+  on('tleSonraki', () => { TLE.idx++; tleIcerikCiz(); });
+  const s = document.getElementById('tleSira'); if (s) s.addEventListener('change', () => { TLE.sira = s.value; TLE.idx = 0; tleIcerikCiz(); });
+}
+async function tleYukle(){
+  const A = TLE.A, B = TLE.B;
+  const key = `${A}|${B}`;
+  if (TLE.key === key && TLE.T) return;
+  TLE.T = null; TLE.hata = null;
+  if (!(A < B)){ TLE.hata = 'Önceki ay, sonraki aydan önce olmalı.'; return; }
+  if (B - A > 11){ TLE.hata = 'İki ay arası en fazla 12 ay olabilir.'; return; }
+  try {
+    let D = ANZ_CACHE.get(key);
+    if (!D){
+      TLE.yukleniyor = true; tleIcerikCiz();
+      D = await asLoadAll(B, t => { TLE.yukleniyor = t; if (!TLE.T) tleIcerikCiz(); }, A);
+      ANZ_CACHE.set(key, D); if (ANZ_CACHE.size > 6) ANZ_CACHE.delete(ANZ_CACHE.keys().next().value);
+    }
+    if (TLE.A !== A || TLE.B !== B) return; // bu arada seçim değişti
+    TLE.D = D; TLE.T = tleHesapla(D, A, B); TLE.key = key;
+    if (!TLE.T.G.find(g => g.key === TLE.gosterge)) TLE.gosterge = '__PUAN';
+  } catch (e){ TLE.hata = e.message.startsWith('VARDİYA') ? e.message : 'Veriler okunamadı: ' + e.message; }
+  TLE.yukleniyor = false;
+}
+function tleSeciciBagla(){
+  const yeniden = () => { contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tleIcerikCiz(); };
+  const a = document.getElementById('tleA'), b = document.getElementById('tleB');
+  const ayDegisti = async () => {
+    const A = parseInt(a.value, 10), B = parseInt(b.value, 10);
+    if (!(A < B)){ alert('Önceki ay, sonraki aydan önce olmalı.'); a.value = String(TLE.A); b.value = String(TLE.B); return; }
+    if (B - A > 11){ alert('İki ay arası en fazla 12 ay olabilir.'); a.value = String(TLE.A); b.value = String(TLE.B); return; }
+    TLE.A = A; TLE.B = B; TLE.idx = 0;
+    await tleYenile();
+  };
+  if (a) a.addEventListener('change', ayDegisti);
+  if (b) b.addEventListener('change', ayDegisti);
+  const gs = document.getElementById('tleGosterge'); if (gs) gs.addEventListener('change', () => { TLE.gosterge = gs.value; tleIcerikCiz(); });
+  const ls = document.getElementById('tleLider'); if (ls) ls.addEventListener('change', () => { TLE.lider = ls.value; TLE.idx = 0; tleIcerikCiz(); });
+  const d = document.getElementById('tleDegisen'); if (d) d.addEventListener('click', () => { TLE.sadeceDegisen = true; TLE.idx = 0; yeniden(); });
+  const h = document.getElementById('tleHerkes'); if (h) h.addEventListener('click', () => { TLE.sadeceDegisen = false; TLE.idx = 0; yeniden(); });
+}
+async function tleYenile(){
+  contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tleIcerikCiz();
+  await tleYukle();
+  if (selectedLeftTab !== 'tletki') return;
+  if (TLE.lider && TLE.T && !TLE.T.kisiler.some(k => k.tA === TLE.lider || k.tB === TLE.lider)) TLE.lider = '';
+  contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tleIcerikCiz();
+}
+async function tleAyListesi(){
+  if (!ANZ.aylar){
+    const t = await asFetchTabTitles(PERF_SHEET_ID);
+    ANZ.aylar = t.map(asParseKey).filter(a => a !== null).sort((a, b) => b - a);
+    if (!ANZ.aylar.length) throw new Error('OSMANİYE-PERFORMANS tablosunda ay sekmesi yok.');
+    ANZ.end = ANZ.aylar[0]; ANZ.start = Math.max(ANZ.end - 5, ANZ.aylar[ANZ.aylar.length - 1]);
+  }
+  return ANZ.aylar;
+}
+function wireTleTab(){
+  const mq = document.getElementById('analizMarqueeWrap'); if (mq) mq.style.display = 'none';
+  anzIcerikOlaylari();
+  if (!wireTleTab._klavye){
+    wireTleTab._klavye = true;
+    document.addEventListener('keydown', e => {
+      if (selectedLeftTab !== 'tletki' || TLE.gorunum !== 'tek') return;
+      if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target && e.target.tagName) || '')) return;
+      if (e.key === 'ArrowLeft'){ const b = document.getElementById('tleOnceki'); if (b && !b.disabled) b.click(); }
+      if (e.key === 'ArrowRight'){ const b = document.getElementById('tleSonraki'); if (b && !b.disabled) b.click(); }
+    });
+  }
+  (async () => {
+    if (TLE.B === null){
+      try {
+        const ay = await tleAyListesi();
+        if (ay.length < 2) throw new Error('Karşılaştırma için en az iki ay sekmesi gerekli.');
+        TLE.B = ay[0]; TLE.A = ay[1];
+      } catch (e){ TLE.hata = 'Ay listesi okunamadı: ' + e.message; contentArea.innerHTML = renderTleTab(); tleIcerikCiz(); return; }
+    }
+    tleYenile();
+  })();
 }
 
 // ----- Eski Analiz sekmesinin iç kontrolleri (artık çağrılmıyor; Personel Sunum'daki bulgular computeAnaliz'i kullanmaya devam ediyor) -----
