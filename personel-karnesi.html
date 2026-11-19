@@ -4056,12 +4056,16 @@ function personelFindings(sicil, years, mode){
   return findings;
 }
 
-async function generatePresentation(selectedYears, findingsMode, bgColorHex, textColorHex, mevcutSunum){
+async function generatePresentation(selectedYears, findingsMode, bgColorHex, textColorHex, mevcutSunum, temaKey){
   // mevcutSunum verilirse: yeni Personel Sunumu'nun EK slaytları olarak yalnız yıllık karne tabloları eklenir (kapak, bulgular ve dosya kaydı atlanır).
   const mode = findingsMode || 'kisiye';
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p) return;
-  const NAVY = '1E2761', ACCENT = 'E8A53D', DARK = bgColorHex || '141A44', WHITE = textColorHex || 'FFFFFF', DIM = '5D6572', LINE = 'E3E6EF';
+  const TM = temaKey && typeof AS_TEMALAR !== 'undefined' ? (AS_TEMALAR[temaKey] || AS_TEMALAR.beyaz) : null;
+  const NAVY = TM ? 'FFFFFF' : '1E2761', ACCENT = TM ? TM.ACCENT : 'E8A53D', DARK = TM ? TM.BG : (bgColorHex || '141A44'), WHITE = TM ? TM.TX : (textColorHex || 'FFFFFF'), DIM = TM ? TM.DIM : '5D6572', LINE = 'E3E6EF';
+  const K_KUTU = TM ? TM.CELL : '1C2944', K_KUTU2 = TM ? TM.CELL : '16213D', K_CIZGI = TM ? TM.LINE : '2A3A5C', K_BASLIK = TM ? TM.HEAD : '4FC3F7',
+    K_SOLUK = TM ? TM.DIM : '8FA3C9', K_IYI = TM ? TM.OK : '3ddc97', K_KOTU = TM ? TM.BAD : 'e85d5d', K_UYARI = TM ? 'B7791F' : 'F5C451', K_BAR = TM ? TM.ACCENT : 'E8A53D', K_CIZGI2 = TM ? '7A8699' : '5B9CF6', K_TITLE = TM ? (TM.TITLE || TM.TX) : WHITE;
+  const temaSerit = s => { if (TM && TM.BAND) s.addShape('rect', { x: 0, y: 0, w: 13.33, h: 0.12, fill: { color: TM.BAND }, line: { type: 'none' } }); };
   const pres = mevcutSunum || new PptxGenJS();
   if (!mevcutSunum){
   pres.layout = 'LAYOUT_WIDE';
@@ -4091,7 +4095,8 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
   {
     const s = pres.addSlide();
     s.background = { color: DARK };
-    s.addText('Genel Değerlendirme', { x: 0.5, y: 0.35, w: 10, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: WHITE, bold: true });
+    temaSerit(s);
+    s.addText('Genel Değerlendirme', { x: 0.5, y: 0.35, w: 10, h: 0.5, fontFace: 'Georgia', fontSize: 22, color: K_TITLE, bold: true });
 
     const metrics = KARNE_METRICS;
     const cols = metrics.length <= 6 ? 2 : 3;
@@ -4104,7 +4109,7 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
       const col = i % cols, row = Math.floor(i / cols);
       const x = startX + col * (boxW + gap);
       const y = startY + row * (boxH + gap);
-      s.addShape('roundRect', { x, y, w: boxW, h: boxH, rectRadius: 0.06, fill: { color: '16213D' }, line: { color: '2A3A5C', width: 0.75 } });
+      s.addShape('roundRect', { x, y, w: boxW, h: boxH, rectRadius: 0.06, fill: { color: K_KUTU2 }, line: { color: K_CIZGI, width: 0.75 } });
       s.addText(m.label, { x: x + 0.16, y: y + 0.08, w: boxW - 0.32, h: 0.3, fontFace: 'Georgia', fontSize: 12.5, color: ACCENT, bold: true });
       const yearLines = allYears.map(y2 => ({
         text: `${y2}   ${fmtKarneVal(personYearlyValue(selectedSicil, y2, m))}\n`,
@@ -4120,7 +4125,8 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
   KARNE_METRICS.forEach(metric => {
     const s = pres.addSlide();
     s.background = { color: DARK };
-    s.addText(metric.label, { x: 0.4, y: 0.25, w: 8, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: WHITE, bold: true });
+    temaSerit(s);
+    s.addText(metric.label, { x: 0.4, y: 0.25, w: 8, h: 0.4, fontFace: 'Georgia', fontSize: 20, color: K_TITLE, bold: true });
 
     // 1) Yıl/Ay Dağılımı - kart tablosu, TÜM yıllar
     let y = 0.78;
@@ -4133,12 +4139,12 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
         const r = has ? KARNE_RECORDS.find(x => x.sicil === selectedSicil && x.yil === yr && x.ayIndex === mi) : null;
         const v = r ? r[metric.key] : null;
         const cls = has ? monthlyCardColorClass(metric.category, v) : '';
-        const boxColor = { pos:'1C2944', neg:'1C2944', warn:'1C2944', '':'2A3A5C' }[cls] || '1C2944';
-        const textColor = { pos:'3ddc97', neg:'e85d5d', warn:'F5C451', '':'8FA3C9' }[cls] || WHITE;
+        const boxColor = { pos:K_KUTU, neg:K_KUTU, warn:K_KUTU, '':(TM ? 'EEF1F5' : '2A3A5C') }[cls] || K_KUTU;
+        const textColor = { pos:K_IYI, neg:K_KOTU, warn:K_UYARI, '':K_SOLUK }[cls] || WHITE;
         const x = 0.4 + mi * (cardW + cardGap);
-        s.addShape('roundRect', { x, y, w: cardW, h: cardH, rectRadius: 0.05, fill: { color: boxColor }, line: { color: '2A3A5C', width: 0.5 } });
+        s.addShape('roundRect', { x, y, w: cardW, h: cardH, rectRadius: 0.05, fill: { color: boxColor }, line: { color: K_CIZGI, width: 0.5 } });
         s.addText(fmtKarneVal(v), { x, y: y + 0.06, w: cardW, h: 0.3, align: 'center', fontFace: 'Georgia', fontSize: 11, bold: true, color: textColor });
-        s.addText(mLabel.slice(0, 3), { x, y: y + 0.36, w: cardW, h: 0.2, align: 'center', fontFace: 'Consolas', fontSize: 6.5, color: '8FA3C9' });
+        s.addText(mLabel.slice(0, 3), { x, y: y + 0.36, w: cardW, h: 0.2, align: 'center', fontFace: 'Consolas', fontSize: 6.5, color: K_SOLUK });
       });
       y += cardH + 0.08;
     });
@@ -4151,15 +4157,15 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
     const kisiVals = allYears.map(yr => personYearlyValue(selectedSicil, yr, metric, metric.paramAgg));
     const lokVals = allYears.map(yr => locationYearlyValue(yr, metric, metric.paramAgg));
     const tblRows = [
-      [{ text:'', options:{ fill:{color:'4FC3F7'} } }, ...allYears.map(yr => ({ text:String(yr), options:{ bold:true, fill:{color:'4FC3F7'}, color:NAVY, align:'center', fontSize:9 } }))],
+      [{ text:'', options:{ fill:{color:K_BASLIK} } }, ...allYears.map(yr => ({ text:String(yr), options:{ bold:true, fill:{color:K_BASLIK}, color:NAVY, align:'center', fontSize:9 } }))],
       [{ text:'Kişi', options:{ bold:true, color:WHITE, fontSize:9 } }, ...kisiVals.map((v,i) => {
         const cls = yearlySummaryColorClass(metric.category, v, lokVals[i]);
-        const c = { pos:'3ddc97', neg:'e85d5d', '':WHITE }[cls] || WHITE;
+        const c = { pos:K_IYI, neg:K_KOTU, '':WHITE }[cls] || WHITE;
         return { text: fmtKarneVal(v), options:{ align:'center', color:c, fontSize:9, bold: cls !== '' } };
       })],
-      [{ text:'Lokasyon', options:{ bold:true, color:WHITE, fontSize:9 } }, ...lokVals.map(v => ({ text: fmtKarneVal(v), options:{ align:'center', color:'8FA3C9', fontSize:9 } }))],
+      [{ text:'Lokasyon', options:{ bold:true, color:WHITE, fontSize:9 } }, ...lokVals.map(v => ({ text: fmtKarneVal(v), options:{ align:'center', color:K_SOLUK, fontSize:9 } }))],
     ];
-    s.addTable(tblRows, { x: 0.4, y, w: 5.3, border: { type:'solid', color:'2A3A5C', pt:0.5 }, fontFace:'Consolas', rowH:0.24, fill:{ color:'1C2944' } });
+    s.addTable(tblRows, { x: 0.4, y, w: 5.3, border: { type:'solid', color:K_CIZGI, pt:0.5 }, fontFace:'Consolas', rowH:0.24, fill:{ color:K_KUTU } });
     const tableBottomY = y + 0.24 * 3;
 
     // 3) Halkalar - tablonun SAĞINDA (aynı üst satırda), SEÇİLİ her yıl için bir tane,
@@ -4183,7 +4189,7 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
         const gx = rowStartX + gi * (gaugeW + gaugeGap);
         pptGaugeArc(s, gx, gy, gaugeW, gaugeH, metric.category, val, lok);
         s.addText(fmtKarneVal(val), { x: gx, y: gy + gaugeH*0.32, w: gaugeW, h: 0.24, align:'center', fontFace:'Georgia', fontSize:11, bold:true, color:WHITE });
-        s.addText(String(yr), { x: gx, y: gy + gaugeH + 0.02, w: gaugeW, h: 0.18, align:'center', fontFace:'Consolas', fontSize:7.5, color:'8FA3C9' });
+        s.addText(String(yr), { x: gx, y: gy + gaugeH + 0.02, w: gaugeW, h: 0.18, align:'center', fontFace:'Consolas', fontSize:7.5, color:K_SOLUK });
       });
       gaugeBottomY = gy + gaugeH + 0.25;
     }
@@ -4208,8 +4214,8 @@ async function generatePresentation(selectedYears, findingsMode, bgColorHex, tex
         const chartX = 0.4, chartY = rowBottomY, chartW = 12.5 - chartX, chartH = 7.05 - chartY;
         try {
           s.addChart([
-            { type: 'bar', data: [{ name: 'Kişi', labels: allLabels, values: allKisi }], options: { chartColors: ['E8A53D'] } },
-            { type: 'line', data: [{ name: 'Lokasyon Ort.', labels: allLabels, values: allLok }], options: { chartColors: ['5B9CF6'] } },
+            { type: 'bar', data: [{ name: 'Kişi', labels: allLabels, values: allKisi }], options: { chartColors: [K_BAR] } },
+            { type: 'line', data: [{ name: 'Lokasyon Ort.', labels: allLabels, values: allLok }], options: { chartColors: [K_CIZGI2] } },
           ], {
             x: chartX, y: chartY, w: chartW, h: chartH,
             showLegend: true, legendPos: 'b', legendFontSize: 8, legendColor: WHITE,
@@ -4282,7 +4288,7 @@ async function generateKisiSunum(sicil, startAbs, endAbs, mod, temaKey, ekSlayt,
   if (p && p.fotoUrl && typeof fetchDrivePhotoAsDataUrl === 'function'){
     try { const url = await fetchDrivePhotoAsDataUrl(p.fotoUrl); if (url && pres._kapak) pres._kapak.addImage({ data: url, x: 0.6, y: 0.55, w: 1.25, h: 1.25, rounding: true }); } catch(e){}
   }
-  if (ekSlayt && typeof generatePresentation === 'function') await generatePresentation(eskiYillar || [], mod, null, null, pres);
+  if (ekSlayt && typeof generatePresentation === 'function') await generatePresentation(eskiYillar || [], mod, null, null, pres, temaKey);
   const ad = p ? p.adSoyad : (asPersonName(D, endAbs, sicil, sicil));
   await pres.writeFile({ fileName: `Personel Sunumu - ${ad} - ${startAbs < endAbs ? asLabelOf(startAbs) + ' - ' : ''}${asLabelOf(endAbs)}${mod === 'ic' ? ' (iç kullanım)' : ''}.pptx` });
 }
