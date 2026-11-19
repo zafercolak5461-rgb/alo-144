@@ -6315,6 +6315,7 @@ function renderBilgilerTab(p){
           <div>
             <div class="mgr-name">${p.takimLideri || '—'}</div>
             <div class="mgr-role">Yöneticisi</div>
+            <div id="kisiTakimGecmisi" style="margin-top:6px; font-size:11px; color:var(--dim); line-height:1.4;"></div>
           </div>
         </div>
       </div>
@@ -6352,6 +6353,8 @@ function renderGenelTab(){
   }).join('');
 
   return `
+    <div id="kisiDonemWrap" style="margin-bottom:22px;"><div class="anz-bos">Son 6 ayın performans analizi yükleniyor…</div></div>
+    <div class="anz-alt-baslik" style="margin:6px 0 10px;">Karne — yıllık özet</div>
     <div class="gd-grid">${cardsHtml}</div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
@@ -6577,6 +6580,7 @@ function renderContentArea(){
     selectedLeftTab === 'bilgiler' ? renderBilgilerTab(p) :
     selectedLeftTab === 'genel' ? renderGenelTab() :
     renderParametreTab();
+  kisiSekmeDoldur();
 
   if (selectedLeftTab === 'genel' && KARNE_METRICS.length){
     const yearsAll = [...new Set(KARNE_MONTHS.map(m => m.year))].sort((a,b)=>a-b);
@@ -7245,11 +7249,19 @@ async function loadPersonelPerformans(){
     }
   });
 
-  // Personel Listesi'nde ARTIK OLMAYAN (işten ayrılmış) sicillerin geçmiş kayıtları elenir.
-  allRecords = allRecords.filter(r => TAKIM_MAP.has(r.sicil));
+  // Takım = kişinin O AYKİ VARDİYA sekmesindeki lideri (bugünkü lideri değil). VARDİYA sekmesi boş
+  // olan aylarda Personel Listesi'ndeki lider kullanılır (r.takimKaynak = 'liste').
+  // İşten ayrılanların kayıtları da tutulur: o ayın lokasyon/takım ortalamalarına dahildirler.
+  const vardiyaAy = new Map();
+  await Promise.all(AVAILABLE_MONTHS.map(async m => {
+    try { const rows = await asFetchValues(VARDIYA_SHEET_ID, `'${m.tabName}'!A1:D1000`); vardiyaAy.set(m.key, asParseVardiya(rows)); } catch(e){}
+  }));
   allRecords.forEach(r => {
+    const v = vardiyaAy.get(r.ay); const x = v && v.get(r.sicil);
     const info = TAKIM_MAP.get(r.sicil);
-    r.takim = (info && info.takim) || '(Bilinmiyor)';
+    if (x){ r.takim = x.takim; r.takimKaynak = 'vardiya'; }
+    else { r.takim = info && info.takim ? asUp(info.takim) : '(Bilinmiyor)'; r.takimKaynak = 'liste'; }
+    if (!r.personel && info) r.personel = info.personel;
   });
   PERF_RECORDS = allRecords;
 
@@ -7528,7 +7540,11 @@ function renderRankingViewHtml(){
       </div>`;
   }
 
-  const records = PERF_RECORDS.filter(r => r.ay === ppRankMonth && selectedPersons.has(r.sicil));
+  // Takım seçiliyse: o ay VARDİYA'da bu takımda olanlar (kişi listeden çıkarılmadıysa); lokasyonda: seçili kişiler
+  const takimdakiler = new Set(visiblePersonsForTeamPP().map(p => p.sicil));
+  const records = PERF_RECORDS.filter(r => r.ay === ppRankMonth && (selectedTeamLeader === 'ALL'
+    ? selectedPersons.has(r.sicil)
+    : asUp(r.takim) === asUp(selectedTeamLeader) && (!takimdakiler.has(r.sicil) || selectedPersons.has(r.sicil))));
   const activeMetrics = PP_METRICS.filter(m => selectedMetricsPP.has(m.key));
 
   if (!records.length){
@@ -7657,7 +7673,7 @@ function renderPersonCardHtml(){
   const personel = personRecs[0].personel;
   const takim = personRecs[personRecs.length - 1].takim;
   const locRecs = PERF_RECORDS.filter(r => monthsSorted.includes(r.ay));
-  const teamRecs = locRecs.filter(r => r.takim === takim);
+  const teamRecs = locRecs.filter(r => asUp(r.takim) === asUp(takim));
   const locAvg = avgOf(locRecs.map(r => r.performans).filter(v => v !== null));
   const teamAvg = avgOf(teamRecs.map(r => r.performans).filter(v => v !== null));
   const personAvg = avgOf(personRecs.map(r => r.performans).filter(v => v !== null));
@@ -9461,6 +9477,92 @@ function wireAnalizTab(){
     }
     anzYenile();
   })();
+}
+
+// ===== Kişi sekmeleri: son 6 ay analizi (Genel Değerlendirme üstü) ve takım geçmişi (Personel Bilgileri) =====
+// Analiz/Personel Sunum ile aynı hesaplar. Veri ANZ_CACHE ile paylaşılır.
+let KISI_AYLAR = null;
+async function kisiVeriAl(){
+  if (!KISI_AYLAR){
+    if (typeof ANZ !== 'undefined' && ANZ.aylar) KISI_AYLAR = ANZ.aylar;
+    else { const t = await asFetchTabTitles(PERF_SHEET_ID); KISI_AYLAR = t.map(asParseKey).filter(a => a !== null).sort((a, b) => b - a); }
+  }
+  const end = KISI_AYLAR[0], start = Math.max(end - 5, KISI_AYLAR[KISI_AYLAR.length - 1]);
+  const key = `${start}|${end}`;
+  if (ANZ_CACHE.has(key)) return { D: ANZ_CACHE.get(key), start, end };
+  const D = await asLoadAll(end, null, start);
+  ANZ_CACHE.set(key, D);
+  return { D, start, end };
+}
+function kisiTakimGecmisi(D, sicil, aylar){
+  const parca = [];
+  aylar.forEach(a => { const t = asTakimOf(D, a, sicil) || '—'; const son = parca[parca.length - 1]; if (son && son.t === t) son.b = a; else parca.push({ t, a, b: a }); });
+  return parca.map(x => `${asShort(x.a)}${x.b !== x.a ? '–' + asShort(x.b) : ''}: ${x.t}`).join(' · ');
+}
+function kisiDonemHtml(D, sicil, aylar){
+  const R = {}, LOK = {}, TAK = {}, TK = {};
+  aylar.forEach(a => { R[a] = asKisiKayit(D, a, sicil); LOK[a] = asMonthStats(D, a, { tip: 'lokasyon' }); TK[a] = asTakimOf(D, a, sicil); TAK[a] = TK[a] ? asMonthStats(D, a, { tip: 'takim', lider: TK[a] }) : null; });
+  const gec = a => R[a] && !R[a].durum && R[a].tutarli;
+  const gAy = aylar.filter(gec);
+  if (!gAy.length) return anzCard('📈 Son 6 ay', `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])} arasında bu kişiye ait değerlendirilmiş performans kaydı yok.`, '', 'OSMANİYE-PERFORMANS.', '');
+  const son = gAy[gAy.length - 1], onc = gAy.length > 1 ? gAy[gAy.length - 2] : undefined;
+  const puanP = D.olcek.params.filter(p => p.tur === 'PUAN'), kesP = D.olcek.params.filter(p => p.tur === 'KESİNTİ');
+  const durum = a => R[a] ? (R[a].durum || (!R[a].tutarli ? 'tutmuyor' : '')) : 'kayıt yok';
+  let html = '';
+  {
+    const ust = gAy.filter(a => LOK[a] && LOK[a].n && R[a].puan >= LOK[a].ortPuan).length;
+    const sonuc = gAy.length >= 2 ? `Puan ${asLabelOf(gAy[0])} ${asFmt(R[gAy[0]].puan, 0)} → ${asLabelOf(son)} ${asFmt(R[son].puan, 0)}; ${gAy.length} ayın ${ust} tanesinde lokasyon ortalamasının üstünde.` : `${asLabelOf(son)} puanı ${asFmt(R[son].puan, 0)}.`;
+    const ay = aylar.map(a => ({ t: asShort(a) }));
+    const satir = (ad, f) => ({ cells: [anzTd(`<b>${ad}</b>`, { al: 'left' })].concat(aylar.map(f)) });
+    const rows = [
+      satir('Performans puanı', a => gec(a) ? anzTd(`<b style="color:var(--accent);">${asFmt(R[a].puan, 0)}</b>`) : anzTd(`<span class="hint">${anzEsc(durum(a))}</span>`)),
+      satir('Takım lideri', a => anzTd(`<span style="font-size:11px; color:var(--dim);">${anzEsc(TK[a] || '—')}</span>`)),
+      satir('Takım ortalaması', a => anzTd(TAK[a] && TAK[a].n ? asFmt(TAK[a].ortPuan) : '—')),
+      satir('Lokasyon ortalaması', a => anzTd(LOK[a] && LOK[a].n ? asFmt(LOK[a].ortPuan) : '—')),
+      satir('Lokasyonda sıra', a => anzTd(gec(a) ? `${asSira(LOK[a], R[a].puan)}/${LOK[a].n}` : '—')),
+      satir('Takımda sıra', a => anzTd(gec(a) && TAK[a] ? `${asSira(TAK[a], R[a].puan)}/${TAK[a].n}` : '—')),
+    ];
+    html += anzCard('📈 Son 6 ay', sonuc, anzTable([{ t: 'Gösterge', al: 'left' }].concat(ay), rows), 'OSMANİYE-PERFORMANS; VARDİYA.', 'Takım = kişinin o ay VARDİYA\'da bağlı olduğu takım. Sıra: aynı puanlılar aynı sırayı alır.');
+  }
+  {
+    const r = R[son], o = onc !== undefined ? R[onc] : null;
+    const kay = puanP.concat(kesP).filter(p => r.params[p.col] && r.params[p.col].kayip > 0).sort((a, b) => r.params[b.col].kayip - r.params[a.col].kayip);
+    const sonuc = kay.length ? `${asLabelOf(son)}: puan ${kay.slice(0, 3).map(p => `${anzEsc(p.param)} (−${asFmt(r.params[p.col].kayip, 0)})`).join(', ')}${kay.length > 3 ? ' ve diğerlerinden' : ''} gitti.` : `${asLabelOf(son)}: tüm parametrelerden tam puan.`;
+    const rows = D.olcek.params.map(p => { const i = r.params[p.col]; if (!i) return null; const oi = o && o.params[p.col]; const f = oi ? i.kazanilan - oi.kazanilan : null;
+      return { cells: [anzTd(`<b>${anzEsc(p.param)}</b>`, { al: 'left' }), anzTd(`<b>${anzEsc(asDeger(D, p.col, i, son))}</b>`), anzTd(asFmt(i.kazanilan, 0)), anzTd(p.tur === 'PUAN' ? asFmt(i.max, 0) : p.tur === 'KESİNTİ' ? '0' : '+' + asFmt(i.max, 0)), anzTd(i.kayip > 0 ? `−${asFmt(i.kayip, 0)}` : '—', { st: anzRenkKayip(i.kayip) }), anzTd(oi ? anzEsc(asDeger(D, p.col, oi, onc)) : '—', { st: 'color:var(--dim);' }), anzTd(f === null || f === 0 ? '—' : anzFark(f, true))] }; }).filter(Boolean);
+    rows.push({ cells: [anzTd('<b style="color:var(--accent);">Performans puanı</b>', { al: 'left' }), anzTd(''), anzTd(`<b>${asFmt(r.puan, 0)}</b>`), anzTd(''), anzTd(''), anzTd(o ? asFmt(o.puan, 0) : '—'), anzTd(o ? anzFark(r.puan - o.puan, true) : '—')] });
+    html += anzCard(`🧾 ${asLabelOf(son)} puan dökümü`, sonuc, anzTable([{ t: 'Parametre', al: 'left' }, { t: 'Değer' }, { t: 'Alınan' }, { t: 'En yüksek' }, { t: 'Kayıp' }, { t: o ? `${asShort(onc)} değeri` : 'Önceki' }, { t: 'Puan farkı' }], rows), `OSMANİYE-PERFORMANS ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`, 'Kayıp = en yüksek puan − alınan puan; yazılı uyarıda kesinti.');
+  }
+  {
+    const guclu = puanP.filter(p => gAy.every(a => R[a].params[p.col] && !R[a].params[p.col].olculmedi && R[a].params[p.col].kayip === 0)).filter(p => !gAy.every(a => LOK[a] && LOK[a].params[p.col] && LOK[a].params[p.col].hepsiSifir));
+    const tekrar = puanP.concat(kesP).map(p => ({ p, n: gAy.filter(a => R[a].params[p.col] && R[a].params[p.col].kayip > 0).length, v: asSum(gAy.map(a => R[a].params[p.col] ? R[a].params[p.col].kayip : 0)) })).filter(x => x.n >= 2 && x.n > gAy.length / 2).sort((a, b) => b.n - a.n || b.v - a.v);
+    const adim = asGelisimAdimlari(D, R[son]);
+    const g = anzTable([{ t: 'Parametre', al: 'left' }, { t: 'Son değer' }, { t: 'Tam puan ay' }], guclu.map(p => ({ cells: [anzTd(`<b>${anzEsc(p.param)}</b>`, { al: 'left' }), anzTd(anzEsc(asDeger(D, p.col, R[son].params[p.col], son))), anzTd(`<b style="color:var(--ok);">${gAy.length}/${gAy.length}</b>`)] })), { bos: 'Her ay tam puan alınan parametre yok.' });
+    const k = anzTable([{ t: 'Parametre', al: 'left' }, { t: 'Kayıp ay' }, { t: 'Son değer' }, { t: 'Kaybedilen' }], tekrar.map(x => ({ cells: [anzTd(`<b>${anzEsc(x.p.param)}</b>`, { al: 'left' }), anzTd(`${x.n}/${gAy.length}`, { st: anzRenkKayip(1) }), anzTd(anzEsc(asDeger(D, x.p.col, R[son].params[x.p.col], son))), anzTd(asFmt(x.v, 0))] })), { bos: 'Tekrarlayan kayıp yok.' });
+    html += anzCard('⚖️ Güçlü yönler ve tekrarlayan kayıplar', (guclu.length ? `Her ay tam puan: ${guclu.map(p => anzEsc(p.param)).join(', ')}.` : 'Her ay tam puan alınan parametre yok.') + ' ' + (tekrar.length ? `Tekrarlayan kayıp: ${tekrar.map(x => `${anzEsc(x.p.param)} (${x.n}/${gAy.length})`).join(', ')}.` : 'Tekrarlayan kayıp yok.'),
+      `<div class="anz-iki"><div><div class="anz-alt-baslik" style="color:var(--ok);">Güçlü yönler</div>${g}</div><div><div class="anz-alt-baslik" style="color:var(--danger);">Tekrarlayan kayıplar</div>${k}</div></div>`, 'OSMANİYE-PERFORMANS; PUANLAMA ÖLÇEĞİ.', '"Tekrarlayan" = değerlendirilen ayların yarısından fazlasında (en az 2 ay) kayıp. Herkese 0 girilen parametreler güçlü yön sayılmaz.');
+    const toplam = asSum(adim.map(x => x.tamKazanc));
+    html += anzCard('⬆️ Puanı artırmak için', adim.length ? `En çok kazandıracak adımlar: ${adim.slice(0, 3).map(x => `${anzEsc(x.p.param)} ${anzEsc(x.tamHedef)} (+${asFmt(x.tamKazanc, 0)})`).join(', ')}.` : 'Tüm parametreler tam puanda.',
+      adim.length ? anzTable([{ t: 'Parametre', al: 'left' }, { t: 'Şimdiki' }, { t: 'Bir üst basamak', al: 'left' }, { t: 'Kazanç' }, { t: 'Tam puan için', al: 'left' }, { t: 'Kazanç' }],
+        adim.map(x => ({ cells: [anzTd(`<b>${anzEsc(x.p.param)}</b>`, { al: 'left' }), anzTd(`<b>${anzEsc(x.deger)}</b>`), anzTd(anzEsc(x.birHedef), { al: 'left' }), anzTd(`+${asFmt(x.birKazanc, 0)}`, { st: `color:${ANZ_IYI_RENK};font-weight:700;` }), anzTd(anzEsc(x.tamHedef), { al: 'left' }), anzTd(`+${asFmt(x.tamKazanc, 0)}`, { st: `color:${ANZ_IYI_RENK};font-weight:700;` })] }))
+          .concat([{ cells: [anzTd('<b style="color:var(--accent);">Hepsi tam puana çıkarsa</b>', { al: 'left' }), anzTd(''), anzTd(''), anzTd(''), anzTd(`<b>${asFmt(R[son].puan, 0)} → ${asFmt(R[son].puan + toplam, 0)}</b>`, { al: 'left' }), anzTd(`<b>+${asFmt(toplam, 0)}</b>`)] }])) : '',
+      `OSMANİYE-PERFORMANS ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`, 'Anket 1 ondalığa yuvarlanarak değerlendirilir.');
+  }
+  return html;
+}
+async function kisiSekmeDoldur(){
+  const sicil = selectedSicil, sekme = selectedLeftTab;
+  if (sekme !== 'genel' && sekme !== 'bilgiler') return;
+  try {
+    const { D, start, end } = await kisiVeriAl();
+    if (sicil !== selectedSicil || sekme !== selectedLeftTab) return; // bu arada başka kişi/sekme seçildi
+    const aylar = []; for (let a = start; a <= end; a++) aylar.push(a);
+    if (sekme === 'bilgiler'){ const el = document.getElementById('kisiTakimGecmisi'); if (el) el.textContent = 'VARDİYA: ' + kisiTakimGecmisi(D, sicil, aylar); }
+    if (sekme === 'genel'){ const el = document.getElementById('kisiDonemWrap'); if (el) el.innerHTML = kisiDonemHtml(D, sicil, aylar); }
+  } catch (e){
+    const el = document.getElementById(sekme === 'genel' ? 'kisiDonemWrap' : 'kisiTakimGecmisi');
+    if (el) el.innerHTML = `<span class="hint">Performans verisi okunamadı: ${anzEsc(e.message)}</span>`;
+  }
 }
 
 // ----- Eski Analiz sekmesinin iç kontrolleri (artık çağrılmıyor; Personel Sunum'daki bulgular computeAnaliz'i kullanmaya devam ediyor) -----
