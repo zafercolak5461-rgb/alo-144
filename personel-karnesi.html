@@ -10186,7 +10186,7 @@ function tleHesapNotu(T){
 }
 
 // ---------- Sekme ----------
-let TLE = { A: null, B: null, gosterge: '__PUAN', lider: '', sadeceDegisen: true, gorunum: 'liste', sira: 'dus', idx: 0, D: null, key: null, hata: null, yukleniyor: false };
+let TLE = { mod: 'kisi', A: null, B: null, gosterge: '__PUAN', lider: '', sadeceDegisen: true, gorunum: 'liste', sira: 'dus', idx: 0, D: null, key: null, hata: null, yukleniyor: false };
 function tleSiraliListe(T){
   let l = T.kisiler.slice();
   if (TLE.sadeceDegisen) l = l.filter(k => k.degisti);
@@ -10210,10 +10210,13 @@ function renderTleTab(){
   const T = TLE.T;
   const G = T ? T.G : [];
   const liderler = T ? [...new Set(T.kisiler.map(k => k.tA).concat(T.kisiler.map(k => k.tB)))].sort((a, b) => a.localeCompare(b, 'tr')) : [];
-  return `
+  const modBar = `<div class="anz-grup" style="margin-bottom:16px; flex-wrap:wrap;">${btn('tleModKisi', TLE.mod === 'kisi', '👤 Kişi seyri')}${btn('tleModTl', TLE.mod === 'tl', '👥 Takım lideri seyri')}${btn('tleModIki', TLE.mod === 'iki', '📅 İki ay karşılaştırma')}</div>`;
+  const baslik = `
     <div class="topbar" style="margin-bottom:24px;">
       <div class="topbar-left"><div><div class="eyebrow">ALO 144 · ANALİZ</div><h1>Takım Lideri Etkisi</h1></div></div>
-    </div>
+    </div>` + modBar;
+  if (TLE.mod !== 'iki') return baslik + `<div id="tlsSecici"></div><div id="tleIcerik"><div class="anz-bos">Yükleniyor…</div></div>`;
+  return baslik + `
     <div class="panel" style="margin-bottom:20px;">
       <div class="panel-body anz-secici">
         <div><div class="search-label">Önceki ay</div><select class="search" id="tleA">${ay.length ? opt(TLE.A) : '<option>Yükleniyor…</option>'}</select></div>
@@ -10356,6 +10359,7 @@ function tlePersonelHtml(D, T){
     'Satıra tıklayınca gösterge gösterge ayrıntı açılır. İyileşen/Kötüleşen = değeri iyi/kötü yönde değişen parametre sayısı. Parametre sütunları = değer farkı (sonraki − önceki). ' + tleHesapNotu(T));
 }
 function tleIcerikCiz(){
+  if (TLE.mod !== 'iki') return;
   const el = document.getElementById('tleIcerik'); if (!el) return;
   if (TLE.hata){ el.innerHTML = `<div class="error-box">${anzEsc(TLE.hata)}</div>`; return; }
   if (!TLE.T){ el.innerHTML = `<div class="anz-bos">${TLE.yukleniyor ? `Veriler okunuyor… <span class="hint">${anzEsc(TLE.yukleniyor === true ? '' : TLE.yukleniyor)}</span>` : 'Yükleniyor…'}</div>`; return; }
@@ -10393,6 +10397,7 @@ async function tleYukle(){
 }
 function tleSeciciBagla(){
   const yeniden = () => { contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tleIcerikCiz(); };
+  [['tleModKisi', 'kisi'], ['tleModTl', 'tl'], ['tleModIki', 'iki']].forEach(([id, m]) => { const e = document.getElementById(id); if (e) e.addEventListener('click', () => { if (TLE.mod === m) return; TLE.mod = m; wireTleTab(); }); });
   const a = document.getElementById('tleA'), b = document.getElementById('tleB');
   const ayDegisti = async () => {
     const A = parseInt(a.value, 10), B = parseInt(b.value, 10);
@@ -10411,7 +10416,7 @@ function tleSeciciBagla(){
 async function tleYenile(){
   contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tleIcerikCiz();
   await tleYukle();
-  if (selectedLeftTab !== 'tletki') return;
+  if (selectedLeftTab !== 'tletki' || TLE.mod !== 'iki') return;
   if (TLE.lider && TLE.T && !TLE.T.kisiler.some(k => k.tA === TLE.lider || k.tB === TLE.lider)) TLE.lider = '';
   contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tleIcerikCiz();
 }
@@ -10430,12 +10435,15 @@ function wireTleTab(){
   if (!wireTleTab._klavye){
     wireTleTab._klavye = true;
     document.addEventListener('keydown', e => {
-      if (selectedLeftTab !== 'tletki' || TLE.gorunum !== 'tek') return;
+      if (selectedLeftTab !== 'tletki') return;
       if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target && e.target.tagName) || '')) return;
-      if (e.key === 'ArrowLeft'){ const b = document.getElementById('tleOnceki'); if (b && !b.disabled) b.click(); }
-      if (e.key === 'ArrowRight'){ const b = document.getElementById('tleSonraki'); if (b && !b.disabled) b.click(); }
+      const [geri, ileri] = TLE.mod === 'kisi' ? ['tlsOnceki', 'tlsSonraki'] : (TLE.mod === 'iki' && TLE.gorunum === 'tek' ? ['tleOnceki', 'tleSonraki'] : [null, null]);
+      if (!geri) return;
+      if (e.key === 'ArrowLeft'){ const b = document.getElementById(geri); if (b && !b.disabled) b.click(); }
+      if (e.key === 'ArrowRight'){ const b = document.getElementById(ileri); if (b && !b.disabled) b.click(); }
     });
   }
+  if (TLE.mod !== 'iki'){ contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tlsYenile(); return; }
   (async () => {
     if (TLE.B === null){
       try {
@@ -10446,6 +10454,417 @@ function wireTleTab(){
     }
     tleYenile();
   })();
+}
+
+// ===== TAKIM LİDERİ ETKİSİ — SEYİR (kişi ve takım lideri bazında, 20.11.2026) =====
+// Kişinin VARDİYA'daki tüm ayları liderlere göre dönemlere bölünür; her dönemin ay ay seyri ve her lider
+// geçişinin etkisi (geçiş anı, toparlanma, kalıcı fark) gösterge gösterge hesaplanır. Takım lideri bazında,
+// lidere gelenler geçiş ayına göre hizalanıp ortalanır; aynı takvim aylarındaki lokasyon ortalaması yanına konur.
+// Ayarlar: OSMANİYE-PERFORMANS > "TL ETKİSİ AYARLARI" (yoksa varsayılanlar). Göstergeler ve yönleri PUANLAMA ÖLÇEĞİ'nden.
+const TLE_AYAR_TAB = 'TL ETKİSİ AYARLARI';
+const TLS_RENKLER = ['#2563EB', '#D97706', '#059669', '#7C3AED', '#DC2626', '#0891B2', '#65A30D', '#DB2777'];
+function tleParseAyar(rows){
+  const a = { bas: null, minAy: 2, once: 3, sonra: 6, kaynak: 'varsayılan' };
+  (rows || []).slice(1).forEach(r => {
+    const k = asUp(r[0]);
+    if (k.startsWith('BAŞLANGIÇ AYI')){ const v = asParseKey(r[1]); if (v !== null){ a.bas = v; a.kaynak = 'tablo'; } return; }
+    const v = asNum(r[1]); if (v === null || v < 1) return;
+    if (k.startsWith('EN AZ DÖNEM')){ a.minAy = Math.round(v); a.kaynak = 'tablo'; }
+    else if (k.startsWith('GEÇİŞ ÖNCESİ')){ a.once = Math.round(v); a.kaynak = 'tablo'; }
+    else if (k.startsWith('GEÇİŞ SONRASI')){ a.sonra = Math.round(v); a.kaynak = 'tablo'; }
+  });
+  return a;
+}
+let TLS_D = null, TLS_YUK = null;
+async function tlsYukle(onProgress){
+  if (TLS_D) return TLS_D;
+  if (!TLS_YUK){
+    TLS_YUK = (async () => {
+      const [olcekRows, ayarRows, perfTitles, vardiyaTitles] = await Promise.all([
+        asFetchValues(PERF_SHEET_ID, `'${AS_OLCEK_TAB}'!A1:Z500`),
+        asFetchValues(PERF_SHEET_ID, `'${TLE_AYAR_TAB}'!A1:B20`).catch(() => null),
+        asFetchTabTitles(PERF_SHEET_ID), asFetchTabTitles(VARDIYA_SHEET_ID),
+      ]);
+      const olcek = asParseOlcek(olcekRows);
+      const ayar = tleParseAyar(ayarRows);
+      const vSet = new Set(vardiyaTitles.map(asParseKey).filter(a => a !== null));
+      let aylar = perfTitles.map(asParseKey).filter(a => a !== null && vSet.has(a) && (ayar.bas === null || a >= ayar.bas)).sort((a, b) => a - b);
+      const perf = new Map(), vardiya = new Map();
+      let say = 0;
+      const sonuc = await fetchWithConcurrencyLimit(aylar, 4, async a => {
+        const key = asKeyOf(a);
+        const [p, v] = await Promise.all([asFetchValues(PERF_SHEET_ID, `'${key}'!A1:Z1000`), asFetchValues(VARDIYA_SHEET_ID, `'${key}'!A1:AZ1000`)]);
+        perf.set(a, asParsePerf(p, a, olcek)); vardiya.set(a, asParseVardiya(v));
+        if (onProgress) onProgress(`${++say} / ${aylar.length} ay okundu`);
+      });
+      const hata = sonuc.find(x => x && x.status === 'rejected');
+      if (hata) throw hata.reason;
+      aylar = aylar.filter(a => vardiya.get(a) && vardiya.get(a).size);
+      if (!aylar.length) throw new Error('VARDİYA ve OSMANİYE-PERFORMANS tablolarında ortak dolu ay yok.');
+      const D = { olcek, ayar, perf, vardiya, aylar };
+      D.G = tleGostergeler(D, aylar[aylar.length - 1]);
+      D.lok = tlsLokasyon(D);
+      D.kisiCache = new Map();
+      return D;
+    })();
+  }
+  try { TLS_D = await TLS_YUK; return TLS_D; } finally { TLS_YUK = null; }
+}
+// Lokasyon ay ortalamaları: o ayın VARDİYA'sında olan ve puanı tutan herkes.
+function tlsLokasyon(D){
+  const m = new Map();
+  D.aylar.forEach(a => {
+    const v = D.vardiya.get(a), p = D.perf.get(a) || new Map();
+    const recs = [...v.keys()].map(s => p.get(s)).filter(r => r && !r.durum && r.tutarli);
+    const o = { n: recs.length };
+    D.G.forEach(g => { o[g.key] = asAvg(recs.map(r => tleDeger(r, g))); });
+    m.set(a, o);
+  });
+  return m;
+}
+function tlsOlcekDegisimi(D, g, aylar){
+  if (g.key === '__PUAN' || aylar.length < 2) return null;
+  for (let i = 1; i < aylar.length; i++) if (asBandText(D.olcek, g.key, aylar[i]) !== asBandText(D.olcek, g.key, aylar[i - 1])) return aylar[i];
+  return null;
+}
+function tlsKotuMu(g, fark){ return fark !== null && fark !== undefined && Math.abs(fark) > 1e-9 && ((fark > 0) !== g.yuksekIyi); }
+function tlsIyiMi(g, fark){ return fark !== null && fark !== undefined && Math.abs(fark) > 1e-9 && ((fark > 0) === g.yuksekIyi); }
+
+// ---------- Kişi modeli ----------
+function tlsKisi(D, sicil){
+  if (D.kisiCache.has(sicil)) return D.kisiCache.get(sicil);
+  const aylar = [];
+  D.aylar.forEach(a => {
+    const v = D.vardiya.get(a).get(sicil); if (!v) return;
+    const pm = D.perf.get(a); const r = (pm && pm.get(sicil)) || null;
+    aylar.push({ a, L: v.takim, ad: v.ad, r, gec: !!(r && !r.durum && r.tutarli) });
+  });
+  if (!aylar.length){ D.kisiCache.set(sicil, null); return null; }
+  const segs = [];
+  aylar.forEach(x => { const s = segs[segs.length - 1]; if (s && s.L === x.L) s.aylar.push(x); else segs.push({ L: x.L, aylar: [x] }); });
+  segs.forEach((s, i) => {
+    s.i = i; s.bas = s.aylar[0].a; s.bit = s.aylar[s.aylar.length - 1].a;
+    s.gecAylar = s.aylar.filter(x => x.gec);
+    s.kisa = s.gecAylar.length < D.ayar.minAy;
+    s.ort = {}; D.G.forEach(g => { s.ort[g.key] = asAvg(s.gecAylar.map(x => tleDeger(x.r, g))); });
+  });
+  const val = (x, g) => x ? tleDeger(x.r, g) : null;
+  const pval = (x, g) => !x ? null : (g.key === '__PUAN' ? x.r.puan : (x.r.params[g.key] ? x.r.params[g.key].kazanilan : null));
+  const gecisler = [];
+  for (let i = 1; i < segs.length; i++){
+    const P = segs[i - 1], Y = segs[i];
+    const onc = P.gecAylar.slice(-D.ayar.once), ilk = Y.gecAylar[0] || null, sonra = Y.gecAylar.slice(1);
+    const gc = { P, Y, ay: Y.bas, onc, ilk, sonra, bosluk: Y.bas - P.bit > 1, d: {} };
+    D.G.forEach(g => {
+      const once = asAvg(onc.map(x => val(x, g))), gecis = val(ilk, g), son = asAvg(sonra.map(x => val(x, g)));
+      const pOnce = asAvg(onc.map(x => pval(x, g))), pGecis = pval(ilk, g), pSon = asAvg(sonra.map(x => pval(x, g)));
+      const gecisFark = once !== null && gecis !== null ? gecis - once : null;
+      const kalici = once !== null && son !== null ? son - once : null;
+      let donus = null;
+      if (tlsKotuMu(g, gecisFark)){
+        donus = { ay: null, izlenen: Y.gecAylar.length - 1 };
+        for (let j = 1; j < Y.gecAylar.length; j++){ const v = val(Y.gecAylar[j], g); if (v !== null && !tlsKotuMu(g, v - once)){ donus.ay = j; break; } }
+      }
+      const lokOnce = asAvg(onc.map(x => (D.lok.get(x.a) || {})[g.key])), lokGecis = ilk ? (D.lok.get(ilk.a) || {})[g.key] : null, lokSon = asAvg(sonra.map(x => (D.lok.get(x.a) || {})[g.key]));
+      gc.d[g.key] = { once, gecis, son, gecisFark, kalici, donus,
+        pGecisFark: pOnce !== null && pGecis !== null ? pGecis - pOnce : null, pKalici: pOnce !== null && pSon !== null ? pSon - pOnce : null,
+        lokGecisFark: lokOnce !== null && lokGecis !== null && lokGecis !== undefined ? lokGecis - lokOnce : null, lokKalici: lokOnce !== null && lokSon !== null ? lokSon - lokOnce : null,
+        olcek: tlsOlcekDegisimi(D, g, onc.map(x => x.a).concat(Y.gecAylar.map(x => x.a))) };
+    });
+    gecisler.push(gc);
+  }
+  const k = { sicil, ad: aylar[aylar.length - 1].ad || sicil, aylar, segs, gecisler, sonL: aylar[aylar.length - 1].a === D.aylar[D.aylar.length - 1] ? aylar[aylar.length - 1].L : null };
+  D.kisiCache.set(sicil, k);
+  return k;
+}
+function tlsTumSiciller(D){
+  const s = new Set(); D.aylar.forEach(a => D.vardiya.get(a).forEach((v, sicil) => s.add(sicil))); return [...s];
+}
+function tlsLiderler(D){
+  const s = new Set(); D.aylar.forEach(a => D.vardiya.get(a).forEach(v => s.add(v.takim))); return [...s].sort((a, b) => a.localeCompare(b, 'tr'));
+}
+function tlsSonLiderler(D){
+  const v = D.vardiya.get(D.aylar[D.aylar.length - 1]); return [...new Set([...v.values()].map(x => x.takim))].sort((a, b) => a.localeCompare(b, 'tr'));
+}
+
+// ---------- Ortak görünüm parçaları ----------
+let TLS = { sicil: null, lider: '', sadeceGecis: false, gosterge: '__PUAN', tlLider: '', D: null, hata: null, yukleniyor: false };
+let TLS_CHARTS = [];
+function tlsDonem(s){ return `${asShort(s.bas)}${s.bit !== s.bas ? '–' + asShort(s.bit) : ''}`; }
+function tlsDegerMetni(D, g, v, abs){ return tleDegerMetni(D, g, v, abs); }
+function tlsFark(g, v){ return v === null || v === undefined ? '—' : anzFark(v, g.yuksekIyi); }
+function tlsKisiListesi(D){
+  let l = tlsTumSiciller(D).map(s => tlsKisi(D, s)).filter(Boolean);
+  if (TLS.lider) l = l.filter(k => k.sonL === TLS.lider);
+  if (TLS.sadeceGecis) l = l.filter(k => k.gecisler.length);
+  return l.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+}
+function tlsSeciciHtml(D){
+  if (TLE.mod === 'kisi'){
+    const liste = D ? tlsKisiListesi(D) : [];
+    if (D && liste.length && !liste.some(k => k.sicil === TLS.sicil)) TLS.sicil = liste[0].sicil;
+    const idx = liste.findIndex(k => k.sicil === TLS.sicil);
+    const btn = (id, on, txt) => `<button class="refresh-btn anz-sec ${on ? 'anz-sec-on' : ''}" id="${id}">${txt}</button>`;
+    return `<div class="panel" style="margin-bottom:20px;"><div class="panel-body anz-secici">
+      <div><div class="search-label">Mevcut takımı</div><select class="search" id="tlsLider"><option value="">Tüm personel</option>${D ? tlsSonLiderler(D).map(l => `<option value="${anzEsc(l)}" ${l === TLS.lider ? 'selected' : ''}>${anzEsc(l)}</option>`).join('') : ''}</select></div>
+      <div><div class="search-label">Liste</div><div class="anz-grup">${btn('tlsHerkes', !TLS.sadeceGecis, 'Herkes')}${btn('tlsGecisli', TLS.sadeceGecis, 'Lideri değişmiş olanlar')}</div></div>
+      <div style="min-width:280px;"><div class="search-label">Personel (${liste.length})</div><select class="search" id="tlsKisi">${liste.map(k => `<option value="${anzEsc(k.sicil)}" ${k.sicil === TLS.sicil ? 'selected' : ''}>${anzEsc(k.ad)} (${anzEsc(k.sicil)})${k.gecisler.length ? ` · ${k.segs.length} lider` : ''}</option>`).join('') || '<option value="">—</option>'}</select></div>
+      <div><div class="search-label">${idx >= 0 ? `${idx + 1} / ${liste.length}` : '&nbsp;'}</div><div class="anz-grup"><button class="refresh-btn" id="tlsOnceki" ${idx <= 0 ? 'disabled' : ''}>◀</button><button class="refresh-btn" id="tlsSonraki" ${idx < 0 || idx >= liste.length - 1 ? 'disabled' : ''}>▶</button></div></div>
+      <div><div class="search-label">Grafik göstergesi</div><select class="search" id="tlsGosterge">${D ? D.G.map(g => `<option value="${anzEsc(g.key)}" ${g.key === TLS.gosterge ? 'selected' : ''}>${anzEsc(g.label)}</option>`).join('') : ''}</select></div>
+    </div></div>`;
+  }
+  const ls = D ? tlsLiderler(D) : [];
+  if (D && !ls.includes(TLS.tlLider)) TLS.tlLider = tlsSonLiderler(D)[0] || ls[0] || '';
+  return `<div class="panel" style="margin-bottom:20px;"><div class="panel-body anz-secici">
+    <div style="min-width:220px;"><div class="search-label">Takım lideri</div><select class="search" id="tlsTlLider">${ls.map(l => `<option value="${anzEsc(l)}" ${l === TLS.tlLider ? 'selected' : ''}>${anzEsc(l)}</option>`).join('')}</select></div>
+    <div><div class="search-label">Grafik göstergesi</div><select class="search" id="tlsGosterge">${D ? D.G.map(g => `<option value="${anzEsc(g.key)}" ${g.key === TLS.gosterge ? 'selected' : ''}>${anzEsc(g.label)}</option>`).join('') : ''}</select></div>
+  </div></div>`;
+}
+function tlsAyarNotu(D){
+  return `Ayarlar (${D.ayar.kaynak === 'tablo' ? `OSMANİYE-PERFORMANS > ${TLE_AYAR_TAB}` : 'varsayılan'}): başlangıç ${asLabelOf(D.aylar[0])}, önceki seviye = önceki liderin son ${D.ayar.once} değerlendirilmiş ayı, kısa dönem = ${D.ayar.minAy} aydan az.`;
+}
+
+// ---------- Kişi ekranı ----------
+function tlsKisiHtml(D, k){
+  const G = D.G;
+  let html = '';
+  // 1) Lider geçmişi
+  {
+    const sonuc = k.segs.length === 1
+      ? `${anzEsc(k.ad)}, ${asLabelOf(k.segs[0].bas)} itibarıyla hep ${anzEsc(k.segs[0].L)} ekibinde (${k.segs[0].aylar.length} ay).`
+      : `${anzEsc(k.ad)}, ${k.segs.length} dönemde ${new Set(k.segs.map(s => s.L)).size} liderle çalıştı: ` + k.segs.map(s => `${anzEsc(s.L)} (${tlsDonem(s)}, ${s.aylar.length} ay)`).join(' → ') + '.';
+    const chips = k.segs.map((s, i) => `<div style="border:1px solid var(--line); border-left:5px solid ${TLS_RENKLER[i % TLS_RENKLER.length]}; border-radius:10px; padding:8px 12px; min-width:170px;">
+        <div style="font-weight:700;">${anzEsc(s.L)}</div>
+        <div class="hint">${tlsDonem(s)} · ${s.aylar.length} ay${s.gecAylar.length !== s.aylar.length ? ` (${s.gecAylar.length} değerlendirildi)` : ''}${s.kisa ? ' · <span style="color:var(--danger);">kısa dönem</span>' : ''}</div>
+        <div style="font-size:12.5px; margin-top:4px;">Ort. puan <b>${asFmt(s.ort.__PUAN, 1)}</b></div></div>`).join('<div style="align-self:center; color:var(--dim);">→</div>');
+    html += anzCard('🧭 Lider geçmişi', sonuc, `<div style="display:flex; gap:10px; flex-wrap:wrap;">${chips}</div>`, `VARDİYA ${asKeyOf(D.aylar[0])} – ${asKeyOf(D.aylar[D.aylar.length - 1])} ("Takım" sütunu); OSMANİYE-PERFORMANS.`, tlsAyarNotu(D) + ' Ortalamaya yalnız değerlendirilen ve puanı tutan aylar girer.');
+  }
+  // 2) Ay ay seyir
+  {
+    const gs = G.find(g => g.key === TLS.gosterge) || G[0];
+    const segRenk = x => TLS_RENKLER[k.segs.findIndex(s => s.aylar.includes(x)) % TLS_RENKLER.length];
+    const yeniSeg = x => k.segs.some(s => s.i > 0 && s.aylar[0] === x);
+    const thAy = k.aylar.map(x => ({ t: `<span style="border-bottom:3px solid ${segRenk(x)}; padding-bottom:2px;">${asShort(x.a)}</span>` }));
+    const hucre = (x, h, v) => anzTd(h, { v: v === undefined ? '' : v, st: yeniSeg(x) ? 'border-left:2px solid var(--accent);' : '' });
+    const rows = [{ cells: [anzTd('<b>Lider</b>', { al: 'left' })].concat(k.aylar.map(x => hucre(x, `<span style="font-size:11px; color:${segRenk(x)}; font-weight:700;">${anzEsc(x.L)}</span>`))) }];
+    G.forEach(g => {
+      rows.push({ cells: [anzTd(`<b>${anzEsc(g.label)}</b>`, { al: 'left' })].concat(k.aylar.map(x => {
+        if (!x.gec) return hucre(x, `<span class="hint" style="font-size:11px;">${anzEsc(x.r ? (x.r.durum || 'tutmuyor') : 'kayıt yok')}</span>`);
+        const v = tleDeger(x.r, g);
+        return hucre(x, g.key === '__PUAN' ? `<b>${asFmt(v, 0)}</b>` : asFmt(v, 2), v);
+      })) });
+    });
+    const id = anzId('tlsgr');
+    TLS_PENDING.push({ id, tip: 'kisi', k, g: gs });
+    const son = k.segs[k.segs.length - 1];
+    const sonuc = k.segs.length > 1
+      ? `${anzEsc(gs.label)}: ` + k.segs.map(s => `${anzEsc(s.L)} döneminde ort. ${tlsDegerMetni(D, gs, s.ort[gs.key], s.bit)}`).join(', ') + '.'
+      : `${anzEsc(gs.label)}: ${anzEsc(son.L)} döneminde ort. ${tlsDegerMetni(D, gs, son.ort[gs.key], son.bit)}.`;
+    html += anzCard('📈 Ay ay seyir', sonuc, `<div style="height:260px; margin-bottom:14px;"><canvas id="${id}"></canvas></div><div class="tle-genis">${anzTable([{ t: 'Gösterge', al: 'left' }].concat(thAy), rows)}</div>`,
+      'OSMANİYE-PERFORMANS ay sekmeleri; VARDİYA.', 'Dikey çizgi = lider değişimi. Renkler lider dönemlerini gösterir. Gri hücre = o ay değerlendirme dışı ya da kayıt yok.');
+  }
+  // 3) Geçişler (en yeniden eskiye)
+  k.gecisler.slice().reverse().forEach(gc => { html += tlsGecisKart(D, k, gc); });
+  return html;
+}
+function tlsDonusMetni(x){
+  if (!x.donus) return x.gecisFark === null ? '—' : 'düşüş yok';
+  if (x.donus.ay) return `${x.donus.ay}. ayda döndü`;
+  return x.donus.izlenen ? `dönmedi (${x.donus.izlenen} ay)` : 'henüz erken';
+}
+function tlsGecisKart(D, k, gc){
+  const G = D.G, P = gc.P, Y = gc.Y, p = gc.d.__PUAN;
+  const ad = g => anzEsc(g.label);
+  const params = G.filter(g => g.key !== '__PUAN');
+  const dusen = params.filter(g => tlsKotuMu(g, gc.d[g.key].gecisFark));
+  const donen = dusen.filter(g => gc.d[g.key].donus && gc.d[g.key].donus.ay);
+  const kIyi = params.filter(g => tlsIyiMi(g, gc.d[g.key].kalici)), kKotu = params.filter(g => tlsKotuMu(g, gc.d[g.key].kalici));
+  let sonuc = `${asLabelOf(gc.ay)}: ${anzEsc(P.L)} → ${anzEsc(Y.L)}. `;
+  if (!gc.ilk || p.once === null) sonuc += 'Geçişin bir tarafında değerlendirilmiş ay olmadığı için karşılaştırılamadı.';
+  else {
+    sonuc += `Puan önceki seviyede ${asFmt(p.once, 1)}, geçiş ayında ${asFmt(p.gecis, 0)} (${asSigned(p.gecisFark, 1)}). `;
+    sonuc += p.son !== null ? `Sonraki ${gc.sonra.length} ayın ortalaması ${asFmt(p.son, 1)} (önceki seviyeye göre ${asSigned(p.kalici, 1)}${p.lokKalici !== null ? `; lokasyon aynı aylarda ${asSigned(p.lokKalici, 1)}` : ''}). ` : 'Geçiş ayından sonrası henüz yok. ';
+    if (dusen.length) sonuc += `Geçişte kötüleşen: ${dusen.map(ad).join(', ')}${donen.length ? ` — sonra eski seviyeye dönen: ${donen.map(g => `${ad(g)} (${gc.d[g.key].donus.ay}. ay)`).join(', ')}` : ''}. `;
+    if (p.son !== null) sonuc += (kIyi.length ? `Kalıcı iyileşen: ${kIyi.map(ad).join(', ')}. ` : '') + (kKotu.length ? `Kalıcı kötüleşen: ${kKotu.map(ad).join(', ')}.` : (kIyi.length ? '' : 'Kalıcı değişen parametre yok.'));
+  }
+  const sirali = [G[0]].concat(params.slice().sort((a, b) => Math.abs(gc.d[b.key].pKalici || 0) - Math.abs(gc.d[a.key].pKalici || 0) || Math.abs(gc.d[b.key].pGecisFark || 0) - Math.abs(gc.d[a.key].pGecisFark || 0)));
+  const rows = sirali.map(g => {
+    const x = gc.d[g.key];
+    const uyari = x.olcek ? ` <span title="Ölçek ${asLabelOf(x.olcek)} itibarıyla değişti" style="color:var(--danger);">⚠</span>` : '';
+    return { cells: [anzTd(`<b>${anzEsc(g.label)}</b>${uyari}`, { al: 'left' }), anzTd(tlsDegerMetni(D, g, P.ort[g.key], P.bit), { st: 'color:var(--dim);' }), anzTd(`<b>${tlsDegerMetni(D, g, x.once, P.bit)}</b>`), anzTd(tlsDegerMetni(D, g, x.gecis, Y.bas)), anzTd(tlsFark(g, x.gecisFark)),
+      anzTd(tlsDegerMetni(D, g, x.son, Y.bit)), anzTd(tlsFark(g, x.kalici)), anzTd(tlsDonusMetni(x), { al: 'left', st: x.donus && !x.donus.ay && x.donus.izlenen ? 'color:var(--danger);' : '' }), anzTd(tlsDegerMetni(D, g, Y.ort[g.key], Y.bit), { st: 'color:var(--dim);' })] };
+  });
+  const notlar = [];
+  if (P.kisa) notlar.push(`önceki dönem kısa (${P.gecAylar.length} değerlendirilmiş ay), önceki seviye zayıf bir dayanak`);
+  if (gc.bosluk) notlar.push(`iki dönem arasında VARDİYA'da olmadığı ${gc.ay - P.bit - 1} ay var`);
+  if (G.some(g => gc.d[g.key].olcek)) notlar.push('⚠ işaretli parametrede ölçek bu aralıkta değişti; değerler kendi ayının kuralıyla girildi');
+  return anzCard(`🔀 Geçiş: ${anzEsc(P.L)} → ${anzEsc(Y.L)} (${asLabelOf(gc.ay)})`, sonuc + (notlar.length ? `<div class="hint" style="font-family:inherit; font-size:12.5px; font-weight:400; margin-top:6px;">Not: ${notlar.join('; ')}.</div>` : ''),
+    `<div class="tle-genis">${anzTable([{ t: 'Gösterge', al: 'left' }, { t: `${anzEsc(P.L)} dönemi ort.` }, { t: `Önceki seviye (son ${gc.onc.length} ay)` }, { t: `Geçiş ayı (${gc.ilk ? asShort(gc.ilk.a) : '—'})` }, { t: 'Geçiş farkı' }, { t: `Sonraki ${gc.sonra.length} ay ort.` }, { t: 'Kalıcı fark' }, { t: 'Toparlanma', al: 'left' }, { t: `${anzEsc(Y.L)} dönemi ort.` }], rows)}</div>`,
+    `OSMANİYE-PERFORMANS; VARDİYA; PUANLAMA ÖLÇEĞİ.`,
+    `Önceki seviye = ${anzEsc(P.L)} ile son ${D.ayar.once} değerlendirilmiş ayın ortalaması. Geçiş farkı = yeni liderle ilk değerlendirilmiş ay − önceki seviye. Kalıcı fark = yeni liderle sonraki ayların ortalaması − önceki seviye. Toparlanma = geçişte kötüleşen göstergenin önceki seviyeye ilk döndüğü ay (geçiş ayından sonra kaçıncı ay). Lokasyon = aynı takvim aylarında herkesin ortalaması; genel dalgalanmayı ayırmak için. Sıra: puana etkisi en büyük kalıcı değişimden başlayarak. Değişimin lider geçişiyle aynı zamana denk geldiğini gösterir; tek nedeni olduğunu kanıtlamaz.`);
+}
+
+// ---------- Takım lideri ekranı ----------
+function tlsTlHesapla(D, L){
+  const K = D.ayar.once, H = D.ayar.sonra;
+  const offs = []; for (let o = -K; o <= H; o++) offs.push(o);
+  const gelen = [];
+  tlsTumSiciller(D).forEach(s => { const k = tlsKisi(D, s); if (!k) return; k.gecisler.forEach(gc => { if (gc.Y.L === L) gelen.push({ k, gc }); }); });
+  const kullan = gelen.filter(x => !x.gc.P.kisa && x.gc.ilk && x.gc.onc.length);
+  const agg = {};
+  D.G.forEach(g => {
+    agg[g.key] = offs.map(o => {
+      const kv = [], lv = [], abs = [];
+      kullan.forEach(({ gc }) => {
+        const once = gc.d[g.key].once; if (once === null) return;
+        const lokOnce = asAvg(gc.onc.map(x => (D.lok.get(x.a) || {})[g.key]));
+        const nokta = o < 0 ? gc.onc[gc.onc.length + o] : gc.Y.gecAylar[o];
+        if (!nokta) return;
+        const v = tleDeger(nokta.r, g); if (v === null) return;
+        kv.push(v - once); abs.push(v);
+        const lk = (D.lok.get(nokta.a) || {})[g.key];
+        if (lk !== null && lk !== undefined && lokOnce !== null) lv.push(lk - lokOnce);
+      });
+      return { o, n: kv.length, k: asAvg(kv), l: asAvg(lv) };
+    });
+    agg[g.key].onceOrt = asAvg(kullan.map(x => x.gc.d[g.key].once));
+  });
+  const mevcut = tlsTumSiciller(D).map(s => tlsKisi(D, s)).filter(k => k && k.sonL === L).sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+  return { L, K, H, offs, gelen, kullan, agg, mevcut };
+}
+function tlsOffEt(o){ return o < 0 ? `${o}` : o === 0 ? 'Geçiş' : `+${o}`; }
+function tlsTlHtml(D, R){
+  const G = D.G;
+  let html = '';
+  {
+    const a = R.agg.__PUAN, g0 = a.find(x => x.o === 0);
+    const sonra = a.filter(x => x.o > 0 && x.n);
+    const ilkDonus = sonra.find(x => !tlsKotuMu(G[0], x.k));
+    let sonuc = `${asLabelOf(D.aylar[0])} itibarıyla ${anzEsc(R.L)} ekibine ${R.gelen.length} geçiş oldu; ${R.kullan.length} tanesi karşılaştırmaya uygun.`;
+    if (g0 && g0.n){
+      sonuc += ` Geçiş ayında puan önceki seviyeye göre ortalama ${asSigned(g0.k, 1)}${g0.l !== null ? ` (lokasyon aynı aylarda ${asSigned(g0.l, 1)})` : ''}.`;
+      if (tlsKotuMu(G[0], g0.k)) sonuc += ilkDonus ? ` Ortalama ${ilkDonus.o}. ayda önceki seviyeye döndü (${ilkDonus.n} kişi).` : ' İzlenen aylarda ortalama önceki seviyeye dönmedi.';
+      const sonO = sonra[sonra.length - 1];
+      if (sonO) sonuc += ` ${sonO.o}. ayda fark ${asSigned(sonO.k, 1)} (${sonO.n} kişi; lokasyon ${asSigned(sonO.l, 1)}).`;
+      const params = G.filter(g => g.key !== '__PUAN');
+      const dus = params.filter(g => { const x = R.agg[g.key].find(y => y.o === 0); return x && x.n && tlsKotuMu(g, x.k) && !tlsKotuMu(g, x.l); });
+      if (dus.length) sonuc += ` Geçiş ayında lokasyondan ayrışarak kötüleşen: ${dus.map(g => anzEsc(g.label)).join(', ')}.`;
+    }
+    const id = anzId('tlsgr');
+    TLS_PENDING.push({ id, tip: 'tl', R, g: G.find(g => g.key === TLS.gosterge) || G[0] });
+    const hd = [{ t: 'Gösterge', al: 'left' }, { t: 'Önceki seviye' }].concat(R.offs.map(o => ({ t: tlsOffEt(o) })));
+    const rows = [{ cells: [anzTd('<span class="hint">Kişi</span>', { al: 'left' }), anzTd('')].concat(R.agg.__PUAN.map(x => anzTd(`<span class="hint">${x.n}</span>`))) }].concat(G.map(g => ({
+      cells: [anzTd(`<b>${anzEsc(g.label)}</b>`, { al: 'left' }), anzTd(tlsDegerMetni(D, g, R.agg[g.key].onceOrt, D.aylar[D.aylar.length - 1]))].concat(R.agg[g.key].map(x => anzTd(x.n ? `${tlsFark(g, x.k)}<div class="hint" style="font-size:10.5px;">lok ${x.l === null ? '—' : asSigned(x.l, 2)}</div>` : '—', { st: x.o === 0 ? 'border-left:2px solid var(--accent);' : '' })))
+    })));
+    html += anzCard(`👥 ${anzEsc(R.L)} — gelenlerin seyri`, sonuc, `<div style="height:260px; margin-bottom:14px;"><canvas id="${id}"></canvas></div><div class="tle-genis">${anzTable(hd, rows)}</div>`,
+      'OSMANİYE-PERFORMANS; VARDİYA; PUANLAMA ÖLÇEĞİ.',
+      `Her geçiş, geçiş ayına göre hizalandı: −${R.K}…−1 = önceki liderle son ${R.K} değerlendirilmiş ay, "Geçiş" = yeni liderle ilk ay, +1…+${R.H} = sonraki aylar. Hücre = önceki seviyeye göre ortalama fark; "lok" = aynı takvim aylarında lokasyon ortalamasının kendi önceki seviyesine göre farkı. Önceki dönemi kısa olan (${D.ayar.minAy} aydan az) geçişler ortalamaya girmez. Kişi sayısı sağa doğru azalır (yeni gelenlerin sonraki ayı henüz yok). ${tlsAyarNotu(D)}`);
+  }
+  {
+    const rows = R.mevcut.map(k => {
+      const son = k.segs[k.segs.length - 1];
+      const gc = k.gecisler.length && k.gecisler[k.gecisler.length - 1].Y === son ? k.gecisler[k.gecisler.length - 1] : null;
+      const p = gc ? gc.d.__PUAN : null;
+      return { cells: [anzTd(`<a href="javascript:void 0" data-tls-sicil="${anzEsc(k.sicil)}" style="color:var(--accent); font-weight:700;">${anzEsc(k.ad)}</a>`, { al: 'left', v: k.ad }), anzTd(gc ? anzEsc(gc.P.L) : '<span class="hint">hep bu liderde</span>', { al: 'left', v: gc ? gc.P.L : '' }),
+        anzTd(asShort(son.bas), { v: son.bas }), anzTd(String(son.aylar.length), { v: son.aylar.length }), anzTd(asFmt(son.ort.__PUAN, 1), { v: son.ort.__PUAN === null ? '' : son.ort.__PUAN }),
+        anzTd(p ? tlsFark(D.G[0], p.gecisFark) : '—', { v: p && p.gecisFark !== null ? p.gecisFark : '' }), anzTd(p ? tlsFark(D.G[0], p.kalici) : '—', { v: p && p.kalici !== null ? p.kalici : '' })] };
+    });
+    html += anzCard(`🧑‍🤝‍🧑 ${anzEsc(R.L)} — mevcut ekip (${asLabelOf(D.aylar[D.aylar.length - 1])})`, `${R.mevcut.length} kişi; ${R.mevcut.filter(k => k.segs.length > 1).length} kişi bu lidere başka bir liderden geldi.`,
+      anzTable([{ t: 'Personel', al: 'left' }, { t: 'Önceki lider', al: 'left' }, { t: 'Bu liderde başlangıç' }, { t: 'Ay' }, { t: 'Bu liderde ort. puan' }, { t: 'Geçiş farkı (puan)' }, { t: 'Kalıcı fark (puan)' }], rows, { siralanir: true, ilk: 12, bos: 'Bu liderin son ayda ekibi yok.' }),
+      `VARDİYA ${asKeyOf(D.aylar[D.aylar.length - 1])}.`, 'İsme tıklayınca kişinin seyri açılır. Farklar önceki liderin son aylarına göredir.');
+  }
+  {
+    const rows = R.gelen.slice().sort((a, b) => b.gc.ay - a.gc.ay).map(({ k, gc }) => {
+      const p = gc.d.__PUAN;
+      return { cells: [anzTd(`<a href="javascript:void 0" data-tls-sicil="${anzEsc(k.sicil)}" style="color:var(--accent); font-weight:700;">${anzEsc(k.ad)}</a>`, { al: 'left', v: k.ad }), anzTd(anzEsc(gc.P.L), { al: 'left' }), anzTd(asShort(gc.ay), { v: gc.ay }), anzTd(String(gc.Y.aylar.length), { v: gc.Y.aylar.length }),
+        anzTd(p.once === null ? '—' : `${asFmt(p.once, 1)} → ${asFmt(p.gecis, 0)} → ${p.son === null ? '…' : asFmt(p.son, 1)}`), anzTd(tlsFark(D.G[0], p.gecisFark), { v: p.gecisFark === null ? '' : p.gecisFark }), anzTd(tlsFark(D.G[0], p.kalici), { v: p.kalici === null ? '' : p.kalici }),
+        anzTd(gc.P.kisa ? '<span class="hint">önceki dönem kısa</span>' : (k.sonL === R.L ? 'ekipte' : '<span class="hint">ayrıldı</span>'), { al: 'left' })] };
+    });
+    html += anzCard(`🔀 ${anzEsc(R.L)} ekibine tüm geçişler`, `${R.gelen.length} geçiş (ayrılanlar dahil).`,
+      anzTable([{ t: 'Personel', al: 'left' }, { t: 'Önceki lider', al: 'left' }, { t: 'Geçiş ayı' }, { t: 'Bu liderde ay' }, { t: 'Puan: önceki → geçiş → sonrası' }, { t: 'Geçiş farkı' }, { t: 'Kalıcı fark' }, { t: 'Durum', al: 'left' }], rows, { siralanir: true, ilk: 12, bos: 'Bu lidere geçiş yok.' }),
+      'VARDİYA; OSMANİYE-PERFORMANS.', 'İsme tıklayınca kişinin seyri açılır.');
+  }
+  return html;
+}
+
+// ---------- Grafikler ----------
+let TLS_PENDING = [];
+function tlsGrafikler(){
+  if (typeof Chart === 'undefined') { TLS_PENDING = []; return; }
+  const css = getComputedStyle(document.documentElement);
+  const renk = n => (css.getPropertyValue('--' + n) || '').trim() || '#888';
+  const dim = renk('dim'), line = renk('line'), acc = renk('accent');
+  const cizgiEklenti = { id: 'tlsCizgi', afterDatasetsDraw(chart){ const o = chart.options.plugins.tlsCizgi || {}; const x = chart.scales.x, ctx = chart.ctx, top = chart.chartArea.top, bottom = chart.chartArea.bottom;
+    (o.cizgiler || []).forEach(c => { const px = x.getPixelForValue(c.i) - (c.yarim ? (x.getPixelForValue(1) - x.getPixelForValue(0)) / 2 : 0); ctx.save(); ctx.strokeStyle = c.renk || acc; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bottom); ctx.stroke();
+      if (c.etiket){ ctx.setLineDash([]); ctx.fillStyle = c.renk || acc; ctx.font = '600 11px sans-serif'; ctx.fillText(c.etiket, px + 4, top + 12); } ctx.restore(); }); } };
+  TLS_PENDING.forEach(p => {
+    const c = document.getElementById(p.id); if (!c) return;
+    let cfg;
+    if (p.tip === 'kisi'){
+      const k = p.k, g = p.g;
+      const segIdx = x => k.segs.findIndex(s => s.aylar.includes(x));
+      const data = k.aylar.map(x => x.gec ? tleDeger(x.r, g) : null);
+      const pr = k.aylar.map(x => TLS_RENKLER[segIdx(x) % TLS_RENKLER.length]);
+      const cizgiler = k.segs.slice(1).map(s => ({ i: k.aylar.indexOf(s.aylar[0]), yarim: true, etiket: s.L, renk: TLS_RENKLER[s.i % TLS_RENKLER.length] }));
+      cfg = { type: 'line', data: { labels: k.aylar.map(x => asShort(x.a)), datasets: [{ label: g.label, data, borderColor: dim, pointBackgroundColor: pr, pointBorderColor: pr, pointRadius: 5, tension: 0, spanGaps: true, segment: { borderColor: ctx => pr[ctx.p1DataIndex] } }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { display: true, align: 'top', color: dim, font: { size: 10 }, formatter: v => v === null ? '' : asFmt(v, g.key === '__PUAN' ? 0 : 2) }, tlsCizgi: { cizgiler } },
+          scales: { x: { ticks: { color: dim }, grid: { color: line } }, y: { reverse: !g.yuksekIyi, ticks: { color: dim }, grid: { color: line }, title: { display: !g.yuksekIyi, text: 'ters eksen: yukarı = iyi', color: dim } } } } };
+    } else {
+      const R = p.R, g = p.g, a = R.agg[g.key];
+      cfg = { type: 'line', data: { labels: R.offs.map(tlsOffEt), datasets: [
+          { label: `${R.L} ekibine gelenler`, data: a.map(x => x.n ? x.k : null), borderColor: acc, backgroundColor: acc, tension: 0, spanGaps: true, pointRadius: 4 },
+          { label: 'Lokasyon (aynı aylar)', data: a.map(x => x.l), borderColor: dim, backgroundColor: dim, borderDash: [4, 4], tension: 0, spanGaps: true, pointRadius: 3 }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: dim } }, datalabels: { display: ctx => ctx.datasetIndex === 0, align: 'top', color: dim, font: { size: 10 }, formatter: v => v === null ? '' : asSigned(v, 2) }, tlsCizgi: { cizgiler: [{ i: R.offs.indexOf(0), yarim: false, etiket: 'Geçiş' }] } },
+          scales: { x: { ticks: { color: dim }, grid: { color: line } }, y: { reverse: !g.yuksekIyi, ticks: { color: dim }, grid: { color: line }, title: { display: true, text: `${g.label}: önceki seviyeye göre fark${g.yuksekIyi ? '' : ' (ters eksen: yukarı = iyi)'}`, color: dim } } } } };
+    }
+    cfg.plugins = [cizgiEklenti];
+    TLS_CHARTS.push(new Chart(c, cfg));
+  });
+  TLS_PENDING = [];
+}
+
+// ---------- Çizim ve olaylar ----------
+function tlsIcerikCiz(){
+  const sec = document.getElementById('tlsSecici'), el = document.getElementById('tleIcerik');
+  TLS_CHARTS.forEach(c => { try { c.destroy(); } catch(e){} }); TLS_CHARTS = []; TLS_PENDING = [];
+  if (!el) return;
+  if (TLS.hata){ if (sec) sec.innerHTML = ''; el.innerHTML = `<div class="error-box">${anzEsc(TLS.hata)}</div>`; return; }
+  if (!TLS.D){ if (sec) sec.innerHTML = ''; el.innerHTML = `<div class="anz-bos">Tüm aylar okunuyor… <span class="hint">${anzEsc(TLS.yukleniyor === true ? '' : (TLS.yukleniyor || ''))}</span></div>`; return; }
+  const D = TLS.D;
+  if (sec) sec.innerHTML = tlsSeciciHtml(D);
+  try {
+    if (TLE.mod === 'kisi'){
+      const k = TLS.sicil ? tlsKisi(D, TLS.sicil) : null;
+      el.innerHTML = k ? tlsKisiHtml(D, k) : '<div class="anz-bos">Seçime uyan personel yok.</div>';
+    } else {
+      el.innerHTML = TLS.tlLider ? tlsTlHtml(D, tlsTlHesapla(D, TLS.tlLider)) : '<div class="anz-bos">Takım lideri yok.</div>';
+    }
+  } catch (e){ console.error(e); el.innerHTML = `<div class="error-box">Seyir hazırlanırken hata: ${anzEsc(e.message)}</div>`; return; }
+  tlsBagla();
+  tlsGrafikler();
+}
+function tlsKisiyeGit(sicil){ TLE.mod = 'kisi'; TLS.sicil = sicil; TLS.lider = ''; TLS.sadeceGecis = false; contentArea.innerHTML = renderTleTab(); tleSeciciBagla(); tlsIcerikCiz(); window.scrollTo(0, 0); const m = document.querySelector('.main-area'); if (m) m.scrollTop = 0; }
+function tlsBagla(){
+  const on = (id, ev, f) => { const e = document.getElementById(id); if (e) e.addEventListener(ev, f); };
+  on('tlsLider', 'change', e => { TLS.lider = e.target.value; TLS.sicil = null; tlsIcerikCiz(); });
+  on('tlsHerkes', 'click', () => { TLS.sadeceGecis = false; tlsIcerikCiz(); });
+  on('tlsGecisli', 'click', () => { TLS.sadeceGecis = true; tlsIcerikCiz(); });
+  on('tlsKisi', 'change', e => { TLS.sicil = e.target.value; tlsIcerikCiz(); });
+  on('tlsGosterge', 'change', e => { TLS.gosterge = e.target.value; tlsIcerikCiz(); });
+  on('tlsTlLider', 'change', e => { TLS.tlLider = e.target.value; tlsIcerikCiz(); });
+  const adim = d => { const l = tlsKisiListesi(TLS.D); const i = l.findIndex(k => k.sicil === TLS.sicil) + d; if (i >= 0 && i < l.length){ TLS.sicil = l[i].sicil; tlsIcerikCiz(); } };
+  on('tlsOnceki', 'click', () => adim(-1));
+  on('tlsSonraki', 'click', () => adim(1));
+  document.querySelectorAll('#tleIcerik [data-tls-sicil]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); tlsKisiyeGit(a.dataset.tlsSicil); }));
+}
+async function tlsYenile(){
+  tlsIcerikCiz();
+  if (TLS.D) return;
+  TLS.hata = null; TLS.yukleniyor = true; tlsIcerikCiz();
+  try { TLS.D = await tlsYukle(t => { TLS.yukleniyor = t; if (!TLS.D && (TLE.mod === 'kisi' || TLE.mod === 'tl') && selectedLeftTab === 'tletki') tlsIcerikCiz(); }); }
+  catch (e){ TLS.hata = 'Veriler okunamadı: ' + e.message; }
+  TLS.yukleniyor = false;
+  if (selectedLeftTab === 'tletki' && (TLE.mod === 'kisi' || TLE.mod === 'tl')) tlsIcerikCiz();
 }
 
 // ----- Eski Analiz sekmesinin iç kontrolleri (artık çağrılmıyor; Personel Sunum'daki bulgular computeAnaliz'i kullanmaya devam ediyor) -----
