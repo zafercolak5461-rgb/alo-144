@@ -2316,7 +2316,7 @@ html.gorunum-beyaz .nav-group-title::before, html.gorunum-beyaz .nav-group-title
   <!-- SEKME 4: Günlük Detay (takvim/matris) -->
   <div class="tab-content" id="vd-tab-gunlukdetay">
     <div class="note" style="margin-bottom:16px;">
-      Sadece Metrik/Durum Filtresi'nde seçili durumlar (Rapor, Yıllık İzin vb.) gösterilir. Her satır bir personelin bir AYINA aittir, sütunlar 1-31 gün numarasıdır. Ayın gerçek gün sayısını aşan sütunlar (örn. Şubat'ta 30/31) boş bırakılır; "—" ise o gün için seçili bir durum olmadığı anlamına gelir.
+      Sadece Metrik/Durum Filtresi'nde seçili durumlar (Rapor, Yıllık İzin vb.) gösterilir. Her satır bir personelin bir AYINA aittir, sütunlar gün numarasıdır. Tarih aralığı tek ay içindeyse yalnız o günler gösterilir; birden fazla aya yayılıyorsa 1-31 gösterilir ve aralık dışındaki günler ile ayın gerçek gün sayısını aşan sütunlar (örn. Şubat'ta 30/31) boş bırakılır. "—" ise o gün için seçili bir durum olmadığı anlamına gelir.
     </div>
     <div class="panel">
       <div class="panel-head">
@@ -6603,7 +6603,9 @@ async function fetchVardiyaMonth(monthInfo){
     if (!row[0]) return;
     const sicil = String(row[0]).trim();
     const personel = (row[1] || '').trim();
-    const takim = (row[2] || '').trim();
+    // 20.11.2026: takım lideri adı büyük/küçük harf ve boşluk farkından bağımsız tek yazıma
+    // çevrilir ("Atilla Rana" ile "ATİLLA RANA" listede iki ayrı lider gibi görünmesin).
+    const takim = (row[2] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
     dayCols.forEach(dc => {
       const raw = row[dc.index];
       if (raw === undefined || raw === '') return;
@@ -7317,23 +7319,36 @@ function renderGunlukDetay(){
 
   const persons = [...personOrder.entries()].sort((a, b) => a[1].localeCompare(b[1], 'tr'));
 
-  head.innerHTML = `<th>Personel / Ay</th>` + Array.from({ length: 31 }, (_, i) => `<th>${i + 1}</th>`).join('');
+  // 20.11.2026: Sütunlar seçili tarih aralığına göre kurulur. Aralık TEK AY içindeyse yalnız o
+  // günler (örn. 23-29) sütun olur; birden fazla aya yayılıyorsa 1-31 düzeni korunur ve bir ay
+  // satırında aralık DIŞINDA kalan günler boş bırakılır ("—" = aralıkta ama seçili durum yok).
+  const rangeFrom = new Date(vdDateFrom.value + 'T00:00:00');
+  const rangeTo = new Date(vdDateTo.value + 'T00:00:00');
+  const singleMonth = rangeFrom.getFullYear() === rangeTo.getFullYear() && rangeFrom.getMonth() === rangeTo.getMonth();
+  const dayList = singleMonth
+    ? Array.from({ length: rangeTo.getDate() - rangeFrom.getDate() + 1 }, (_, i) => rangeFrom.getDate() + i)
+    : Array.from({ length: 31 }, (_, i) => i + 1);
+
+  head.innerHTML = `<th>Personel / Ay</th>` + dayList.map(d => `<th>${d}</th>`).join('');
 
   let totalMonthRows = 0;
   body.innerHTML = persons.map(([sicil, personel]) => {
     const months = [...personMonthMap.get(sicil).values()].sort((a, b) => (a.year - b.year) || (a.month - b.month));
     totalMonthRows += months.length;
-    const headerRow = `<tr><td colspan="32" style="font-weight:700; color:var(--accent); background:var(--bg-panel-2);">${personel}</td></tr>`;
+    // 20.11.2026: Ad YALNIZ ilk hücrede - tüm satırı kaplayan tek hücre sabitlenemediği için
+    // sağa kaydırınca ad kayboluyordu. Ay satırları gibi ilk sütunda sabit kalır.
+    const headerRow = `<tr><td style="font-weight:700; color:var(--accent); background:var(--bg-panel-2); white-space:nowrap;">${personel}</td><td colspan="${dayList.length}" style="background:var(--bg-panel-2);"></td></tr>`;
     const monthRows = months.map(mo => {
       const daysInMonth = new Date(mo.year, mo.month + 1, 0).getDate();
       const ayLabel = new Date(mo.year, mo.month, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
-      const cells = Array.from({ length: 31 }, (_, i) => {
-        const dayNum = i + 1;
+      const cells = dayList.map(dayNum => {
         if (dayNum > daysInMonth) return `<td></td>`;
+        const cellDate = new Date(mo.year, mo.month, dayNum);
+        if (cellDate < rangeFrom || cellDate > rangeTo) return `<td></td>`;
         const durum = mo.days.get(dayNum);
         return `<td>${durum || '—'}</td>`;
       }).join('');
-      return `<tr><td class="date">　${ayLabel}</td>${cells}</tr>`;
+      return `<tr><td class="date" style="white-space:nowrap;">　${ayLabel}</td>${cells}</tr>`;
     }).join('');
     return headerRow + monthRows;
   }).join('');
@@ -8680,7 +8695,8 @@ async function fetchPersonelTakimMap(){
   values.slice(1).forEach(row => {
     if (!row[0]) return;
     const sicil = String(row[0]).trim();
-    map.set(sicil, { personel: (row[1] || '').trim(), takim: (row[2] || '').trim() });
+    // 20.11.2026: takım adı yazım farkından bağımsız (bkz. Vardiya tarafındaki aynı not).
+    map.set(sicil, { personel: (row[1] || '').trim(), takim: (row[2] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR') });
   });
   return map;
 }
