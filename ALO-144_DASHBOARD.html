@@ -6602,7 +6602,8 @@ async function fetchVardiyaMonth(monthInfo){
   values.slice(1).forEach(row => {
     if (!row[0]) return;
     const sicil = String(row[0]).trim();
-    const personel = (row[1] || '').trim();
+    // 20.11.2026: personel adı her koşulda BÜYÜK harf (sekmeler arası yazım farkı görünmesin; eşleştirme zaten Sicil ile).
+    const personel = (row[1] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
     // 20.11.2026: takım lideri adı büyük/küçük harf ve boşluk farkından bağımsız tek yazıma
     // çevrilir ("Atilla Rana" ile "ATİLLA RANA" listede iki ayrı lider gibi görünmesin).
     const takim = (row[2] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
@@ -8696,7 +8697,7 @@ async function fetchPersonelTakimMap(){
     if (!row[0]) return;
     const sicil = String(row[0]).trim();
     // 20.11.2026: takım adı yazım farkından bağımsız (bkz. Vardiya tarafındaki aynı not).
-    map.set(sicil, { personel: (row[1] || '').trim(), takim: (row[2] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR') });
+    map.set(sicil, { personel: (row[1] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR'), takim: (row[2] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR') });
   });
   return map;
 }
@@ -8726,7 +8727,7 @@ async function fetchPerformansMonth(monthInfo){
     const sicil = String(row[0]).trim();
     records.push({
       sicil,
-      personel: (row[1] || '').trim(),
+      personel: (row[1] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR'), // 20.11.2026: her koşulda BÜYÜK harf
       ay: monthInfo.key,
       kko: parseNum(row[2]),
       anket: parseNum(row[3]),
