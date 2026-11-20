@@ -714,12 +714,28 @@ let tokenClient = null;
 // service is currently unavailable" gibi) - kalıcı bir sorun değil, birkaç saniye içinde
 // kendiliğinden düzeliyor. Bu yüzden authFetch böyle geçici hatalarda otomatik olarak
 // (kısa bir bekleme ile) 2 kez daha dener - kullanıcı elle "tekrar dene" yapmak zorunda kalmaz.
+// 20.11.2026: istek 60 sn'de cevap vermezse kesilip yeniden denenir (takılı kalmasın);
+// 429 (Google'ın dakikalık okuma sınırı) için daha uzun ve artan bekleme, varsa Retry-After'a uyulur.
 async function authFetch(url, token, attempt){
   attempt = attempt || 1;
-  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + (token || accessToken) } });
+  const MAX_DENEME = 5;
+  const bekle = ms => new Promise(r => setTimeout(r, ms));
+  const kontrol = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const zaman = kontrol ? setTimeout(() => kontrol.abort(), 60000) : null;
+  let res;
+  try {
+    res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + (token || accessToken) }, signal: kontrol ? kontrol.signal : undefined });
+  } catch (e){
+    if (zaman) clearTimeout(zaman);
+    if (attempt < MAX_DENEME){ await bekle(1500 * attempt); return authFetch(url, token, attempt + 1); }
+    throw new Error(e && e.name === 'AbortError' ? 'Google Sheets 60 saniyede cevap vermedi (bağlantı yavaş ya da kesik).' : (e && e.message) || 'Ağ hatası');
+  }
+  if (zaman) clearTimeout(zaman);
   const RETRYABLE_STATUSES = [429, 500, 502, 503, 504];
-  if (RETRYABLE_STATUSES.includes(res.status) && attempt < 3){
-    await new Promise(r => setTimeout(r, attempt * 700));
+  if (RETRYABLE_STATUSES.includes(res.status) && attempt < MAX_DENEME){
+    const ra = parseFloat(res.headers.get('Retry-After'));
+    const ms = !isNaN(ra) && ra > 0 ? ra * 1000 : (res.status === 429 ? Math.min(2000 * Math.pow(2, attempt - 1), 20000) : 700 * attempt);
+    await bekle(ms);
     return authFetch(url, token, attempt + 1);
   }
   return res;
@@ -4782,22 +4798,50 @@ function asPct(a, b){ return (a === null || b === null || !b) ? null : (a - b) /
 function asAvg(arr){ const c = arr.filter(v => v !== null && v !== undefined && !isNaN(v)); return c.length ? c.reduce((x, y) => x + y, 0) / c.length : null; }
 function asSum(arr){ return arr.reduce((x, y) => x + (y || 0), 0); }
 
-async function asFetchValues(sheetId, range){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
-  const res = await authFetch(url);
-  const data = await res.json();
-  if (data.error){
-    if ((data.error.message || '').includes('Unable to parse range')) return null; // sekme yok
-    throw new Error(data.error.message || 'Sheets hatası');
-  }
-  return data.values || [];
+// 20.11.2026: Analiz / sunum / Takım Lideri Etkisi okumaları
+// - aynı anda en fazla 4 istek (Google'ın dakikalık sınırına takılmamak için; kalanlar sırada bekler),
+// - okunan sekmeler oturum boyunca hafızada (aynı ayı ikinci kez okumaz). "Yenile" hafızayı temizler.
+const AS_OKUMA = { aktif: 0, max: 4, sira: [], cache: new Map() };
+async function asSirayla(fn){
+  if (AS_OKUMA.aktif >= AS_OKUMA.max) await new Promise(r => AS_OKUMA.sira.push(r));
+  AS_OKUMA.aktif++;
+  try { return await fn(); }
+  finally { AS_OKUMA.aktif--; const n = AS_OKUMA.sira.shift(); if (n) n(); }
 }
-async function asFetchTabTitles(sheetId){
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`;
-  const res = await authFetch(url);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Sekme listesi alınamadı');
-  return (data.sheets || []).map(s => s.properties.title);
+function asHafizali(key, fn){
+  if (AS_OKUMA.cache.has(key)) return AS_OKUMA.cache.get(key);
+  const p = asSirayla(fn);
+  AS_OKUMA.cache.set(key, p);
+  p.catch(() => AS_OKUMA.cache.delete(key));
+  return p;
+}
+function asHafizaTemizle(){
+  AS_OKUMA.cache.clear();
+  if (typeof ANZ_CACHE !== 'undefined' && ANZ_CACHE.clear) ANZ_CACHE.clear();
+  if (typeof TLS_D !== 'undefined') TLS_D = null;
+  if (typeof TLS !== 'undefined' && TLS) TLS.D = null;
+  if (typeof TLE !== 'undefined' && TLE){ TLE.T = null; TLE.key = null; }
+}
+function asFetchValues(sheetId, range){
+  return asHafizali('v|' + sheetId + '|' + range, async () => {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    if (data.error){
+      if ((data.error.message || '').includes('Unable to parse range')) return null; // sekme yok
+      throw new Error(data.error.code === 429 ? 'Google Sheets okuma sınırı aşıldı; bir dakika bekleyip tekrar deneyin.' : (data.error.message || 'Sheets hatası'));
+    }
+    return data.values || [];
+  });
+}
+function asFetchTabTitles(sheetId){
+  return asHafizali('t|' + sheetId, async () => {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`;
+    const res = await authFetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || 'Sekme listesi alınamadı');
+    return (data.sheets || []).map(s => s.properties.title);
+  });
 }
 
 // ---------- Ölçek ----------
@@ -5156,7 +5200,9 @@ async function asLoadAll(targetAbs, onProgress, startAbs){
   });
   jobs.push(asFetchValues(AS_CAGRI_SHEET_ID, `Sayfa1!A1:N3000`).then(v => { asLoadAll._cagri = asParseCagri(v); }));
   jobs.push(asFetchValues(PERF_SHEET_ID, `'${AS_IZIN_AYAR_TAB}'!A1:B20`).then(v => { asLoadAll._izinAyar = asParseIzinAyar(v); }).catch(() => { asLoadAll._izinAyar = asParseIzinAyar(null); }));
-  say('Performans, Vardiya, Karne ve Çağrı tabloları okunuyor…');
+  let biten = 0; const toplam = jobs.length;
+  say(`Tablolar okunuyor… 0 / ${toplam}`);
+  jobs.forEach(j => j.then(() => say(`Tablolar okunuyor… ${++biten} / ${toplam}`), () => {}));
   await Promise.all(jobs);
   return { olcek, perf, vardiya, karne, cagri: asLoadAll._cagri, izinAyar: asLoadAll._izinAyar || asParseIzinAyar(null) };
 }
@@ -6681,6 +6727,7 @@ async function loadData(){
   refreshBtn.disabled = false;
   refreshBtn.textContent = '⟳ Yenile';
 }
+refreshBtn.addEventListener('click', () => asHafizaTemizle()); // önce analiz okuma hafızası temizlenir
 refreshBtn.addEventListener('click', loadData);
 
 // --- Sol menü + hamburger ---
