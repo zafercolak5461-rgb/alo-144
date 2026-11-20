@@ -718,7 +718,7 @@ let tokenClient = null;
 // 429 (Google'ın dakikalık okuma sınırı) için daha uzun ve artan bekleme, varsa Retry-After'a uyulur.
 async function authFetch(url, token, attempt){
   attempt = attempt || 1;
-  const MAX_DENEME = 5;
+  const MAX_DENEME = 7; // 429'da toplam bekleme ~1 dk'yı aşar; dakikalık sınır bu sürede sıfırlanır
   const bekle = ms => new Promise(r => setTimeout(r, ms));
   const kontrol = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const zaman = kontrol ? setTimeout(() => kontrol.abort(), 60000) : null;
