@@ -56,7 +56,10 @@
   .main-area{ flex:1; min-width:0; padding:36px 44px; }
   .main-inner{ max-width:1500px; margin:0 auto; }
 
-  .search-stack{ display:flex; flex-direction:column; gap:10px; width:320px; margin-left:auto; }
+  .search-stack{ display:flex; flex-direction:row; flex-wrap:wrap; gap:10px; width:auto; max-width:560px; margin-left:auto; justify-content:flex-end; }
+  .search-stack > .tl-filtre-kutu{ width:210px; }
+  .search-stack > .personel-ara-kutu{ width:320px; }
+  .tl-filtre-select{ cursor:pointer; padding:11px 12px; }
   .search-wrap{ position:relative; width:100%; }
   .search{ width:100%; background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:11px 15px; color:var(--text); font-size:13px; }
   .search-results{ position:absolute; top:calc(100% + 6px); left:0; right:0; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; max-height:340px; overflow-y:auto; z-index:20; box-shadow:0 12px 32px -8px rgba(0,0,0,0.5); display:none; }
@@ -216,7 +219,7 @@
   @media print{
     body{ background:#fff !important; color:#111 !important; }
     :root{ --bg:#fff; --panel:#fff; --panel2:#f4f5f9; --line:#ddd; --text:#111; --dim:#444; --dim2:#777; }
-    .search-wrap, .refresh-btn, .search-results, .sidebar, .hamburger-btn{ display:none !important; }
+    .search-wrap, .tl-filtre-kutu, .refresh-btn, .search-results, .sidebar, .hamburger-btn{ display:none !important; }
     .panel, .gd-card, .identity-strip, .stat-box, .info-cell{ break-inside:avoid; border:1px solid #ccc !important; }
   }
 
@@ -412,7 +415,11 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
           </div>
         </div>
         <div class="search-stack" id="searchStackWrap">
-          <div>
+          <div class="tl-filtre-kutu">
+            <div class="search-label">Takım Lideri</div>
+            <select class="search tl-filtre-select" id="tlFilterSelect"><option value="__ALL__">Tümü</option></select>
+          </div>
+          <div class="personel-ara-kutu">
             <div class="search-label">Personel</div>
             <div class="search-wrap">
               <input class="search" id="searchInput" placeholder="Personel ara… (isim veya sicil)">
@@ -6650,6 +6657,7 @@ async function loadData(){
     }
 
     if (!selectedSicil && PERSONNEL.length) selectedSicil = PERSONNEL[0].sicil;
+    renderTlFilterOptions();
 
     statusText.textContent = 'Karne sekmeleri taranıyor…';
     const activeSicilSet = new Set(PERSONNEL.map(p => p.sicil));
@@ -6737,9 +6745,49 @@ document.getElementById('hamburgerBtn').addEventListener('click', () => {
   sidebarEl.classList.toggle('collapsed');
 });
 
+// ===== Takım Lideri filtresi (22.11.2026) =====
+// Liderler Personel Listesi C sütunundan (p.takimLideri) toplanır; büyük/küçük harf farkı
+// aynı lider sayılır, ekranda hep BÜYÜK harf. Filtre üst çubukta olduğu için Personel
+// Bilgileri / Genel Değerlendirme / Parametre sekmelerinde ortaktır ve seçim korunur.
+const tlFilterSelectEl = document.getElementById('tlFilterSelect');
+const TL_FILTRE_TUMU = '__ALL__', TL_FILTRE_BOS = '__BOS__';
+let selectedTlFilter = TL_FILTRE_TUMU;
+function tlFiltreAnahtar(ad){ return String(ad || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr'); }
+function tlFiltreEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function renderTlFilterOptions(){
+  if (!tlFilterSelectEl) return;
+  const sayac = {};
+  let bos = 0;
+  PERSONNEL.forEach(p => {
+    const k = tlFiltreAnahtar(p.takimLideri);
+    if (k) sayac[k] = (sayac[k] || 0) + 1; else bos++;
+  });
+  const liderler = Object.keys(sayac).sort((a, b) => a.localeCompare(b, 'tr'));
+  if (selectedTlFilter !== TL_FILTRE_TUMU && !(selectedTlFilter === TL_FILTRE_BOS ? bos : sayac[selectedTlFilter])) selectedTlFilter = TL_FILTRE_TUMU;
+  let html = `<option value="${TL_FILTRE_TUMU}">Tümü${PERSONNEL.length ? ` (${PERSONNEL.length})` : ''}</option>`;
+  html += liderler.map(l => `<option value="${tlFiltreEsc(l)}">${tlFiltreEsc(l)} (${sayac[l]})</option>`).join('');
+  if (bos) html += `<option value="${TL_FILTRE_BOS}">(Takım lideri yok) (${bos})</option>`;
+  tlFilterSelectEl.innerHTML = html;
+  tlFilterSelectEl.value = selectedTlFilter;
+}
+function personelTlFiltresindenGeciyor(p){
+  if (selectedTlFilter === TL_FILTRE_TUMU) return true;
+  const k = tlFiltreAnahtar(p.takimLideri);
+  return selectedTlFilter === TL_FILTRE_BOS ? !k : k === selectedTlFilter;
+}
+if (tlFilterSelectEl){
+  tlFilterSelectEl.addEventListener('change', () => {
+    selectedTlFilter = tlFilterSelectEl.value;
+    // Seçili kişi değişmez; yalnız liste daralır. Listeyi hemen açıp takımı göster.
+    searchInputEl.focus();
+    searchInputEl.select();
+    renderSearchResults(true);
+  });
+}
+
 function renderSearchResults(forceShowAll){
   const q = forceShowAll ? '' : searchInputEl.value.trim().toLocaleLowerCase('tr');
-  let list = PERSONNEL;
+  let list = PERSONNEL.filter(personelTlFiltresindenGeciyor);
   if (q) list = list.filter(p => p.adSoyad.toLocaleLowerCase('tr').includes(q) || p.sicil.includes(q));
   list = [...list].sort((a,b) => a.adSoyad.localeCompare(b.adSoyad, 'tr'));
 
@@ -6772,7 +6820,7 @@ searchResultsEl.addEventListener('click', (e) => {
 searchInputEl.addEventListener('input', () => renderSearchResults(false));
 searchInputEl.addEventListener('click', () => { searchInputEl.select(); renderSearchResults(true); });
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('.search-wrap')) searchResultsEl.classList.remove('open');
+  if (!e.target.closest('.search-wrap') && !e.target.closest('.tl-filtre-kutu')) searchResultsEl.classList.remove('open');
 });
 
 function renderIdentityStrip(){
