@@ -5609,7 +5609,6 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSl
         const kolW = [0.9, 2.8, 1.0].concat(Array(gos.length).fill((W - 1 - 0.9 - 2.8 - 1.0 - 1.0) / gos.length)).concat([1.0]);
         const satir = k => [td(k.sicil), td(k.ad, { align: 'left' }), td(`${k.n}/${k.deg}`, { bold: true, color: BAD })].concat(gos.map(a => { const i = aylar.indexOf(a); const r = k.recs[i]; return r ? td(asDeger(D, p.col, r.params[p.col], a), { color: k.kay[i] > 0 ? BAD : TX }) : td('—', { color: DIM }); })).concat([td(asFmt(k.top, 0), { bold: true, color: ACCENT })]);
         if (kayit.length) s.addTable([hdr].concat(kayit.slice(0, PER).map(satir)), Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: kolW, rowH: 0.34, fontSize: 9.5 }, tblBase));
-        if (donem && nAy > 6) s.addText(`Tabloda son 6 ay gösteriliyor; "Kayıp ay" ve "Toplam" tüm dönemi (${nAy} ay) kapsar.`, { x: 0.5, y: 6.3, w: 10, h: 0.22, fontFace: 'Arial', fontSize: 8.5, italic: true, color: DIM });
         if (kayit.length > PER) ekP.push(() => {
           const rest = kayit.slice(PER), PG = 14, pages = Math.ceil(rest.length / PG);
           for (let pg = 0; pg < pages; pg++){
