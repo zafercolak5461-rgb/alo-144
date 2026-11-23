@@ -4910,7 +4910,7 @@ function wkExcelBicim(def, mode){
 // --- Excel: panel görünümü (beyaz zemin, açık gri başlık, ince gri çizgiler, yeşil ▲ / kırmızı ▼ / gri ●) ---
 // Sayılar gerçek sayı olarak yazılır; oklar hücre biçiminden gelir. Ok ve renk, paneldeki wkDelta ile aynı kurala göre seçilir.
 // Haftalık/Aylık'ta ikinci sayfa: ekrandaki "Tüm Haftalar / Tüm Aylar" listesi (seçili tarih aralığı + Toplam/İş günü ortalaması).
-const WK_XL = { baslik:'1E3A8A', basZemin:'F9FAFB', basYazi:'4B5563', yazi:'111827', soluk:'6B7280', cizgi:'E5E7EB',
+const WK_XL = { baslik:'1E3A8A', basZemin:'D9E1F2', basYazi:'4B5563', yazi:'111827', soluk:'6B7280', cizgi:'E5E7EB',
                 yukari:'3FB37F', asagi:'B91C1C', rozet:'1E3A8A' };
 function wkYon(cur, prev, def){
   if (cur === null || prev === null || cur === undefined || prev === undefined) return null;
@@ -4919,8 +4919,8 @@ function wkYon(cur, prev, def){
 }
 // Bir sayfaya panel stiliyle yazan küçük yardımcılar
 function wkXlSayfa(wb, ad){
-  const ws = wb.addWorksheet(ad, { views:[{ showGridLines:false }] });
-  const cizgi = { style:'thin', color:{ argb:'FF' + WK_XL.cizgi } };
+  const ws = wb.addWorksheet(ad);
+  const cizgi = { style:'thin', color:{ argb:'FF000000' } };
   const hucre = (r, c, deger, o = {}) => {
     const x = ws.getCell(r, c);
     if (deger !== undefined) x.value = deger;
@@ -4928,15 +4928,15 @@ function wkXlSayfa(wb, ad){
     x.alignment = { horizontal: o.yatay || 'center', vertical:'middle', wrapText: !!o.sar };
     if (o.dolgu) x.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF' + o.dolgu } };
     if (o.bicim) x.numFmt = o.bicim;
-    if (!o.cizgisiz) x.border = o.tumKenar ? { top:cizgi, left:cizgi, bottom:cizgi, right:cizgi } : { bottom:cizgi };
+    if (!o.cizgisiz) x.border = { top:cizgi, left:cizgi, bottom:cizgi, right:cizgi };
     return x;
   };
   const birles = (r1, c1, r2, c2, deger, o) => {
     for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) hucre(r, c, undefined, o);
     ws.mergeCells(r1, c1, r2, c2); hucre(r1, c1, deger, o);
   };
-  const bas = (r, c, deger, o = {}) => hucre(r, c, deger, Object.assign({ kalin:true, size:10, renk:WK_XL.basYazi, dolgu:WK_XL.basZemin, sar:true, tumKenar:true }, o));
-  const basBirles = (r1, c1, r2, c2, deger, o = {}) => birles(r1, c1, r2, c2, deger, Object.assign({ kalin:true, size:10, renk:WK_XL.basYazi, dolgu:WK_XL.basZemin, sar:true, tumKenar:true }, o));
+  const bas = (r, c, deger, o = {}) => hucre(r, c, deger, Object.assign({ kalin:true, size:10, renk:'000000', dolgu:WK_XL.basZemin, sar:true }, o));
+  const basBirles = (r1, c1, r2, c2, deger, o = {}) => birles(r1, c1, r2, c2, deger, Object.assign({ kalin:true, size:10, renk:'000000', dolgu:WK_XL.basZemin, sar:true }, o));
   const yonRenk = y => y === 1 ? WK_XL.yukari : (y === -1 ? WK_XL.asagi : WK_XL.soluk);
   // Fark hücresi: süre sütunlarında mutlak değer (Excel eksi süre gösteremez), diğerlerinde işaretli sayı + üç bölümlü biçim
   const fark = (r, c, v, def, b, yon) => {
@@ -5022,7 +5022,7 @@ function wkXlListeSayfasi(wb){
       s.yuzde(r, c + 2, h.yuzde, h.yon);
     });
   });
-  ws.views = [{ state:'frozen', xSplit:2, ySplit:r2, showGridLines:false }];
+  ws.views = [{ state:'frozen', xSplit:2, ySplit:r2 }];
 }
 
 async function wkExcel(){
@@ -5055,7 +5055,7 @@ async function wkExcel(){
         s.yuzde(r, c + 1, cl.yuzde, wkYon(cl.bu, cl.once, def));
       });
     });
-    ws.views = [{ state:'frozen', xSplit:1, ySplit:4, showGridLines:false }];
+    ws.views = [{ state:'frozen', xSplit:1, ySplit:4 }];
   } else {
     s.baslikSatiri(1, d.baslik + ' Karşılaştırma');
     ws.columns = [{ width:28 }, { width:20 }, { width:20 }, { width:16 }, { width:12 }];
