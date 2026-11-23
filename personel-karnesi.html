@@ -4699,10 +4699,10 @@ function asKisiSunumOlustur(D, sicil, A, M, mod, temaKey){
       if (r.gunler.length) sonuc += ` Yoğun çağrı günlerine denk gelen rapor: ${r.yogun.length}.`;
       const s = slide('Rapor ve izin deseni', sonuc, 'VARDİYA ay sekmeleri (gün hücreleri); Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.',
         `${asRaporTanim(D)} Yoğun gün = gelen çağrı o ayın günlük ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde${D.izinAyar.offDahil ? ' (OFF günler ortalamaya 0 olarak dahil)' : ' (yalnız çağrı alınan günler)'}. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.`);
-      const gunRow = (t) => [td(t.ad, { align: 'left', bold: true })].concat(AS_GUN_SIRA.map(i => { const on = t.oneGun.some(x => x.ad === AS_GUN_ADLARI[i]); return td(t.byDow[i] || '—', { bold: on, color: on ? BAD : TX }); })).concat([td(t.gunler.length, { bold: true })]);
+      const gunRow = (t) => [td(t.ad, { align: 'left', bold: true })].concat(AS_GUN_SIRA.map(i => td(t.byDow[i] || '—', { color: TX }))).concat([td(t.gunler.length, { bold: true })]);
       s.addText('Haftanın günlerine göre', { x: 0.5, y: 1.6, w: 6, h: 0.28, fontFace: 'Arial', fontSize: 10.5, bold: true, color: DIM });
       s.addTable([[th('Tür', { align: 'left' })].concat(AS_GUN_SIRA.map(i => th(AS_GUN_KISA[i]))).concat([th('Toplam')]), gunRow(r), gunRow(y)], Object.assign({ x: 0.5, y: 1.9, w: 7.2, colW: [1.6].concat(Array(7).fill(0.68)).concat([0.84]), rowH: 0.36 }, tblBase));
-      const hRow = (t) => [td(t.ad, { align: 'left', bold: true })].concat(t.byWeek.map((c, i) => { const on = t.oneHafta.some(x => x.ad === `${i + 1}. hafta`); return td(c || '—', { bold: on, color: on ? BAD : TX }); }));
+      const hRow = (t) => [td(t.ad, { align: 'left', bold: true })].concat(t.byWeek.map(c => td(c || '—', { color: TX })));
       s.addText('Ayın haftalarına göre (1. hafta = 1–7. günler)', { x: 8.0, y: 1.6, w: 4.8, h: 0.28, fontFace: 'Arial', fontSize: 10.5, bold: true, color: DIM });
       s.addTable([[th('Tür', { align: 'left' })].concat([1, 2, 3, 4, 5].map(i => th(`${i}.`))), hRow(r), hRow(y)], Object.assign({ x: 8.0, y: 1.9, w: 4.83, colW: [1.6].concat(Array(5).fill(0.646)), rowH: 0.36 }, tblBase));
       s.addText('Yoğun çağrı günlerine denk gelenler', { x: 0.5, y: 3.2, w: 12, h: 0.28, fontFace: 'Arial', fontSize: 10.5, bold: true, color: DIM });
@@ -5030,11 +5030,9 @@ function asKisiIzinDeseni(D, sicil, aylar){
       if (yogun.get(a).has(asGunKey(g.tarih))) t.yogun.push(g.tarih);
     });
   });
-  // Öne çıkan: gerçek pay ≥ (kişinin o gün/hafta çalışması beklenen günlerinin payı) × katsayı ve en az N kez
-  const one = (counts, bekDizi, ad, n) => (n && bek.n) ? counts.map((c, i) => ({ ad: ad(i), c, oran: c / n, beklenen: bekDizi[i] / bek.n }))
-    .filter(x => x.beklenen > 0 && x.c >= D.izinAyar.min && x.oran >= x.beklenen * D.izinAyar.kat - AS_EPS).sort((a, b) => b.c - a.c) : [];
   // 19.11.2026 kararı: rapor deseni yalnız kısa raporlardan (asRaporAnalizi); yıllık izinde desen aranmaz.
-  void one;
+  // 23.11.2026: gün/hafta tablolarında "beklenen pay"a göre kırmızı işaret kaldırıldı; tablolar yalnız sayıları gösterir.
+  // En çok düştüğü gün (kısa raporlardan) yalnız sonuç cümlesinde yazılır.
   R.rapor.analiz = asRaporAnalizi(D, sicil, aylar);
   R.rapor.oneGun = R.rapor.analiz ? R.rapor.analiz.oneGun : []; R.rapor.oneHafta = [];
   R.yillik.oneGun = []; R.yillik.oneHafta = [];
@@ -10175,15 +10173,15 @@ function kisiDonemHtml(D, sicil, aylar){
     if (Z.vardiyaVar){
       const r = Z.rapor, y = Z.yillik;
       const gunT = anzTable([{ t: 'Tür', al: 'left' }].concat(AS_GUN_SIRA.map(i => ({ t: AS_GUN_KISA[i] }))).concat([{ t: 'Toplam' }]),
-        [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' })].concat(AS_GUN_SIRA.map(i => { const on = t.oneGun.some(x => x.ad === AS_GUN_ADLARI[i]); return anzTd(t.byDow[i] || '—', { st: on ? anzRenkKayip(1) : '' }); })).concat([anzTd(`<b>${t.gunler.length}</b>`)]) })));
+        [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' })].concat(AS_GUN_SIRA.map(i => anzTd(t.byDow[i] || '—'))).concat([anzTd(`<b>${t.gunler.length}</b>`)]) })));
       const hafT = anzTable([{ t: 'Tür', al: 'left' }].concat([1, 2, 3, 4, 5].map(i => ({ t: `${i}. hafta` }))),
-        [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' })].concat(t.byWeek.map((c, i) => { const on = t.oneHafta.some(x => x.ad === `${i + 1}. hafta`); return anzTd(c || '—', { st: on ? anzRenkKayip(1) : '' }); })) })));
+        [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' })].concat(t.byWeek.map(c => anzTd(c || '—'))) })));
       const ygT = anzTable([{ t: 'Tür', al: 'left' }, { t: 'Denk gelen / toplam' }, { t: 'Tarihler', al: 'left' }], [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' }), anzTd(`${t.yogun.length} / ${t.gunler.length}`), anzTd(t.yogun.length ? t.yogun.map(asTarihKisa).join(', ') : '—', { al: 'left', st: 'font-size:12px;' })] })));
       const ra = r.analiz;
       const bitT = ra && ra.bitisikOlaylar.length ? `<div class="anz-alt-baslik" style="margin-top:12px;">Tatile bitişik kısa raporlar (${ra.bitisikN} / ${ra.kisaN} · %${Math.round(ra.bitisikN / ra.kisaN * 100)})</div><div style="font-size:12.5px;">${ra.bitisikOlaylar.map(asOlayMetin).join(', ')}</div>` : '';
       html += anzCard(`📅 Rapor ve izin deseni (${donemAd})`, `${anzEsc(asDesenCumle(r))}. ${anzEsc(asDesenCumle(y))}.`,
         `<div class="anz-iki"><div><div class="anz-alt-baslik">Haftanın günlerine göre</div>${gunT}</div><div><div class="anz-alt-baslik">Ayın haftalarına göre</div>${hafT}</div></div>${bitT}<div class="anz-alt-baslik" style="margin-top:12px;">Yoğun çağrı günlerine denk gelenler</div>${ygT}`,
-        'VARDİYA ay sekmeleri; Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.', `Kırmızı = haftanın günü / ayın haftası dağılımında öne çıkanlar. ${asRaporTanim(D)} Yoğun gün = gelen çağrı, o ayın çağrı alınan günlerinin ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.`);
+        'VARDİYA ay sekmeleri; Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.', `${asRaporTanim(D)} Yoğun gün = gelen çağrı, o ayın çağrı alınan günlerinin ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.`);
     }
   }
   return html;
