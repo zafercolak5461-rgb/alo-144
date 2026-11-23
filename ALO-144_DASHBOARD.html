@@ -4919,7 +4919,7 @@ function wkYon(cur, prev, def){
 }
 // Bir sayfaya panel stiliyle yazan küçük yardımcılar
 function wkXlSayfa(wb, ad){
-  const ws = wb.addWorksheet(ad);
+  const ws = wb.addWorksheet(ad, { views:[{ showGridLines:false }] });
   const cizgi = { style:'thin', color:{ argb:'FF000000' } };
   const hucre = (r, c, deger, o = {}) => {
     const x = ws.getCell(r, c);
@@ -5022,7 +5022,7 @@ function wkXlListeSayfasi(wb){
       s.yuzde(r, c + 2, h.yuzde, h.yon);
     });
   });
-  ws.views = [{ state:'frozen', xSplit:2, ySplit:r2 }];
+  ws.views = [{ state:'frozen', xSplit:2, ySplit:r2, showGridLines:false }];
 }
 
 async function wkExcel(){
@@ -5055,7 +5055,7 @@ async function wkExcel(){
         s.yuzde(r, c + 1, cl.yuzde, wkYon(cl.bu, cl.once, def));
       });
     });
-    ws.views = [{ state:'frozen', xSplit:1, ySplit:4 }];
+    ws.views = [{ state:'frozen', xSplit:1, ySplit:4, showGridLines:false }];
   } else {
     s.baslikSatiri(1, d.baslik + ' Karşılaştırma');
     ws.columns = [{ width:28 }, { width:20 }, { width:20 }, { width:16 }, { width:12 }];
