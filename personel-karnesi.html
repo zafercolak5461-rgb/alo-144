@@ -191,7 +191,7 @@
   .anz-sort-ok{ opacity:0.5; font-size:10px; }
   .anz-liste.kisa:not(.acik) tr.anz-ek{ display:none; }
   .anz-liste.acik .anz-kaydir{ max-height:65vh; overflow:auto; }
-  .tle-genis .anz-kaydir{ overflow-x:auto; }
+  .tle-genis .anz-kaydir, .uzm-genis .anz-kaydir{ overflow-x:auto; }
   .tls-ayrinti{ margin-top:14px; }
   .tls-ayrinti > summary{ cursor:pointer; color:var(--accent); font-weight:600; font-size:13px; padding:6px 0; }
   .tle-genis .anz-tablo td, .tle-genis .anz-tablo th{ white-space:nowrap; }
@@ -399,6 +399,7 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
     <button class="sidebar-nav-item analiz-only" data-lefttab="analiz" data-ikon="nabiz" data-grup="Analiz"><span class="nav-ikon"></span>Analiz</button>
     <button class="sidebar-nav-item analiz-only" data-lefttab="tletki" data-ikon="kisiler" data-grup="Analiz"><span class="nav-ikon"></span>Takım Lideri Etkisi</button>
     <button class="sidebar-nav-item performans-only" data-lefttab="performans" data-ikon="grafik" data-grup="Analiz"><span class="nav-ikon"></span>Personel Performansı</button>
+    <button class="sidebar-nav-item performans-only" data-lefttab="uzman" data-ikon="hedef" data-grup="Analiz"><span class="nav-ikon"></span>Uzman Performansı</button>
     <div class="nav-bolum">Yönetim</div>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn" data-ikon="yenile" data-grup="Yönetim"><span class="nav-ikon"></span>Güncelleme</button>
     <button class="sidebar-nav-item yetki-only" data-lefttab="yetki" data-ikon="kamera" data-grup="Yönetim"><span class="nav-ikon"></span>Fotoğraf ve Tema</button>
@@ -4825,6 +4826,7 @@ function asHafizaTemizle(){
   if (typeof TLS_D !== 'undefined') TLS_D = null;
   if (typeof TLS !== 'undefined' && TLS) TLS.D = null;
   if (typeof TLE !== 'undefined' && TLE){ TLE.T = null; TLE.key = null; }
+  if (typeof UZM !== 'undefined' && UZM) UZM.U = null;
 }
 function asFetchValues(sheetId, range){
   return asHafizali('v|' + sheetId + '|' + range, async () => {
@@ -6723,7 +6725,7 @@ sidebarEl.addEventListener('click', (e) => {
   if (!btn) return;
   selectedLeftTab = btn.dataset.lefttab;
   sidebarEl.querySelectorAll('[data-lefttab]').forEach(b => b.classList.toggle('active', b === btn));
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans'){
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman'){
     identityStrip.innerHTML = '';
     document.getElementById('marqueeWrap').style.display = 'none';
   } else {
@@ -6733,7 +6735,7 @@ sidebarEl.addEventListener('click', (e) => {
     document.getElementById('analizMarqueeWrap').style.display = 'none';
   }
   const searchStackWrap = document.getElementById('searchStackWrap');
-  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans') ? 'none' : '';
+  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman') ? 'none' : '';
   renderContentArea();
 });
 document.getElementById('hamburgerBtn').addEventListener('click', () => {
@@ -6819,7 +6821,7 @@ document.addEventListener('click', (e) => {
 });
 
 function renderIdentityStrip(){
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans'){ identityStrip.innerHTML = ''; return; }
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman'){ identityStrip.innerHTML = ''; return; }
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p){ identityStrip.innerHTML = ''; return; }
   const avatarHtml = p.fotoUrl
@@ -7153,6 +7155,12 @@ function renderContentArea(){
     Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
     contentArea.innerHTML = renderPerformansTab();
     wirePerformansTab();
+    return;
+  }
+  if (selectedLeftTab === 'uzman'){
+    Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
+    contentArea.innerHTML = renderUzmanTab();
+    wireUzmanTab();
     return;
   }
 
@@ -10031,7 +10039,7 @@ function anzIcerikOlaylari(){
   const el = document.getElementById('contentArea') || contentArea;
   if (el.dataset.anzBagli) return; el.dataset.anzBagli = '1';
   el.addEventListener('click', (e) => {
-    if (selectedLeftTab !== 'analiz' && selectedLeftTab !== 'tletki') return;
+    if (selectedLeftTab !== 'analiz' && selectedLeftTab !== 'tletki' && selectedLeftTab !== 'uzman') return;
     const tumu = e.target.closest('[data-anz-tumu]');
     if (tumu){ const l = document.getElementById(tumu.dataset.anzTumu); const acik = l.classList.toggle('acik'); tumu.textContent = acik ? 'Kısalt' : `Tümünü göster (${l.querySelectorAll('tbody > tr:not(.anz-detay)').length})`; const ara = l.querySelector('.anz-ara'); if (ara){ ara.style.display = acik ? '' : 'none'; if (!acik){ ara.value = ''; l.querySelectorAll('tbody > tr').forEach(tr => tr.style.removeProperty('display')); anzKisaltYenile(l); } } return; }
     const th = e.target.closest('[data-anz-sort]');
@@ -10050,7 +10058,7 @@ function anzIcerikOlaylari(){
     if (e.target.id === 'anzTrendSelect'){ ANZ.trendKey = e.target.value; anzIcerikCiz(); }
   });
   el.addEventListener('input', (e) => {
-    if (selectedLeftTab !== 'analiz' && selectedLeftTab !== 'tletki') return;
+    if (selectedLeftTab !== 'analiz' && selectedLeftTab !== 'tletki' && selectedLeftTab !== 'uzman') return;
     if (!e.target.classList || !e.target.classList.contains('anz-ara')) return;
     const q = e.target.value.trim().toLocaleLowerCase('tr');
     e.target.closest('.anz-liste').querySelectorAll('tbody > tr:not(.anz-detay)').forEach(tr => { tr.style.display = !q || tr.textContent.toLocaleLowerCase('tr').includes(q) ? '' : 'none'; });
@@ -10118,17 +10126,19 @@ function kisiTakimGecmisi(D, sicil, aylar){
   aylar.forEach(a => { const t = asTakimOf(D, a, sicil) || '—'; const son = parca[parca.length - 1]; if (son && son.t === t) son.b = a; else parca.push({ t, a, b: a }); });
   return parca.map(x => `${asShort(x.a)}${x.b !== x.a ? '–' + asShort(x.b) : ''}: ${x.t}`).join(' · ');
 }
-function kisiDonemHtml(D, sicil, aylar){
+// uzmHtml (23.11.2026): kişinin uzman aylarının kartları (uzmKisiHtml); VT kaydı olmasa da gösterilir.
+function kisiDonemHtml(D, sicil, aylar, uzmHtml){
   const R = {}, LOK = {}, TAK = {}, TK = {};
   aylar.forEach(a => { R[a] = asKisiKayit(D, a, sicil); LOK[a] = asMonthStats(D, a, { tip: 'lokasyon' }); TK[a] = asTakimOf(D, a, sicil); TAK[a] = TK[a] ? asMonthStats(D, a, { tip: 'takim', lider: TK[a] }) : null; });
   const gec = a => R[a] && !R[a].durum && R[a].tutarli;
   const gAy = aylar.filter(gec);
   const donemAd = `${asShort(aylar[0])} – ${asShort(aylar[aylar.length - 1])}`;
-  if (!gAy.length) return anzCard(`📈 ${donemAd}`, `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])} arasında bu kişiye ait değerlendirilmiş performans kaydı yok.`, '', 'OSMANİYE-PERFORMANS.', '');
+  if (!gAy.length && !uzmHtml) return anzCard(`📈 ${donemAd}`, `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])} arasında bu kişiye ait değerlendirilmiş performans kaydı yok.`, '', 'OSMANİYE-PERFORMANS.', '');
   const son = gAy[gAy.length - 1], onc = gAy.length > 1 ? gAy[gAy.length - 2] : undefined;
   const puanP = D.olcek.params.filter(p => p.tur === 'PUAN'), kesP = D.olcek.params.filter(p => p.tur === 'KESİNTİ');
   const durum = a => R[a] ? (R[a].durum || (!R[a].tutarli ? 'tutmuyor' : '')) : 'kayıt yok';
   let html = '';
+  if (gAy.length){
   {
     const ust = gAy.filter(a => LOK[a] && LOK[a].n && R[a].puan >= LOK[a].ortPuan).length;
     const sonuc = gAy.length >= 2 ? `Puan ${asLabelOf(gAy[0])} ${asFmt(R[gAy[0]].puan, 0)} → ${asLabelOf(son)} ${asFmt(R[son].puan, 0)}; ${gAy.length} ayın ${ust} tanesinde lokasyon ortalamasının üstünde.` : `${asLabelOf(son)} puanı ${asFmt(R[son].puan, 0)}.`;
@@ -10168,6 +10178,8 @@ function kisiDonemHtml(D, sicil, aylar){
           .concat([{ cells: [anzTd('<b style="color:var(--accent);">Hepsi tam puana çıkarsa</b>', { al: 'left' }), anzTd(''), anzTd(''), anzTd(''), anzTd(`<b>${asFmt(R[son].puan, 0)} → ${asFmt(R[son].puan + toplam, 0)}</b>`, { al: 'left' }), anzTd(`<b>+${asFmt(toplam, 0)}</b>`)] }])) : '',
       `OSMANİYE-PERFORMANS ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`, 'Anket 1 ondalığa yuvarlanarak değerlendirilir.');
   }
+  }
+  html += uzmHtml || '';
   {
     const Z = asKisiIzinDeseni(D, sicil, aylar);
     if (Z.vardiyaVar){
@@ -10195,11 +10207,436 @@ async function kisiSekmeDoldur(){
     const aylar = []; for (let a = start; a <= end; a++) aylar.push(a);
     if (sekme === 'genel') kisiAralikBarCiz(start, end);
     if (sekme === 'bilgiler'){ const el = document.getElementById('kisiTakimGecmisi'); if (el) el.textContent = 'VARDİYA: ' + kisiTakimGecmisi(D, sicil, aylar); }
-    if (sekme === 'genel'){ const el = document.getElementById('kisiDonemWrap'); if (el) el.innerHTML = kisiDonemHtml(D, sicil, aylar); }
+    if (sekme === 'genel'){
+      let uzmHtml = '';
+      try { uzmHtml = uzmKisiHtml(await uzmVeriAl(), sicil, aylar); }
+      catch (e){ uzmHtml = ''; } // uzman sekmeleri yoksa VT kartları yine görünür
+      if (sicil !== selectedSicil || sekme !== selectedLeftTab) return;
+      const el = document.getElementById('kisiDonemWrap'); if (el) el.innerHTML = kisiDonemHtml(D, sicil, aylar, uzmHtml);
+    }
   } catch (e){
     const el = document.getElementById(sekme === 'genel' ? 'kisiDonemWrap' : 'kisiTakimGecmisi');
     if (el) el.innerHTML = `<span class="hint">Performans verisi okunamadı: ${anzEsc(e.message)}</span>`;
   }
+}
+
+// ===== UZMAN PERFORMANSI (23.11.2026) =====
+// Uzmanlar (Saha Koordinasyon ve Mevzuat Uzmanı) VT ay sekmelerinde yer almaz; verileri
+// OSMANİYE-PERFORMANS > "UZMAN PERFORMANS" sekmesinde, satır başına bir kişinin bir ayı (AY sütunu
+// "EKİM-2026" biçiminde). Puan dilimleri "UZMAN PUANLAMA ÖLÇEĞİ" sekmesinden okunur (PUANLAMA ÖLÇEĞİ
+// ile aynı düzen) ve VT ile aynı motorla (asParseOlcek / asParsePerf) puanlanır.
+// Ölçekte KAYNAK SÜTUN olmayan sütunlar (talep sayısı, dış arama sayısı, AHT…) ekranda ham değer olarak
+// gösterilir; "ÇARPANI" sütunları gösterilmez (puanın kendisi ölçekten gelir).
+// Kullanım: Genel Değerlendirme (kişi uzmansa uzman kartları), sol menü > Uzman Performansı sayfası,
+// ve aylık Uzman Performans Excel'inin (V2 sayfası) yüklenip sekmeye yazılması.
+const UZM_PERF_TAB = 'UZMAN PERFORMANS', UZM_OLCEK_TAB = 'UZMAN PUANLAMA ÖLÇEĞİ';
+// Aylık Uzman Performans Excel'i (V2 sayfası) başlıkları → sekme başlıkları. Anahtarlar asUp + boşluksuz karşılaştırılır.
+const UZM_V2_ESLEME = [
+  [['KKO NOTU', 'KKO'], 'KKO'],
+  [['ÇÖZDÜĞÜ TALEP SAYISI'], 'ÇÖZDÜĞÜ TALEP PUANI'],
+  [['DIŞ ARAMA SAYISI ORTALAMANIN ÜZERİNDE Mİ?', 'DIŞ ARAMA SAYISI ORTALMANIN ÜZERİNDE Mİ?', 'DIŞ ARAMA ORTALAMANIN ÜZERİNDE Mİ'], 'DIŞ ARAMA ORTALAMANIN ÜZERİNDE Mİ'],
+  [['DIŞ ARAMA AHT', 'DIŞ ARAMA ACHT'], 'DIŞ ARAMA AHT PUANI'],
+  [['RAPOR/ÜCRETSİZ İZİN'], 'RAPOR/ÜCRETSİZ İZİN'],
+  [['GEÇ LOGİN / EKSİK STAFF', 'GEÇ LOGİN/EKSİK STAFF'], 'GEÇ LOGİN/EKSİK STAFF'],
+  [['MOLA PLANI UYUMU'], 'MOLA PLANI UYUMU'],
+  [['SINAV PUANI'], 'SINAV PUANI'],
+  [['SAATLİK İZİN'], 'SAATLİK İZİN'],
+  [['IB ANKET SONUCU', 'ANKET DEĞERLENDİRMESİ'], 'ANKET DEĞERLENDİRMESİ'],
+  [['YAZILI UYARI'], 'YAZILI UYARI'],
+  [['YAZILI UYARI ÇARPANI'], 'YAZILI UYARI ÇARPANI'],
+  [['TEŞEKKÜR ÇAĞRISI'], 'TEŞEKKÜR ÇAĞRISI'],
+  [['TEŞEKKÜR ÇAĞRISI ÇARPANI'], 'TEŞEKKÜR ÇAĞRISI ÇARPANI'],
+  [['PERFORMANS PUANI'], 'PERFORMANS PUANI'],
+];
+let UZM = { U: null, bekleyen: null, ay: null, hata: null, yukleme: null, chart: null };
+const uzmSikis = s => asUp(s).replace(/\s+/g, '');
+function uzmSicilSutun(h){ return h.findIndex(x => x.includes('SİCİL')); }
+function uzmAdSutun(h){ return h.findIndex(x => x.includes('ADI')); }
+async function uzmVeriAl(){
+  if (UZM.U) return UZM.U;
+  if (!UZM.bekleyen){
+    UZM.bekleyen = (async () => {
+      const [ol, rows] = await Promise.all([
+        asFetchValues(PERF_SHEET_ID, `'${UZM_OLCEK_TAB}'!A1:Z500`),
+        asFetchValues(PERF_SHEET_ID, `'${UZM_PERF_TAB}'!A1:AZ3000`),
+      ]);
+      if (!ol || ol.length < 2) throw new Error(`OSMANİYE-PERFORMANS tablosunda "${UZM_OLCEK_TAB}" sekmesi yok ya da boş.`);
+      if (!rows || rows.length < 2) throw new Error(`OSMANİYE-PERFORMANS tablosunda "${UZM_PERF_TAB}" sekmesi yok ya da boş.`);
+      const olcek = asParseOlcek(ol);
+      const h = rows[0].map(asUp);
+      const ayIx = h.indexOf('AY'), sic = uzmSicilSutun(h);
+      if (ayIx === -1 || sic === -1) throw new Error(`"${UZM_PERF_TAB}" sekmesinde AY ya da SİCİL sütunu yok.`);
+      const olcekSut = new Set(olcek.params.map(p => p.col));
+      const ekSut = h.map((k, i) => ({ k, i })).filter(x => x.k && x.i !== ayIx && x.i !== sic && x.i !== uzmAdSutun(h) && x.k !== 'PERFORMANS PUANI' && !olcekSut.has(x.k) && !x.k.includes('ÇARPANI'));
+      const grup = new Map();
+      rows.slice(1).forEach(r => { const a = asParseKey(r[ayIx]); if (a === null) return; if (!grup.has(a)) grup.set(a, []); grup.get(a).push(r); });
+      const perf = new Map();
+      grup.forEach((rs, a) => {
+        const m = asParsePerf([rows[0]].concat(rs), a, olcek);
+        rs.forEach(r => { const rec = m.get(String(r[sic] === undefined ? '' : r[sic]).trim()); if (rec){ rec.ek = {}; ekSut.forEach(x => { rec.ek[x.k] = r[x.i]; }); } });
+        perf.set(a, m);
+      });
+      return { olcek, perf, aylar: [...perf.keys()].sort((a, b) => b - a), ekSut: ekSut.map(x => x.k), baslik: rows[0], tumSatir: rows };
+    })();
+  }
+  try { UZM.U = await UZM.bekleyen; return UZM.U; }
+  finally { UZM.bekleyen = null; }
+}
+function uzmKayit(U, abs, sicil){ const m = U.perf.get(abs); return m ? m.get(String(sicil)) || null : null; }
+function uzmGecerli(r){ return !!(r && !r.durum && r.tutarli); }
+function uzmAyOzet(U, abs){
+  const m = U.perf.get(abs); const g = m ? [...m.values()].filter(uzmGecerli) : [];
+  return { n: g.length, ort: asAvg(g.map(r => r.puan)), gecerli: g };
+}
+function uzmEkFmt(v){ const n = asNum(v); return n === null ? (v === '' || v === null || v === undefined ? '—' : anzEsc(v)) : asFmt(n, 1); }
+function uzmAd(U, sicil){
+  const p = (typeof PERSONNEL !== 'undefined' ? PERSONNEL : []).find(x => x.sicil === String(sicil));
+  if (p) return asUp(p.adSoyad);
+  for (const a of U.aylar){ const r = uzmKayit(U, a, sicil); if (r && r.ad) return asUp(r.ad); }
+  return String(sicil);
+}
+// Değer gösterimi: Evet/Hayır sütunlarında metin; dosyada hazır puan gelen sütunlarda (adı "PUANI" ile biten) yalnız puan.
+// Hazır puan sütunu: ölçekte her basamağın puanı alt sınırına eşit (değerin kendisi puandır).
+function uzmHazirPuan(UD, col, abs){ const b = asBandsFor(UD.olcek, col, abs); return b.length > 0 && b.every(x => x.lo === x.puan); }
+function uzmDeger(UD, col, i, abs){
+  if (!i) return '—';
+  const h = i.ham; if (typeof h === 'string' && h.trim() && asNum(h) === null) return h.trim();
+  if (uzmHazirPuan(UD, col, abs)) return asFmt(i.kazanilan, 0);
+  return asDeger(UD, col, i, abs);
+}
+function uzmHucre2(UD, p, i, abs){ return !i ? '—' : (uzmHazirPuan(UD, p.col, abs) ? asFmt(i.kazanilan, 0) : `${anzEsc(uzmDeger(UD, p.col, i, abs))} <span class="hint">(${asFmt(i.kazanilan, 0)})</span>`); }
+function uzmEtiket(k){ return k.toLocaleLowerCase('tr-TR').replace(/^./, c => c.toLocaleUpperCase('tr-TR')).replace(/\baht\b/g, 'AHT'); }
+function uzmDurum(r){ return !r ? 'kayıt yok' : (r.durum || (!r.tutarli ? 'puan tutmuyor' : '')); }
+// Puan dökümü (son ay) — VT kişi kartındaki tabloyla aynı düzen.
+function uzmDokumTablo(U, r, o, oAbs){
+  const UD = { olcek: U.olcek };
+  const rows = U.olcek.params.map(p => {
+    const i = r.params[p.col]; if (!i) return null;
+    const oi = o && o.params[p.col]; const f = oi ? i.kazanilan - oi.kazanilan : null;
+    return { cells: [anzTd(`<b>${anzEsc(p.param)}</b>`, { al: 'left' }), anzTd(`<b>${anzEsc(uzmDeger(UD, p.col, i, r.abs))}</b>`), anzTd(asFmt(i.kazanilan, 0)),
+      anzTd(p.tur === 'PUAN' ? asFmt(i.max, 0) : p.tur === 'KESİNTİ' ? '0' : '+' + asFmt(i.max, 0)), anzTd(i.kayip > 0 ? `−${asFmt(i.kayip, 0)}` : '—', { st: anzRenkKayip(i.kayip) }),
+      anzTd(oi ? anzEsc(uzmDeger(UD, p.col, oi, oAbs)) : '—'), anzTd(f === null ? '—' : anzFark(f, true), { v: f === null ? '' : f })] };
+  }).filter(Boolean);
+  rows.push({ cells: [anzTd('<b style="color:var(--accent);">Performans puanı</b>', { al: 'left' }), anzTd(''), anzTd(`<b>${asFmt(r.puan, 0)}</b>`), anzTd(''), anzTd(''), anzTd(o ? asFmt(o.puan, 0) : '—'), anzTd(o ? anzFark(r.puan - o.puan, true) : '—')] });
+  return anzTable([{ t: 'Parametre', al: 'left' }, { t: 'Değer' }, { t: 'Alınan' }, { t: 'En yüksek' }, { t: 'Kayıp' }, { t: o ? `${asShort(oAbs)} değeri` : 'Önceki' }, { t: 'Puan farkı' }], rows);
+}
+// Genel Değerlendirme: kişinin seçilen aralıktaki uzman ayları. Uzman kaydı yoksa ''.
+function uzmKisiHtml(U, sicil, aylar){
+  const R = {}; aylar.forEach(a => { R[a] = uzmKayit(U, a, sicil); });
+  const uAy = aylar.filter(a => R[a]);
+  if (!uAy.length) return '';
+  const gAy = uAy.filter(a => uzmGecerli(R[a]));
+  const donemAd = `${asShort(uAy[0])} – ${asShort(uAy[uAy.length - 1])}`;
+  const OZ = {}; uAy.forEach(a => { OZ[a] = uzmAyOzet(U, a); });
+  const satir = (ad, f) => ({ cells: [anzTd(`<b>${ad}</b>`, { al: 'left' })].concat(uAy.map(f)) });
+  const rows = [
+    satir('Performans puanı', a => uzmGecerli(R[a]) ? anzTd(`<b style="color:var(--accent);">${asFmt(R[a].puan, 0)}</b>`) : anzTd(`<span class="hint">${anzEsc(uzmDurum(R[a]))}</span>`)),
+    satir('Uzman ortalaması', a => anzTd(OZ[a].n ? asFmt(OZ[a].ort) : '—')),
+    satir('Uzmanlar içinde sıra', a => anzTd(uzmGecerli(R[a]) ? `${1 + OZ[a].gecerli.filter(x => x.puan > R[a].puan).length}/${OZ[a].n}` : '—')),
+  ];
+  const UD = { olcek: U.olcek };
+  U.olcek.params.forEach(p => rows.push(satir(anzEsc(p.param), a => anzTd(uzmHucre2(UD, p, R[a].params[p.col], a)))));
+  U.ekSut.forEach(k => rows.push(satir(anzEsc(uzmEtiket(k)), a => anzTd(uzmEkFmt(R[a].ek ? R[a].ek[k] : '')))));
+  let sonuc;
+  if (!gAy.length) sonuc = `${donemAd} arasında puanı hesaplanabilen uzman kaydı yok.`;
+  else {
+    const ust = gAy.filter(a => OZ[a].n && R[a].puan >= OZ[a].ort).length;
+    sonuc = gAy.length >= 2 ? `Puan ${asLabelOf(gAy[0])} ${asFmt(R[gAy[0]].puan, 0)} → ${asLabelOf(gAy[gAy.length - 1])} ${asFmt(R[gAy[gAy.length - 1]].puan, 0)}; ${gAy.length} ayın ${ust} tanesinde uzman ortalamasının üstünde ya da eşit.`
+      : `${asLabelOf(gAy[0])} puanı ${asFmt(R[gAy[0]].puan, 0)}.`;
+  }
+  let html = '<div class="uzm-genis">' + anzCard(`🎓 Uzman performansı (${donemAd})`, sonuc,
+    anzTable([{ t: 'Gösterge', al: 'left' }].concat(uAy.map(a => ({ t: asShort(a) }))), rows),
+    `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}; ${UZM_OLCEK_TAB}.`, 'Parantez içi: o göstergeden alınan puan. Uzman ortalaması ve sıra yalnız uzmanlar arasında.');
+  if (gAy.length){
+    const son = gAy[gAy.length - 1], onc = gAy.length > 1 ? gAy[gAy.length - 2] : undefined;
+    const r = R[son], o = onc !== undefined ? R[onc] : null;
+    const kay = U.olcek.params.filter(p => p.tur !== 'EK PUAN' && r.params[p.col] && r.params[p.col].kayip > 0).sort((a, b) => r.params[b.col].kayip - r.params[a.col].kayip);
+    const s2 = kay.length ? `${asLabelOf(son)}: puan ${kay.slice(0, 3).map(p => `${anzEsc(p.param)} (−${asFmt(r.params[p.col].kayip, 0)})`).join(', ')}${kay.length > 3 ? ' ve diğerlerinden' : ''} gitti.` : `${asLabelOf(son)}: tüm parametrelerden tam puan.`;
+    html += anzCard(`🧾 ${asLabelOf(son)} uzman puan dökümü`, s2, uzmDokumTablo(U, r, o, onc), `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}; ${UZM_OLCEK_TAB}.`, '');
+  }
+  return html + '</div>';
+}
+
+// ---------- Sol menü > Uzman Performansı ----------
+function renderUzmanTab(){
+  const U = UZM.U, ay = U ? U.aylar : [];
+  if (U && (UZM.ay === null || !ay.includes(UZM.ay))) UZM.ay = ay[0];
+  const opt = ay.map(a => `<option value="${a}" ${a === UZM.ay ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
+  return `
+    <div class="topbar" style="margin-bottom:24px;">
+      <div class="topbar-left"><div><div class="eyebrow">ALO 144 · ANALİZ</div><h1>Uzman Performansı</h1></div></div>
+    </div>
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-body anz-secici">
+        <div><div class="search-label">Ay</div><select class="search" id="uzmAy">${ay.length ? opt : '<option>Yükleniyor…</option>'}</select></div>
+        <button class="refresh-btn" id="uzmExcelBtn" ${U ? '' : 'disabled'}>⇩ Excel'e Aktar</button>
+        ${islemAuthorized ? `<button class="refresh-btn" id="uzmYukleBtn">⇧ Ay Ekle (Uzman Performans Excel'i)</button><input type="file" id="uzmDosya" accept=".xlsx,.xlsm" style="display:none;">` : ''}
+      </div>
+    </div>
+    <div id="uzmYuklemeAlan"></div>
+    <div id="uzmIcerik" class="uzm-genis"><div class="anz-bos">Yükleniyor…</div></div>`;
+}
+function uzmIcerikCiz(){
+  const el = document.getElementById('uzmIcerik'); if (!el) return;
+  if (UZM.chart){ try { UZM.chart.destroy(); } catch(e){} UZM.chart = null; }
+  if (UZM.hata){ el.innerHTML = `<div class="error-box">${anzEsc(UZM.hata)}</div>`; return; }
+  const U = UZM.U; if (!U){ el.innerHTML = '<div class="anz-bos">Yükleniyor…</div>'; return; }
+  if (!U.aylar.length){ el.innerHTML = '<div class="anz-bos">Uzman performans kaydı yok.</div>'; return; }
+  const M = UZM.ay, m = U.perf.get(M) || new Map(), oAy = U.aylar.find(a => a < M);
+  const kayitlar = [...m.values()].sort((a, b) => (b.puan || 0) - (a.puan || 0));
+  const OZ = uzmAyOzet(U, M);
+  const UD = { olcek: U.olcek };
+  // 1) Ay tablosu
+  const bas = [{ t: 'Uzman', al: 'left' }].concat(U.olcek.params.map(p => ({ t: anzEsc(p.param) }))).concat([{ t: 'Performans puanı' }, { t: oAy !== undefined ? `${asShort(oAy)} puanı` : 'Önceki' }, { t: 'Fark' }]);
+  const satirlar = kayitlar.map(r => {
+    const o = oAy !== undefined ? uzmKayit(U, oAy, r.sicil) : null;
+    const gec = uzmGecerli(r), oGec = uzmGecerli(o);
+    return { sicil: r.sicil, cells: [anzTd(`<b>${anzEsc(uzmAd(U, r.sicil))}</b>`, { al: 'left' })]
+      .concat(U.olcek.params.map(p => { const i = r.params[p.col]; return anzTd(uzmHucre2(UD, p, i, M), { v: i ? i.kazanilan : '' }); }))
+      .concat([anzTd(gec ? `<b style="color:var(--accent);">${asFmt(r.puan, 0)}</b>` : `<span class="hint">${anzEsc(uzmDurum(r))}</span>`, { v: gec ? r.puan : '' }),
+        anzTd(oGec ? asFmt(o.puan, 0) : '—', { v: oGec ? o.puan : '' }), anzTd(gec && oGec ? anzFark(r.puan - o.puan, true) : '—', { v: gec && oGec ? r.puan - o.puan : '' })]) };
+  });
+  if (OZ.n) satirlar.push({ cells: [anzTd('<b>Uzman ortalaması</b>', { al: 'left' })].concat(U.olcek.params.map(p => anzTd(asFmt(asAvg(OZ.gecerli.map(r => r.params[p.col] ? r.params[p.col].kazanilan : null)))))).concat([anzTd(`<b>${asFmt(OZ.ort)}</b>`), anzTd(''), anzTd('')]) });
+  const kayipTop = U.olcek.params.filter(p => p.tur !== 'EK PUAN').map(p => ({ p, v: asSum(OZ.gecerli.map(r => r.params[p.col] ? r.params[p.col].kayip : 0)) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+  const sonuc1 = OZ.n ? `${asLabelOf(M)}: ${OZ.n} uzman, ortalama ${asFmt(OZ.ort)} puan.` + (kayipTop.length ? ` En çok kayıp: ${kayipTop.slice(0, 3).map(x => `${anzEsc(x.p.param)} (−${asFmt(x.v, 0)})`).join(', ')}.` : ' Tüm uzmanlar tüm parametrelerden tam puan aldı.') : `${asLabelOf(M)} için puanı hesaplanabilen kayıt yok.`;
+  let html = anzCard(`🎓 ${asLabelOf(M)} uzman tablosu`, sonuc1, anzTable(bas, satirlar, { siralanir: true }),
+    `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}; ${UZM_OLCEK_TAB}.`, 'Hücrede değer, parantez içinde o göstergeden alınan puan. İsme tıklayınca kişinin karnesi açılır.');
+  // 2) Ek değerler (talep / dış arama sayıları vb.)
+  if (U.ekSut.length && kayitlar.length){
+    const eb = [{ t: 'Uzman', al: 'left' }].concat(U.ekSut.map(k => ({ t: anzEsc(k) })));
+    html += anzCard(`🔢 ${asLabelOf(M)} sayılar`, '', anzTable(eb, kayitlar.map(r => ({ sicil: r.sicil, cells: [anzTd(`<b>${anzEsc(uzmAd(U, r.sicil))}</b>`, { al: 'left' })].concat(U.ekSut.map(k => anzTd(uzmEkFmt(r.ek ? r.ek[k] : ''), { v: asNum(r.ek ? r.ek[k] : '') === null ? '' : asNum(r.ek[k]) }))) }))),
+      `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}.`, '');
+  }
+  // 3) Puan seyri (bütün aylar)
+  const aylar = U.aylar.slice().reverse();
+  const kisiler = [...new Set([].concat(...aylar.map(a => [...(U.perf.get(a) || new Map()).keys()])))].sort((a, b) => uzmAd(U, a).localeCompare(uzmAd(U, b), 'tr'));
+  const seyirRows = kisiler.map(s => ({ sicil: s, cells: [anzTd(`<b>${anzEsc(uzmAd(U, s))}</b>`, { al: 'left' })].concat(aylar.map(a => { const r = uzmKayit(U, a, s); return anzTd(uzmGecerli(r) ? asFmt(r.puan, 0) : (r ? `<span class="hint">${anzEsc(uzmDurum(r))}</span>` : ''), { v: uzmGecerli(r) ? r.puan : '' }); })) }));
+  seyirRows.push({ cells: [anzTd('<b>Uzman ortalaması</b>', { al: 'left' })].concat(aylar.map(a => { const z = uzmAyOzet(U, a); return anzTd(z.n ? `<b>${asFmt(z.ort)}</b>` : '—'); })) });
+  html += anzCard('📈 Aylara göre performans puanı', `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])}, ${kisiler.length} uzman.`,
+    `<div style="height:280px; margin-bottom:12px;"><canvas id="uzmSeyirCanvas"></canvas></div>` + anzTable([{ t: 'Uzman', al: 'left' }].concat(aylar.map(a => ({ t: asShort(a) }))), seyirRows),
+    `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}.`, 'Boş hücre: kişi o ay uzman değildi.');
+  el.innerHTML = html;
+  if (typeof Chart !== 'undefined'){
+    const c = document.getElementById('uzmSeyirCanvas');
+    const css = getComputedStyle(document.documentElement);
+    const renk = n => (css.getPropertyValue('--' + n) || '').trim();
+    const slot = gorunumBeyaz() ? GORUNUM_BEYAZ_SLOTLAR : ['#E8A53D', '#4FB3BF', '#E56B6F', '#9B8CF2', '#6CC48A'];
+    const dim = renk('dim') || '#888', line = renk('line') || '#ddd';
+    if (c) UZM.chart = new Chart(c, { type: 'line', data: { labels: aylar.map(asShort), datasets: kisiler.map((s, i) => ({ label: uzmAd(U, s), data: aylar.map(a => { const r = uzmKayit(U, a, s); return uzmGecerli(r) ? r.puan : null; }), borderColor: slot[i % slot.length], backgroundColor: slot[i % slot.length], tension: 0, spanGaps: false, datalabels: { display: false } })) },
+      options: { maintainAspectRatio: false, plugins: { legend: { labels: { color: dim } }, datalabels: { display: false } }, scales: { x: { ticks: { color: dim }, grid: { color: line } }, y: { ticks: { color: dim }, grid: { color: line }, suggestedMax: 100 } } } });
+  }
+}
+async function wireUzmanTab(){
+  const mq = document.getElementById('analizMarqueeWrap'); if (mq) mq.style.display = 'none';
+  anzIcerikOlaylari();
+  const bagla = () => {
+    const s = document.getElementById('uzmAy'); if (s) s.addEventListener('change', () => { UZM.ay = +s.value; uzmIcerikCiz(); });
+    const x = document.getElementById('uzmExcelBtn'); if (x) x.addEventListener('click', uzmExcelIndir);
+    const y = document.getElementById('uzmYukleBtn'), f = document.getElementById('uzmDosya');
+    if (y && f){ y.addEventListener('click', () => { f.value = ''; f.click(); }); f.addEventListener('change', () => { if (f.files && f.files[0]) uzmDosyaOku(f.files[0]); }); }
+    if (UZM.yukleme) uzmYuklemeCiz();
+  };
+  bagla(); uzmIcerikCiz();
+  if (UZM.U) return;
+  try { UZM.hata = null; await uzmVeriAl(); } catch (e){ UZM.hata = 'Uzman verisi okunamadı: ' + e.message; }
+  if (selectedLeftTab !== 'uzman') return;
+  contentArea.innerHTML = renderUzmanTab(); bagla(); uzmIcerikCiz();
+}
+
+// ---------- Excel'e Aktar ----------
+async function uzmExcelIndir(){
+  const U = UZM.U; if (!U) return;
+  try {
+    const M = UZM.ay, UD = { olcek: U.olcek };
+    const kayitlar = [...(U.perf.get(M) || new Map()).values()].sort((a, b) => (b.puan || 0) - (a.puan || 0));
+    const wb = new ExcelJS.Workbook();
+    const ince = { style: 'thin', color: { argb: 'FF000000' } }, kenar = { top: ince, bottom: ince, left: ince, right: ince };
+    const tablo = (ws, baslik, basliklar, satirlar, genislik) => {
+      ws.views = [{ showGridLines: false }];
+      ws.getCell(1, 1).value = baslik; ws.getCell(1, 1).font = { bold: true, size: 13 };
+      basliklar.forEach((t, i) => { const c = ws.getCell(3, i + 1); c.value = t; c.font = { bold: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDD7EE' } }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.border = kenar; });
+      satirlar.forEach((r, ri) => r.forEach((v, i) => { const c = ws.getCell(4 + ri, i + 1); c.value = v === null || v === undefined ? '' : v; c.border = kenar; c.alignment = { horizontal: i === 0 ? 'left' : 'center' }; }));
+      ws.getRow(3).height = 32;
+      basliklar.forEach((t, i) => { ws.getColumn(i + 1).width = i === 0 ? 26 : (genislik || 14); });
+    };
+    const ws1 = wb.addWorksheet(asLabelOf(M));
+    const b1 = ['Uzman', 'Sicil'].concat(U.olcek.params.map(p => p.param)).concat(U.ekSut.map(k => uzmEtiket(k))).concat(['Performans Puanı']);
+    tablo(ws1, `${asLabelOf(M)} Uzman Performansı`, b1, kayitlar.map(r => [uzmAd(U, r.sicil), asNum(r.sicil) === null ? r.sicil : asNum(r.sicil)]
+      .concat(U.olcek.params.map(p => { const i = r.params[p.col]; if (!i) return ''; if (typeof i.ham === 'string' && i.ham.trim() && asNum(i.ham) === null) return i.ham.trim(); return i.deger === null ? '' : i.deger; }))
+      .concat(U.ekSut.map(k => { const n = asNum(r.ek ? r.ek[k] : ''); return n === null ? (r.ek ? r.ek[k] : '') : n; }))
+      .concat([uzmGecerli(r) ? r.puan : uzmDurum(r)])));
+    const aylar = U.aylar.slice().reverse();
+    const kisiler = [...new Set([].concat(...aylar.map(a => [...(U.perf.get(a) || new Map()).keys()])))].sort((a, b) => uzmAd(U, a).localeCompare(uzmAd(U, b), 'tr'));
+    const ws2 = wb.addWorksheet('Puan Seyri');
+    tablo(ws2, 'Uzman Performans Puanı — Aylara Göre', ['Uzman'].concat(aylar.map(asLabelOf)),
+      kisiler.map(s => [uzmAd(U, s)].concat(aylar.map(a => { const r = uzmKayit(U, a, s); return uzmGecerli(r) ? r.puan : ''; }))), 11);
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = `${asLabelOf(M)} Uzman Performansı.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  } catch (e){ alert('Excel hazırlanamadı: ' + e.message); }
+}
+
+// ---------- Ay Ekle: aylık Uzman Performans Excel'i (V2 sayfası) → UZMAN PERFORMANS sekmesi ----------
+function uzmHucre(c){
+  let v = c ? c.value : null;
+  if (v && typeof v === 'object'){
+    if (v instanceof Date) return v;
+    if ('result' in v) v = v.result;
+    else if ('formula' in v || 'sharedFormula' in v) v = 0; // ExcelJS, kayıtlı sonucu 0 olan formülde result vermiyor
+    else if (v.richText) v = v.richText.map(t => t.text).join('');
+    else if ('text' in v) v = v.text;
+    else if (v.error) v = null;
+  }
+  return v === undefined ? null : v;
+}
+function uzmSayfaTablo(ws){ // [[başlık...], [satır...]...]
+  const out = [];
+  ws.eachRow({ includeEmpty: true }, (row, rn) => { const r = []; for (let i = 1; i <= ws.columnCount; i++) r.push(uzmHucre(row.getCell(i))); out[rn - 1] = r; });
+  for (let i = 0; i < out.length; i++) if (!out[i]) out[i] = [];
+  return out;
+}
+function uzmDosyaAyi(ad){
+  const m = String(ad || '').match(/(\d{4})\s*-\s*([^\s.]+)/);
+  if (m){ const i = TR_MONTHS_UPPER.indexOf(asUp(m[2])); if (i !== -1) return asAbs(+m[1], i); }
+  return null;
+}
+function uzmAySayfadan(wb){ // yardımcı sayfalardaki "EKİM-2026" hücresi
+  let bulunan = null;
+  wb.eachSheet(ws => { if (bulunan !== null) return; ws.eachRow(row => { row.eachCell(c => { if (bulunan !== null) return; const v = uzmHucre(c); if (typeof v === 'string'){ const a = asParseKey(v); if (a !== null) bulunan = a; } }); }); });
+  return bulunan;
+}
+async function uzmDosyaOku(file){
+  UZM.yukleme = { dosya: file.name, hata: null, satirlar: null, ay: null, durum: 'Dosya okunuyor…' };
+  uzmYuklemeCiz();
+  try {
+    const U = await uzmVeriAl();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await file.arrayBuffer());
+    const v2 = wb.getWorksheet('V2');
+    if (!v2) throw new Error('Dosyada "V2" sayfası yok.');
+    const T = uzmSayfaTablo(v2);
+    const h = (T[0] || []).map(uzmSikis);
+    const sic = h.findIndex(x => x.includes('SİCİL')), ad = h.findIndex(x => x.includes('ADI'));
+    if (sic === -1) throw new Error('V2 sayfasında SİCİL sütunu yok.');
+    const esle = UZM_V2_ESLEME.map(([adlar, hedef]) => ({ hedef, i: h.findIndex(x => adlar.map(uzmSikis).includes(x)) }));
+    const eksik = esle.filter(x => x.i === -1).map(x => x.hedef);
+    if (eksik.includes('PERFORMANS PUANI')) throw new Error('V2 sayfasında PERFORMANS PUANI sütunu yok.');
+    // Ek sayılar: V2 Veriler (talep), DIŞ ARAMA SAYISI (dış arama) — sicile göre, başlık adıyla
+    const ekOku = (sayfa, alanlar) => {
+      const ws = wb.getWorksheet(sayfa); const m = new Map(); if (!ws) return m;
+      const t = uzmSayfaTablo(ws); const hh = (t[0] || []).map(asUp);
+      const s = hh.findIndex(x => x.includes('SİCİL') || x === 'AGENTID');
+      const ix = alanlar.map(([hedef, test]) => ({ hedef, i: hh.findIndex(test) }));
+      t.slice(1).forEach(r => { const k = asNum(r[s]); if (k === null || m.has(String(k))) return; const o = {}; ix.forEach(x => { if (x.i !== -1) o[x.hedef] = asNum(r[x.i]); }); m.set(String(k), o); });
+      return m;
+    };
+    const talep = ekOku('V2 Veriler', [['ÇÖZDÜĞÜ TALEP SAYISI', x => x === 'ÇÖZDÜĞÜ TALEP SAYISI'], ['OLMASI GEREKEN TALEP SAYISI', x => x.includes('ÇÖZMESİ GEREKEN')]]);
+    const dis = ekOku('DIŞ ARAMA SAYISI', [['DIŞ ARAMA SAYISI', x => x === 'DIŞ ARAMA'], ['OLMASI GEREKEN DIŞ ARAMA SAYISI', x => x.includes('OLMASI GEREKEN')], ['DIŞ ARAMA AHT', x => x === 'AHT']]);
+    const basliklar = U.baslik.map(asUp);
+    const satirlar = [];
+    T.slice(1).forEach(r => {
+      const s = asNum(r[sic]); if (s === null) return;
+      const k = String(s);
+      const o = {};
+      esle.forEach(x => { if (x.i !== -1) o[x.hedef] = r[x.i]; });
+      const ek = Object.assign({}, talep.get(k) || {}, dis.get(k) || {});
+      Object.keys(ek).forEach(key => { if (ek[key] !== null && ek[key] !== undefined) o[key] = ['DIŞ ARAMA AHT'].includes(key) ? Math.round(ek[key]) : (key.startsWith('OLMASI GEREKEN TALEP') ? Number(ek[key].toFixed(1)) : ek[key]); });
+      ['DIŞ ARAMA ORTALAMANIN ÜZERİNDE Mİ', 'TEŞEKKÜR ÇAĞRISI'].forEach(key => { const u = asUp(o[key]); if (u === 'EVET') o[key] = 'Evet'; else if (u === 'HAYIR' || u === 'HAYİR') o[key] = 'Hayır'; });
+      const an = asNum(o['ANKET DEĞERLENDİRMESİ']); if (an !== null) o['ANKET DEĞERLENDİRMESİ'] = Number(an.toFixed(1));
+      satirlar.push({ sicil: k, ad: String(r[ad] || '').trim(), o });
+    });
+    if (!satirlar.length) throw new Error('V2 sayfasında sicilli satır bulunamadı.');
+    const ay = uzmDosyaAyi(file.name) ?? uzmAySayfadan(wb);
+    UZM.yukleme = { dosya: file.name, hata: null, satirlar, ay, eksik: eksik.filter(x => basliklar.includes(x)), durum: '' };
+  } catch (e){ UZM.yukleme = { dosya: file.name, hata: 'Dosya okunamadı: ' + e.message }; }
+  uzmYuklemeCiz();
+}
+function uzmYuklemeSatir(U, x, ay){ // sekme başlık sırasıyla bir satır
+  return U.baslik.map(b => { const k = asUp(b);
+    if (k === 'AY') return asKeyOf(ay);
+    if (k.includes('SİCİL')) return asNum(x.sicil);
+    if (k.includes('ADI')) return uzmAd(U, x.sicil) === x.sicil ? asUp(x.ad) : uzmAd(U, x.sicil);
+    const v = x.o[k]; return v === undefined || v === null ? '' : v; });
+}
+function uzmYuklemeCiz(){
+  const el = document.getElementById('uzmYuklemeAlan'); if (!el) return;
+  const Y = UZM.yukleme; if (!Y){ el.innerHTML = ''; return; }
+  if (Y.hata){ el.innerHTML = `<div class="error-box">${anzEsc(Y.hata)} <button class="refresh-btn" id="uzmYukIptal" style="margin-left:8px;">Kapat</button></div>`; document.getElementById('uzmYukIptal').onclick = () => { UZM.yukleme = null; uzmYuklemeCiz(); }; return; }
+  if (!Y.satirlar){ el.innerHTML = `<div class="anz-bos">${anzEsc(Y.durum || 'Okunuyor…')}</div>`; return; }
+  const U = UZM.U;
+  const tum = []; for (let a = (U.aylar[U.aylar.length - 1] || asAbs(2025, 0)); a <= Math.max(Y.ay || 0, (U.aylar[0] || 0) + 2); a++) tum.push(a);
+  const ay = Y.ay !== null && Y.ay !== undefined ? Y.ay : null;
+  const opt = tum.slice().reverse().map(a => `<option value="${a}" ${a === ay ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
+  const varMi = ay !== null && U.perf.has(ay);
+  // Önizleme: puan ölçekle tutuyor mu
+  let kontrol = new Map();
+  if (ay !== null){ try { kontrol = asParsePerf([U.baslik].concat(Y.satirlar.map(x => uzmYuklemeSatir(U, x, ay))), ay, U.olcek); } catch(e){} }
+  const rows = Y.satirlar.map(x => { const r = kontrol.get(x.sicil); const ok = uzmGecerli(r);
+    return { cells: [anzTd(anzEsc(x.sicil)), anzTd(`<b>${anzEsc(uzmAd(U, x.sicil) === x.sicil ? asUp(x.ad) : uzmAd(U, x.sicil))}</b>`, { al: 'left' }), anzTd(asFmt(asNum(x.o['PERFORMANS PUANI']), 0)),
+      anzTd(r ? (ok ? '<span style="color:var(--ok);font-weight:700;">Tutuyor</span>' : `<span style="color:var(--danger);font-weight:700;">${anzEsc(r.durum || `Tutmuyor (ölçekten ${asFmt(r.hesap, 0)})`)}</span>`) : '—', { al: 'left' })] }; });
+  el.innerHTML = anzCard(`⇧ ${anzEsc(Y.dosya)}`, varMi ? `<b style="color:var(--danger);">${asLabelOf(ay)} sekmede zaten var; kaydedince o ayın satırları bu dosyadakilerle değiştirilir.</b>` : (ay === null ? 'Ay dosya adından anlaşılamadı; aşağıdan seçin.' : `${Y.satirlar.length} uzman, ${asLabelOf(ay)} olarak eklenecek.`),
+    `<div class="anz-secici" style="margin-bottom:12px;"><div><div class="search-label">Ay</div><select class="search" id="uzmYukAy"><option value="">Seçin…</option>${opt}</select></div>
+      <button class="refresh-btn" id="uzmYukKaydet" ${ay === null ? 'disabled' : ''}>💾 Sekmeye Kaydet</button><button class="refresh-btn" id="uzmYukIptal">Vazgeç</button><span class="hint" id="uzmYukDurum"></span></div>` +
+    anzTable([{ t: 'Sicil' }, { t: 'Ad', al: 'left' }, { t: 'Performans puanı' }, { t: 'Ölçekle kontrol', al: 'left' }], rows) +
+    (Y.eksik && Y.eksik.length ? `<div class="hint" style="margin-top:8px;">Dosyada olmayan sütunlar boş yazılacak: ${Y.eksik.map(anzEsc).join(', ')}</div>` : ''),
+    '', '');
+  document.getElementById('uzmYukAy').onchange = e => { Y.ay = e.target.value === '' ? null : +e.target.value; uzmYuklemeCiz(); };
+  document.getElementById('uzmYukIptal').onclick = () => { UZM.yukleme = null; uzmYuklemeCiz(); };
+  document.getElementById('uzmYukKaydet').onclick = () => uzmYuklemeKaydet();
+}
+async function uzmYuklemeKaydet(){
+  const Y = UZM.yukleme, U = UZM.U; if (!Y || !Y.satirlar || Y.ay === null || !U) return;
+  const durum = document.getElementById('uzmYukDurum'), btn = document.getElementById('uzmYukKaydet');
+  const yaz = t => { if (durum) durum.textContent = t; };
+  btn.disabled = true;
+  try {
+    yaz('Yazma izni isteniyor (bir pop-up açılabilir)…');
+    const token = await ensureWriteToken();
+    yaz('Sekme okunuyor…');
+    const enc = encodeURIComponent;
+    const oku = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${enc(`'${UZM_PERF_TAB}'!A1:AZ3000`)}?valueRenderOption=UNFORMATTED_VALUE`, { headers: { Authorization: 'Bearer ' + token } })).json();
+    if (oku.error) throw new Error(oku.error.message);
+    const mevcut = oku.values || [];
+    if (!mevcut.length) throw new Error(`"${UZM_PERF_TAB}" sekmesi boş.`);
+    const h = mevcut[0].map(asUp), ayIx = h.indexOf('AY'), sic = uzmSicilSutun(h);
+    const genis = mevcut[0].length;
+    const kalan = mevcut.slice(1).filter(r => r.some(v => v !== '' && v !== null && v !== undefined) && asParseKey(r[ayIx]) !== Y.ay);
+    const yeni = Y.satirlar.map(x => uzmYuklemeSatir(U, x, Y.ay));
+    const veri = kalan.concat(yeni).map(r => { const x = r.slice(0, genis); while (x.length < genis) x.push(''); return x; })
+      .sort((a, b) => (asParseKey(a[ayIx]) - asParseKey(b[ayIx])) || ((asNum(a[sic]) || 0) - (asNum(b[sic]) || 0)));
+    const son = 1 + veri.length, eskiSon = mevcut.length;
+    const kolon = n => { let s = ''; n++; while (n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+    yaz('Kaydediliyor…');
+    const put = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${enc(`'${UZM_PERF_TAB}'!A2:${kolon(genis - 1)}${son}`)}?valueInputOption=RAW`, {
+      method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: veri }) })).json();
+    if (put.error) throw new Error(put.error.message);
+    if (eskiSon > son){
+      const cl = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}/values/${enc(`'${UZM_PERF_TAB}'!A${son + 1}:${kolon(genis - 1)}${eskiSon}`)}:clear`, { method: 'POST', headers: { Authorization: 'Bearer ' + token } })).json();
+      if (cl.error) throw new Error(cl.error.message);
+    }
+    // Biçim: mevcut satırlarla aynı (kenarlık, ortalı, ad sola, AY metin)
+    const meta = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}?fields=sheets.properties(sheetId,title)`, { headers: { Authorization: 'Bearer ' + token } })).json();
+    const sh = (meta.sheets || []).find(s => s.properties.title === UZM_PERF_TAB);
+    if (sh){
+      const id = sh.properties.sheetId, ince = { style: 'SOLID', width: 1 };
+      const rng = (c1, c2) => ({ sheetId: id, startRowIndex: 1, endRowIndex: son, startColumnIndex: c1, endColumnIndex: c2 });
+      const reqs = [
+        { repeatCell: { range: rng(0, genis), cell: { userEnteredFormat: { horizontalAlignment: 'CENTER', verticalAlignment: 'BOTTOM', textFormat: { fontFamily: 'Calibri', fontSize: 11 } } }, fields: 'userEnteredFormat.horizontalAlignment,userEnteredFormat.verticalAlignment,userEnteredFormat.textFormat' } },
+        { updateBorders: { range: rng(0, genis), top: ince, bottom: ince, left: ince, right: ince, innerHorizontal: ince, innerVertical: ince } },
+        { repeatCell: { range: rng(ayIx, ayIx + 1), cell: { userEnteredFormat: { numberFormat: { type: 'TEXT' } } }, fields: 'userEnteredFormat.numberFormat' } },
+      ];
+      const adIx = uzmAdSutun(h); if (adIx !== -1) reqs.push({ repeatCell: { range: rng(adIx, adIx + 1), cell: { userEnteredFormat: { horizontalAlignment: 'LEFT' } }, fields: 'userEnteredFormat.horizontalAlignment' } });
+      const bu = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${PERF_SHEET_ID}:batchUpdate`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: reqs }) })).json();
+      if (bu.error) throw new Error('Veri yazıldı ama biçim uygulanamadı: ' + bu.error.message);
+    }
+    try { sendLog({ type: 'kaydet', dashboard: 'Personel Karnesi', page: 'Uzman Performansı', target: `${UZM_PERF_TAB} — ${asLabelOf(Y.ay)}`, fields: `${yeni.length} uzman`, action: U.perf.has(Y.ay) ? 'Güncelleme' : 'Yeni Kayıt' }); } catch(e){}
+    const kaydedilenAy = Y.ay;
+    UZM.yukleme = null; UZM.U = null; UZM.ay = kaydedilenAy;
+    asHafizaTemizle();
+    if (selectedLeftTab === 'uzman'){ contentArea.innerHTML = renderUzmanTab(); wireUzmanTab(); }
+  } catch (e){ yaz('✗ ' + e.message); btn.disabled = false; }
 }
 
 // ===== TAKIM LİDERİ ETKİSİ (20.11.2026) =====
