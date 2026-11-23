@@ -4723,7 +4723,7 @@ function wkGunData(days, allDays){
         const bu = wkValue(def, p, 'total');
         const once = prev ? wkValue(def, prev, 'total') : null;
         const yuzde = (bu !== null && once !== null && once) ? (bu - once) / Math.abs(once) : null;
-        return { bu, yuzde };
+        return { bu, once, yuzde };
       })
     };
   });
@@ -4899,85 +4899,196 @@ function wkDurum(msg, err){
   el.style.color = err ? 'var(--danger)' : 'var(--text-dim)';
 }
 
-// --- Excel: Günlük Tablo'daki gibi kenarlıklı, renkli başlık; yüzde sütunlarında 3 ok simge seti ---
+// --- Excel sayı biçimleri ---
 function wkExcelBicim(def, mode){
   if (def.type === 'dur') return { bicim:'[h]:mm:ss', cevir: v => v / 86400 };
+  if (def.type === 'durmin') return { bicim:'0.0" sn"', cevir: v => v };
   if (def.percentSymbol) return { bicim:'0.00%', cevir: v => v / 100 };
   if (def.agg === 'sum') return { bicim: mode === 'perday' ? '#,##0.0' : '#,##0', cevir: v => v };
   return { bicim:'#,##0.00', cevir: v => v };
 }
-async function wkExcel(){
-  const d = WK_GT;
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'Zafer Çolak'; wb.lastModifiedBy = 'Zafer Çolak';
-  const ws = wb.addWorksheet(d.kind === 'gun' ? 'Günlük' : (d.baslik.includes('Aylık') ? 'Aylık' : 'Haftalık'));
-  const ince = { style:'thin', color:{ argb:'FF000000' } };
-  const kenar = { top:ince, left:ince, bottom:ince, right:ince };
+// --- Excel: panel görünümü (beyaz zemin, açık gri başlık, ince gri çizgiler, yeşil ▲ / kırmızı ▼ / gri ●) ---
+// Sayılar gerçek sayı olarak yazılır; oklar hücre biçiminden gelir. Ok ve renk, paneldeki wkDelta ile aynı kurala göre seçilir.
+// Haftalık/Aylık'ta ikinci sayfa: ekrandaki "Tüm Haftalar / Tüm Aylar" listesi (seçili tarih aralığı + Toplam/İş günü ortalaması).
+const WK_XL = { baslik:'1E3A8A', basZemin:'F9FAFB', basYazi:'4B5563', yazi:'111827', soluk:'6B7280', cizgi:'E5E7EB',
+                yukari:'3FB37F', asagi:'B91C1C', rozet:'1E3A8A' };
+function wkYon(cur, prev, def){
+  if (cur === null || prev === null || cur === undefined || prev === undefined) return null;
+  const c = wkDelta(cur, prev, def).cls;
+  return c === 'wk-up' ? 1 : (c === 'wk-down' ? -1 : 0);
+}
+// Bir sayfaya panel stiliyle yazan küçük yardımcılar
+function wkXlSayfa(wb, ad){
+  const ws = wb.addWorksheet(ad, { views:[{ showGridLines:false }] });
+  const cizgi = { style:'thin', color:{ argb:'FF' + WK_XL.cizgi } };
   const hucre = (r, c, deger, o = {}) => {
     const x = ws.getCell(r, c);
     if (deger !== undefined) x.value = deger;
-    x.font = { name: o.font || 'Calibri', size: o.size || 11, bold: !!o.kalin, color: o.renk ? { argb:'FF' + o.renk } : undefined };
+    x.font = { name:'Calibri', size: o.size || 11, bold: !!o.kalin, italic: !!o.italik, color:{ argb:'FF' + (o.renk || WK_XL.yazi) } };
     x.alignment = { horizontal: o.yatay || 'center', vertical:'middle', wrapText: !!o.sar };
     if (o.dolgu) x.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF' + o.dolgu } };
     if (o.bicim) x.numFmt = o.bicim;
-    x.border = kenar;
+    if (!o.cizgisiz) x.border = o.tumKenar ? { top:cizgi, left:cizgi, bottom:cizgi, right:cizgi } : { bottom:cizgi };
     return x;
   };
   const birles = (r1, c1, r2, c2, deger, o) => {
     for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) hucre(r, c, undefined, o);
     ws.mergeCells(r1, c1, r2, c2); hucre(r1, c1, deger, o);
   };
-  const okSeti = (ref, priority) => ws.addConditionalFormatting({ ref, rules:[{ priority, type:'iconSet', iconSet:'3Arrows',
-    cfvo:[{ type:'percent', value:0 }, { type:'num', value:0 }, { type:'num', value:0 }] }] });
-  const ad = { font:'Arial', size:10, renk:'114533', yatay:'left' };
-  const harf = c => ws.getColumn(c).letter;
+  const bas = (r, c, deger, o = {}) => hucre(r, c, deger, Object.assign({ kalin:true, size:10, renk:WK_XL.basYazi, dolgu:WK_XL.basZemin, sar:true, tumKenar:true }, o));
+  const basBirles = (r1, c1, r2, c2, deger, o = {}) => birles(r1, c1, r2, c2, deger, Object.assign({ kalin:true, size:10, renk:WK_XL.basYazi, dolgu:WK_XL.basZemin, sar:true, tumKenar:true }, o));
+  const yonRenk = y => y === 1 ? WK_XL.yukari : (y === -1 ? WK_XL.asagi : WK_XL.soluk);
+  // Fark hücresi: süre sütunlarında mutlak değer (Excel eksi süre gösteremez), diğerlerinde işaretli sayı + üç bölümlü biçim
+  const fark = (r, c, v, def, b, yon) => {
+    if (v === null || v === undefined || yon === null) return hucre(r, c, '—', { renk:WK_XL.soluk, size:10 });
+    const ok = yon === 1 ? '▲' : (yon === -1 ? '▼' : '●');
+    if (def.type === 'dur') return hucre(r, c, yon === 0 ? 0 : Math.abs(b.cevir(v)), { bicim:`"${ok} "${b.bicim}`, renk:yonRenk(yon), size:10 });
+    const temel = def.percentSymbol ? '0.00" puan"' : b.bicim;
+    const deger = yon === 0 ? 0 : (def.percentSymbol ? v : b.cevir(v));
+    return hucre(r, c, deger, { bicim:`"▲ "${temel};"▼ "${temel};"● "${temel}`, renk:yonRenk(yon), size:10 });
+  };
+  const yuzde = (r, c, v, yon) => {
+    if (v === null || v === undefined || yon === null) return hucre(r, c, '—', { renk:WK_XL.soluk, size:10 });
+    return hucre(r, c, yon === 0 ? 0 : v, { bicim:'"▲ "0.0%;"▼ "0.0%;"● "0.0%', renk:yonRenk(yon), size:10 });
+  };
+  const baslikSatiri = (r, metin, alt) => {
+    const x = ws.getCell(r, 1); x.value = metin; x.font = { name:'Calibri', size:14, bold:true, color:{ argb:'FF' + WK_XL.baslik } };
+    if (alt){ const y = ws.getCell(r + 1, 1); y.value = alt; y.font = { name:'Calibri', size:10, color:{ argb:'FF' + WK_XL.soluk } }; }
+  };
+  const not = (r, metin) => { const x = ws.getCell(r, 1); x.value = metin; x.font = { name:'Calibri', size:10, italic:true, color:{ argb:'FF' + WK_XL.soluk } }; };
+  return { ws, hucre, birles, bas, basBirles, fark, yuzde, baslikSatiri, not };
+}
+
+// Alt listenin verisi — renderWeeklyList ile aynı kurallar (seçili tarih aralığı, Toplam / İş günü ortalaması, devam eden hafta)
+function wkListData(){
+  const periods = wkBuildPeriods(WK_PERIOD);
+  const fv = document.getElementById('wkListFrom').value, tv = document.getElementById('wkListTo').value;
+  const from = fv ? new Date(fv + 'T00:00:00') : null, to = tv ? new Date(tv + 'T00:00:00') : null;
+  const satirlar = [];
+  for (let i = periods.length - 1; i >= 0; i--){
+    const p = periods[i];
+    if (from && p.end < from) continue;
+    if (to && p.start > to) continue;
+    const partner = wkPartner(periods, i);
+    const ekler = [];
+    if (p.inProgress) ekler.push('devam ediyor');
+    if (partner.forcePerday && WK_LIST_MODE === 'total') ekler.push('sayılar gün ort.');
+    if (p.tur === 'ay' && p.inProgress && partner.prev) ekler.push(`${partner.cur.etiket} ↔ ${partner.prev.etiket}`);
+    satirlar.push({
+      etiket: wkLabel(p) + (ekler.length ? ` (${ekler.join('; ')})` : ''),
+      gun: p.days,
+      hucreler: COLUMN_DEFS.map(def => {
+        const mode = (def.agg === 'sum' && partner.forcePerday) ? 'perday' : WK_LIST_MODE;
+        const deger = wkValue(def, p, mode);
+        const cmpCur = wkValue(def, partner.cur, mode);
+        const prv = partner.prev ? wkValue(def, partner.prev, mode) : null;
+        const f = (cmpCur !== null && prv !== null) ? cmpCur - prv : null;
+        return { def, mode, deger, fark: f, yuzde: (f !== null && prv && !def.percentSymbol) ? f / Math.abs(prv) : null, yon: wkYon(cmpCur, prv, def) };
+      })
+    });
+  }
+  return { satirlar, fv, tv, from, to };
+}
+
+function wkXlListeSayfasi(wb){
+  const ay = WK_PERIOD === 'ay';
+  const L = wkListData();
+  const s = wkXlSayfa(wb, ay ? 'Tüm Aylar' : 'Tüm Haftalar');
+  const ws = s.ws;
+  const tr = d => d.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const aralik = (L.from || L.to)
+    ? `Aralık: ${L.from ? tr(L.from) : 'ilk veri'} – ${L.to ? tr(L.to) : 'son veri'}`
+    : `Aralık: seçilmedi (tüm ${ay ? 'aylar' : 'haftalar'})`;
+  const modAd = WK_LIST_MODE === 'perday' ? 'İş günü ortalaması' : 'Toplam';
+  s.baslikSatiri(1, `ALO 144 — Tüm ${ay ? 'Aylar' : 'Haftalar'}`, `${aralik} · ${modAd} · ${L.satirlar.length} ${ay ? 'ay' : 'hafta'}`);
+
+  const r1 = 4, r2 = 5;
+  ws.getColumn(1).width = ay ? 26 : 30; ws.getColumn(2).width = 8;
+  s.basBirles(r1, 1, r2, 1, ay ? 'AY' : 'HAFTA', { yatay:'left' });
+  s.basBirles(r1, 2, r2, 2, 'İŞ GÜNÜ');
+  COLUMN_DEFS.forEach((def, k) => {
+    const c = 3 + k * 3;
+    const on = def.agg === 'sum' ? (WK_LIST_MODE === 'perday' ? 'GÜN ORT. ' : '') : 'ORT. ';
+    s.basBirles(r1, c, r1, c + 2, (on + def.name).toLocaleUpperCase('tr-TR'));
+    s.bas(r2, c, 'Değer'); s.bas(r2, c + 1, 'Fark'); s.bas(r2, c + 2, '%');
+    ws.getColumn(c).width = 12; ws.getColumn(c + 1).width = 12; ws.getColumn(c + 2).width = 10;
+  });
+  ws.getRow(r1).height = 30;
+  let r = r2;
+  L.satirlar.forEach(x => {
+    r++;
+    s.hucre(r, 1, x.etiket, { yatay:'left', size:10 });
+    s.hucre(r, 2, x.gun, { bicim:'0' });
+    x.hucreler.forEach((h, k) => {
+      const c = 3 + k * 3, b = wkExcelBicim(h.def, h.mode);
+      s.hucre(r, c, h.deger === null ? '—' : b.cevir(h.deger), { bicim: b.bicim, renk: h.deger === null ? WK_XL.soluk : WK_XL.yazi });
+      s.fark(r, c + 1, h.fark, h.def, b, h.yon);
+      s.yuzde(r, c + 2, h.yuzde, h.yon);
+    });
+  });
+  if (!L.satirlar.length){ r++; s.not(r, `Seçilen aralıkta ${ay ? 'ay' : 'hafta'} yok.`); }
+  r += 2;
+  s.not(r, 'Fark ve % her satırda bir önceki döneme göredir. Oran ve süre sütunları günlük değerlerin ortalamasıdır; yüzde sütunlarında fark "puan" olarak verilir.');
+  ws.views = [{ state:'frozen', xSplit:2, ySplit:r2, showGridLines:false }];
+}
+
+async function wkExcel(){
+  const d = WK_GT;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Zafer Çolak'; wb.lastModifiedBy = 'Zafer Çolak';
+  const s = wkXlSayfa(wb, d.kind === 'gun' ? 'Günlük' : (d.baslik.includes('Aylık') ? 'Aylık' : 'Haftalık'));
+  const ws = s.ws;
   let r;
 
   if (d.kind === 'gun'){
-    // B: Tarih; her metrik için iki sütun: değer + değişim yüzdesi
-    ws.getColumn(1).width = 3; ws.getColumn(2).width = 18;
-    birles(2, 2, 3, 2, 'TARİH', { kalin:true, dolgu:'E2EFDA' });
-    const son = 2 + d.defs.length * 2;
-    birles(2, 3, 2, son, d.baslik, { kalin:true, dolgu:'0070C0', renk:'FFFFFF' });
+    // A: Tarih; her metrik için iki sütun: değer + bir önceki iş gününe göre değişim yüzdesi
+    s.baslikSatiri(1, d.baslik);
+    ws.getColumn(1).width = 18;
+    s.basBirles(3, 1, 4, 1, 'TARİH', { yatay:'left' });
     d.defs.forEach((def, k) => {
-      const c = 3 + k * 2;
-      ws.getColumn(c).width = 14; ws.getColumn(c + 1).width = 8;
-      birles(3, c, 3, c + 1, def.name, { kalin:true, dolgu:'BDD7EE', sar:true, size:10 });
+      const c = 2 + k * 2;
+      ws.getColumn(c).width = 13; ws.getColumn(c + 1).width = 10;
+      s.basBirles(3, c, 3, c + 1, def.name.toLocaleUpperCase('tr-TR'));
+      s.bas(4, c, 'Değer'); s.bas(4, c + 1, '%');
     });
     ws.getRow(3).height = 30;
-    r = 3;
+    r = 4;
     d.gunler.forEach(g => {
       r++;
-      hucre(r, 2, g.tarih, ad);
+      s.hucre(r, 1, g.tarih, { yatay:'left', size:10 });
       g.hucreler.forEach((cl, k) => {
-        const c = 3 + k * 2, b = wkExcelBicim(d.defs[k], 'total');
-        hucre(r, c, cl.bu === null ? null : b.cevir(cl.bu), { bicim: b.bicim });
-        hucre(r, c + 1, cl.yuzde, { bicim:'0%', size:10 });
+        const c = 2 + k * 2, def = d.defs[k], b = wkExcelBicim(def, 'total');
+        s.hucre(r, c, cl.bu === null ? '—' : b.cevir(cl.bu), { bicim: b.bicim, renk: cl.bu === null ? WK_XL.soluk : WK_XL.yazi });
+        s.yuzde(r, c + 1, cl.yuzde, wkYon(cl.bu, cl.once, def));
       });
     });
-    d.defs.forEach((def, k) => { const c = 4 + k * 2; okSeti(`${harf(c)}4:${harf(c)}${r}`, k + 1); });
+    ws.views = [{ state:'frozen', xSplit:1, ySplit:4, showGridLines:false }];
   } else {
-    ws.columns = [{ width:3 }, { width:30 }, { width:20 }, { width:20 }, { width:14 }, { width:12 }];
-    birles(2, 2, 3, 2, 'AÇIKLAMA', { kalin:true, dolgu:'E2EFDA' });
-    birles(2, 3, 2, 6, d.baslik, { kalin:true, dolgu:'0070C0', renk:'FFFFFF' });
-    hucre(3, 3, d.onceEtiket, { dolgu:'FFE699' }); hucre(3, 4, d.buEtiket, { kalin:true, dolgu:'BDD7EE' });
-    hucre(3, 5, 'Fark', { kalin:true }); hucre(3, 6, 'Yüzde', { kalin:true });
+    s.baslikSatiri(1, d.baslik + ' Karşılaştırma');
+    ws.columns = [{ width:28 }, { width:20 }, { width:20 }, { width:16 }, { width:12 }];
+    s.bas(3, 1, 'AÇIKLAMA', { yatay:'left' });
+    s.bas(3, 2, d.onceEtiket); s.bas(3, 3, d.buEtiket, { renk:WK_XL.baslik });
+    s.bas(3, 4, 'Fark'); s.bas(3, 5, 'Yüzde');
+    ws.getRow(3).height = 30;
     r = 4;
-    hucre(r, 2, 'İş Günü', ad); hucre(r, 3, d.onceGun, { bicim:'0' }); hucre(r, 4, d.buGun, { bicim:'0' });
-    hucre(r, 5, d.onceGun !== null ? d.buGun - d.onceGun : null, { bicim:'+0;-0;0' }); hucre(r, 6, null);
-    const ilk = r + 1;
+    s.hucre(r, 1, 'İş Günü', { yatay:'left' });
+    s.hucre(r, 2, d.onceGun ?? '—', { bicim:'0' }); s.hucre(r, 3, d.buGun, { bicim:'0', kalin:true });
+    s.hucre(r, 4, d.onceGun !== null ? d.buGun - d.onceGun : '—', { bicim:'+0;-0;0', renk:WK_XL.soluk, size:10 });
+    s.hucre(r, 5, '');
     d.rows.forEach(x => {
       r++;
-      const b = wkExcelBicim(x.def, x.m), deg = v => v === null ? null : b.cevir(v);
-      hucre(r, 2, x.def.name, ad);
-      hucre(r, 3, deg(x.once), { bicim: b.bicim });
-      hucre(r, 4, deg(x.bu), { bicim: b.bicim });
-      hucre(r, 5, deg(x.fark), { bicim: '+' + b.bicim + ';-' + b.bicim + ';' + b.bicim });
-      hucre(r, 6, x.yuzde, { bicim:'0%' });
+      const b = wkExcelBicim(x.def, x.m), deg = v => v === null ? '—' : b.cevir(v), yon = wkYon(x.bu, x.once, x.def);
+      s.hucre(r, 1, x.def.name, { yatay:'left' });
+      s.hucre(r, 2, deg(x.once), { bicim: b.bicim, renk: x.once === null ? WK_XL.soluk : WK_XL.yazi });
+      s.hucre(r, 3, deg(x.bu), { bicim: b.bicim, kalin:true, renk: x.bu === null ? WK_XL.soluk : WK_XL.yazi });
+      s.fark(r, 4, x.fark, x.def, b, yon);
+      s.yuzde(r, 5, x.yuzde, yon);
     });
-    if (r >= ilk) okSeti(`F${ilk}:F${r}`, 1);
   }
-  d.notlar.forEach(n => { r++; const c = ws.getCell(r, 2); c.value = n; c.font = { name:'Calibri', size:10, italic:true, color:{ argb:'FF444444' } }; });
+  r++;
+  d.notlar.forEach(n => { r++; s.not(r, n); });
+
+  if (d.kind !== 'gun') wkXlListeSayfasi(wb);
 
   const buf = await wb.xlsx.writeBuffer();
   const a = document.createElement('a');
