@@ -10289,10 +10289,11 @@ function uzmAyOzet(U, abs){
   return { n: g.length, ort: asAvg(g.map(r => r.puan)), gecerli: g };
 }
 function uzmEkFmt(v){ const n = asNum(v); return n === null ? (v === '' || v === null || v === undefined ? '—' : anzEsc(v)) : asFmt(n, 1); }
+// Ad: UZMAN PERFORMANS sekmesindeki en son yazım (Türkçe karakterli); yoksa Personel Listesi.
 function uzmAd(U, sicil){
+  for (const a of U.aylar){ const r = uzmKayit(U, a, sicil); if (r && r.ad) return asUp(r.ad); }
   const p = (typeof PERSONNEL !== 'undefined' ? PERSONNEL : []).find(x => x.sicil === String(sicil));
   if (p) return asUp(p.adSoyad);
-  for (const a of U.aylar){ const r = uzmKayit(U, a, sicil); if (r && r.ad) return asUp(r.ad); }
   return String(sicil);
 }
 // Değer gösterimi: Evet/Hayır sütunlarında metin; dosyada hazır puan gelen sütunlarda (adı "PUANI" ile biten) yalnız puan.
