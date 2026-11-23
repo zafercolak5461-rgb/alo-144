@@ -5383,7 +5383,7 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSl
       const L = kapsam.lider;
       const t = T.takimlar.find(x => x.L === L) || { gelen: [], giden: [], kalan: [], gelenTum: 0, gidenTum: 0 };
       const iyi = [], kotu = [];
-      const rows = [[th('Gösterge', { align: 'left' }), th(`Gelenler (${t.gelen.length})`), th(`Gidenler (${t.giden.length})`), th(`Kalanlar (${t.kalan.length})`), th(`Değişmeyenler (${T.sabit.length})`), th('Gelenler −\ndeğişmeyenler')]];
+      const rows = [[th('Gösterge', { align: 'left' }), th(`Gelenler (${t.gelenTum})`), th(`Gidenler (${t.gidenTum})`), th(`Kalanlar (${t.kalan.length})`), th(`Değişmeyenler (${T.sabit.length})`), th('Gelenler −\ndeğişmeyenler')]];
       T.G.forEach(g => {
         const ge = tleOrt(t.gelen, g.key), gi = tleOrt(t.giden, g.key), ka = tleOrt(t.kalan, g.key), sa = tleOrt(T.sabit, g.key);
         const net = ge.ort !== null && sa.ort !== null ? ge.ort - sa.ort : null;
@@ -5723,7 +5723,6 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSl
       rows.push([td('Ortalama puan', { align: 'left', bold: true, color: ACCENT })].concat(aylar.map(a => td(DS[a] && DS[a].n ? asFmt(DS[a].ortPuan) : '—', { bold: true, color: ACCENT }))).concat([td(asFmt(dOrt), { bold: true, color: ACCENT })]));
       rows.push([td('Değerlendirilen kişi', { align: 'left' })].concat(aylar.map(a => td(DS[a] ? DS[a].n : '—'))).concat([td('')]));
       s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [2.5].concat(ayKol(2.5 + 0.95)).concat([0.95]), rowH: Math.min(0.36, 4.75 / rows.length), fontSize: fs }, tblBase));
-      s.addText('Kırmızı = parametrenin dönemdeki en kötü ayı.', { x: 0.5, y: 6.3, w: 8, h: 0.22, fontFace: 'Arial', fontSize: 8.5, italic: true, color: DIM });
     }
 
     // ---- 3. İş yükü ve devam gelişimi (özet) ----
@@ -5735,7 +5734,7 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSl
         { ad: 'Gelen çağrı (günlük ort.)', f: a => c(a) && c(a).gun ? c(a).gelen / c(a).gun : null, d: 0 },
         { ad: 'SL (günlük ort., %)', f: a => c(a) ? asAvg(c(a).sl) : null, d: 2 },
         { ad: 'Kişi başı aylık çağrı', f: a => DS[a] ? DS[a].karneCagri : null, d: 0 },
-        { ad: 'Rapor (gün)', f: rapor, d: 0 },
+        { ad: 'Raporlu gün (takvim, tüm ekip)', f: rapor, d: 0 },
         { ad: 'Geç login yapan kişi', f: a => kisi(a, /^GEÇ LOGİN/), d: 0 },
         { ad: 'Yazılı uyarı alan kişi', f: a => kisi(a, /^YAZILI UYARI/), d: 0 },
         { ad: 'Yoğun günlerde rapor/izin (gün)', f: a => { const z = asYogunGunIzin(D, a, kapsam); return z ? z.cak : null; }, d: 0 },
@@ -5749,7 +5748,6 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSl
       const rows = [[th('Gösterge', { align: 'left' })].concat(ayBaslik)];
       satir.forEach(x => { const mx = enYuksek(x); rows.push([td(x.ad, { align: 'left', bold: true })].concat(aylar.map(a => td(asFmt(x.f(a), x.d), { bold: a === mx, color: a === mx && x.ad !== 'SL (günlük ort., %)' ? ACCENT : TX })))); });
       s.addTable(rows, Object.assign({ x: 0.5, y: 1.75, w: W - 1, colW: [3.0].concat(ayKol(3.0)), rowH: 0.5, fontSize: nAy > 9 ? 9.5 : 11 }, tblBase));
-      s.addText('Vurgulu hücre = göstergenin dönemdeki en yüksek ayı.', { x: 0.5, y: 5.5, w: 8, h: 0.22, fontFace: 'Arial', fontSize: 8.5, italic: true, color: DIM });
     }
 
     // ---- EK: İş yükü gelişimi ayrıntısı ----
@@ -5790,10 +5788,10 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSl
       const s = slide('Ek — Kapasite gelişimi ayrıntısı', sonuc, 'VARDİYA ay sekmeleri; OSMANİYE-PERFORMANS ay sekmeleri.',
         `VARDİYA satırları kapsamdaki herkesin takvim kayıtları; performans satırları değerlendirilen personelden ("kişi" = değeri 0'dan büyük olanlar). ${kapsamTanim}`);
       const rows = [[th('Gösterge', { align: 'left' })].concat(ayBaslik)];
-      ['Rapor', 'Yıllık İzin', 'Bildirimsiz Devamsızlık'].forEach(k => rows.push([td(`${k} (gün)`, { align: 'left', bold: true })].concat(aylar.map(a => td(asFmt(vs(a, k), 0))))));
+      ['Rapor', 'Yıllık İzin', 'Bildirimsiz Devamsızlık'].forEach(k => rows.push([td(`${k === 'Rapor' ? 'Raporlu gün' : k} (takvim, tüm ekip)`, { align: 'left', bold: true })].concat(aylar.map(a => td(asFmt(vs(a, k), 0))))));
       D.olcek.params.filter(p => /GEÇ LOGİN|SAATLİK|MOLA|RAPOR|YAZILI/.test(p.col)).forEach(p => {
         const u = asUnit(D, p.col, M).trim();
-        rows.push([td(`${p.param} — toplam${u ? ' (' + u + ')' : ''}`, { align: 'left', bold: true })].concat(aylar.map(a => td(asFmt(top(a, p.col), 0)))));
+        rows.push([td(`${p.param} — ${/RAPOR/.test(p.col) ? 'puana giren' : 'toplam'}${u ? ' (' + u + ')' : ''}`, { align: 'left', bold: true })].concat(aylar.map(a => td(asFmt(top(a, p.col), 0)))));
         rows.push([td(`${p.param} — kişi`, { align: 'left', bold: true })].concat(aylar.map(a => td(asFmt(kisi(a, p.col), 0)))));
       });
       s.addTable(rows, Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: [4.1].concat(ayKol(4.1)), rowH: Math.min(0.34, 4.75 / rows.length), fontSize: rows.length > 13 ? fs - 0.5 : fs }, tblBase));
