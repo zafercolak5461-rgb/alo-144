@@ -7675,10 +7675,13 @@ function ihRaporAnalizi(sicil, year){
   });
   const kisaGunler = [].concat(...kisa).filter(d => cal.has(d.getDay()));
   const dowC = new Array(7).fill(0); kisaGunler.forEach(d => dowC[d.getDay()]++);
-  const oneGun = ihOneCikanlar(dowC, kisaGunler.length, bekDow, bekN, i => IH_DOW_NAMES[i]).sort((a,b) => b.count - a.count);
+  // 23.11.2026: "beklenen pay" kıyası kaldırıldı (Zafer: anlatması zor). Öne çıkan gün = kısa rapor günlerinde
+  // en çok tekrarlanan gün(ler), en az IH_ONE_CIKAN_MIN kez. Kırmızı işaret yok; kıyas sütun sıralamasıyla yapılır.
+  const enCok = Math.max(0, ...dowC);
+  const oneGun = enCok >= IH_ONE_CIKAN_MIN ? dowC.map((c, i) => ({ label: IH_DOW_NAMES[i], count: c })).filter(x => x.count === enCok) : [];
   const bitisikOlaylar = kisa.filter(bitisik);
   const pay = bekN ? bekB / bekN : 0;
-  const kopruVar = kisa.length >= IH_KOPRU_MIN && pay > 0 && bitisikOlaylar.length / kisa.length >= pay * IH_ONE_CIKAN_KAT - IH_EPS;
+  const kopruVar = false;
   return {
     raporGun: rd.length, kisaN: kisa.length, kisaGun: kisa.reduce((a,e) => a + e.length, 0),
     uzunN: uzun.length, uzunGun: uzun.reduce((a,e) => a + e.length, 0),
@@ -7700,22 +7703,62 @@ function ihRaporCumle(a){
   if (!a || !a.raporGun) return 'Bu dönemde rapor yok.';
   const p = x => '%' + Math.round(x * 100);
   const parca = [`${a.raporGun} gün rapor = ${a.kisaN} kısa rapor (${a.kisaGun} gün) + ${a.uzunN} uzun rapor (${a.uzunGun} gün)`];
-  if (a.kisaN) parca.push(`kısa raporların ${a.bitisikN}${ihSayiEk(a.bitisikN)} hafta tatiline/resmi tatile bitişik (${p(a.bitisikN / a.kisaN)}; çalışma günlerine göre beklenen ${p(a.beklenenPay)})`);
-  if (a.oneGun.length) parca.push(`kısa raporlarda öne çıkan gün ${a.oneGun.map(x => `${x.label} (${x.count})`).join(', ')}`);
+  if (a.kisaN) parca.push(`kısa raporların ${a.bitisikN}${ihSayiEk(a.bitisikN)} hafta tatiline/resmi tatile bitişik (${p(a.bitisikN / a.kisaN)})`);
+  if (a.oneGun.length) parca.push(`kısa raporların en çok düştüğü gün ${a.oneGun.map(x => `${x.label} (${x.count})`).join(', ')}`);
   return parca.join('; ') + '.';
 }
-// Lokasyon sıralaması: kısa raporlarında tatile bitişiklik ya da öne çıkan gün olan personel
+// Lokasyon listesi: kısa raporu olan herkes (23.11.2026). Varsayılan sıra: tatile bitişik oranı, eşitte bitişik sayısı.
 function ihRaporRanking(year){
   const out = [];
   ihKisiGunleri(year).forEach((kg, sicil) => {
     const a = ihRaporAnalizi(sicil, year);
-    if (!a || !a.kisaN || (!a.kopru && !a.oneGun.length)) return;
+    if (!a || !a.kisaN) return;
     const r0 = kg.values().next().value;
     const p = PERSONS.find(x => x.sicil === sicil);
     out.push({ sicil, personel: (p && p.personel) || (r0 && r0.personel) || sicil, ...a });
   });
-  return out.sort((a,b) => (b.kopru - a.kopru) || (b.bitisikN - a.bitisikN) || ((b.oneGun[0] ? b.oneGun[0].count : 0) - (a.oneGun[0] ? a.oneGun[0].count : 0)));
+  out.forEach(x => { x.oran = x.kisaN ? x.bitisikN / x.kisaN : 0; });
+  return out.sort((a,b) => (b.oran - a.oran) || (b.bitisikN - a.bitisikN) || a.personel.localeCompare(b.personel, 'tr'));
 }
+// Kısa rapor tablosu: sütun başlığına tıklayınca sıralama (Personel A→Z; diğerleri büyükten küçüğe; ikinci tık ters)
+let IH_KR_SIRA = { k: 'oran', y: -1 }, IH_KR_LISTE = [];
+const IH_KR_ANAHTAR = {
+  personel: p => p.personel, raporGun: p => p.raporGun, kisaN: p => p.kisaN, oran: p => p.oran,
+  oneGun: p => p.oneGun.length ? p.oneGun[0].count : 0, uzunN: p => p.uzunGun,
+};
+function ihKrSirala(){
+  const f = IH_KR_ANAHTAR[IH_KR_SIRA.k] || IH_KR_ANAHTAR.oran, y = IH_KR_SIRA.y;
+  return IH_KR_LISTE.slice().sort((a, b) => {
+    const va = f(a), vb = f(b);
+    const c = typeof va === 'string' ? va.localeCompare(vb, 'tr') : va - vb;
+    return (c * y) || (b.bitisikN - a.bitisikN) || a.personel.localeCompare(b.personel, 'tr');
+  });
+}
+function ihKrSatirlar(){
+  if (!IH_KR_LISTE.length) return '<tr><td colspan="7" class="empty-state">Kısa rapor kullanan personel yok.</td></tr>';
+  return ihKrSirala().map(p => {
+    const key = 'kr-' + p.sicil;
+    ihDetailStore.set(key, { title: `${p.personel} — Tatile Bitişik Kısa Raporlar`, entries: [].concat(...p.bitisikOlaylar).map(t => ({ tarih: t, tur: 'Rapor' })) });
+    return `<tr><td>${p.personel}</td><td style="text-align:right;">${p.raporGun}</td><td style="text-align:right;">${p.kisaN} (${p.kisaGun} gün)</td><td style="text-align:right;">${p.bitisikN} / ${p.kisaN} · %${Math.round(p.oran * 100)}</td><td>${p.oneGun.length ? p.oneGun.map(x => `${x.label} (${x.count})`).join(', ') : '—'}</td><td style="text-align:right;">${p.uzunN ? `${p.uzunN} (${p.uzunGun} gün)` : '—'}</td><td>${p.bitisikN ? `<button class="refresh-btn ih-detail-btn" data-detail-key="${key}" style="font-size:11px; padding:3px 8px;">Detay</button>` : ''}</td></tr>`;
+  }).join('');
+}
+function ihKrBaslik(k, ad, sag){
+  const ok = IH_KR_SIRA.k === k ? (IH_KR_SIRA.y > 0 ? ' ▲' : ' ▼') : '';
+  return `<th class="ih-kr-sort" data-krsort="${k}" style="cursor:pointer; user-select:none;${sag ? ' text-align:right;' : ''}" title="Sıralamak için tıklayın">${ad}${ok}</th>`;
+}
+function ihKrThead(){
+  return `<tr>${ihKrBaslik('personel', 'Personel')}${ihKrBaslik('raporGun', 'Rapor Günü', 1)}${ihKrBaslik('kisaN', 'Kısa Rapor', 1)}${ihKrBaslik('oran', 'Tatile Bitişik', 1)}${ihKrBaslik('oneGun', 'En Çok Düştüğü Gün')}${ihKrBaslik('uzunN', 'Uzun Rapor', 1)}<th></th></tr>`;
+}
+document.addEventListener('click', (e) => {
+  const th = e.target.closest('.ih-kr-sort');
+  if (!th) return;
+  const k = th.dataset.krsort;
+  IH_KR_SIRA = IH_KR_SIRA.k === k ? { k, y: -IH_KR_SIRA.y } : { k, y: k === 'personel' ? 1 : -1 };
+  const tablo = th.closest('table');
+  tablo.querySelector('thead').innerHTML = ihKrThead();
+  const tb = tablo.querySelector('tbody'); tb.innerHTML = ihKrSatirlar();
+  ihWireDetailButtons(tb);
+});
 function ihOneCikanlar(counts, total, beklenen, beklenenToplam, etiket){
   const out = [];
   if (!total || !beklenenToplam) return out;
@@ -8203,7 +8246,7 @@ async function ihRender(){
         <div class="metric"><div class="label">Toplam</div><div class="value ok">${pat.total}</div></div>
         <div class="metric"><div class="label">Çağrı Yoğun Günlerle Çakışan İzin</div><div class="value ${pat.overlapDays ? 'warn' : ''}">${pat.overlapDays}</div></div>
       </div>
-      ${ihMode !== 'yillik' && pat.raporAnaliz && pat.raporAnaliz.raporGun ? `<div class="note" style="margin-bottom:12px;${(pat.raporAnaliz.kopru || pat.raporAnaliz.oneGun.length) ? ' border-color:var(--danger,#e85d5d);' : ''}">${(pat.raporAnaliz.kopru || pat.raporAnaliz.oneGun.length) ? '⚠ ' : ''}<b>Rapor:</b> ${ihRaporCumle(pat.raporAnaliz)}${pat.raporAnaliz.bitisikOlaylar.length ? `<br><span style="font-size:12px;">Tatile bitişik kısa raporlar: ${pat.raporAnaliz.bitisikOlaylar.map(e => fmtDate(e[0]) + (e.length > 1 ? '–' + fmtDate(e[e.length-1]) : '')).join(', ')}</span>` : ''}<br><span style="font-size:11.5px; color:var(--text-dim);">Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${IH_KISA_SINIR} gün ve altı. Uzun raporlarda desen aranmaz.</span></div>` : ''}
+      ${ihMode !== 'yillik' && pat.raporAnaliz && pat.raporAnaliz.raporGun ? `<div class="note" style="margin-bottom:12px;"><b>Rapor:</b> ${ihRaporCumle(pat.raporAnaliz)}${pat.raporAnaliz.bitisikOlaylar.length ? `<br><span style="font-size:12px;">Tatile bitişik kısa raporlar: ${pat.raporAnaliz.bitisikOlaylar.map(e => fmtDate(e[0]) + (e.length > 1 ? '–' + fmtDate(e[e.length-1]) : '')).join(', ')}</span>` : ''}<br><span style="font-size:11.5px; color:var(--text-dim);">Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${IH_KISA_SINIR} gün ve altı. Uzun raporlarda desen aranmaz.</span></div>` : ''}
       ${pat.overlapDays ? `<div class="note" style="margin-bottom:16px;">Çağrı yoğun günlerle çakışan tarihler: ${pat.overlapDetails.map(d => fmtDate(d.tarih)).join(', ')}</div>` : ''}
       <div class="panel"><div class="panel-head">Ay Bazlı<span id="ih-selMonth" class="count"></span></div>
         <div style="padding:0 16px;"><div style="height:220px;"><canvas id="ih-canvas-month"></canvas></div></div>
@@ -8365,21 +8408,12 @@ async function ihRender(){
       </table></div>
     </div>
     <div class="panel" style="margin-top:16px;">
-      <div class="panel-head">Kısa Rapor Deseni (Personel Sıralaması)</div>
-      <div class="note" style="margin:12px 16px 0;">Ardışık rapor günleri tek rapor sayılır; desen yalnız <b>kısa raporlarda</b> (${IH_KISA_SINIR} gün ve altı) aranır, uzun raporlar tıbbi nitelikte kabul edilir. <b>Tatile bitişik</b> = raporun önceki ya da sonraki günü ${IH_KOPRU_DURUM.join(' / ')}. Kırmızı: en az ${IH_KOPRU_MIN} kısa raporu olup bitişik payı, çalışma günlerine göre beklenen payın ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstü olanlar. Öne çıkan gün: kısa rapor günlerinin o güne düşen payı beklenenin ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstü (en az ${IH_ONE_CIKAN_MIN} kez). Desen bir eğilimdir, tek başına kanıt değildir.</div>
+      <div class="panel-head">Kısa Rapor Deseni</div>
+      <div class="note" style="margin:12px 16px 0;">Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${IH_KISA_SINIR} gün ve altı. <b>Tatile bitişik</b> = raporun önceki ya da sonraki günü ${IH_KOPRU_DURUM.join(' / ')}. Sıralamak için sütun başlığına tıklayın.</div>
       ${ihMode === 'yillik' ? '<div class="empty-state">Yıllık izin planlı olduğu için gün deseni aranmaz. Rapor ya da Birlikte kapsamında görünür.</div>' : `
       <div class="table-scroll" style="max-height:420px;"><table style="width:auto; min-width:100%;">
-        <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);"><tr><th>Personel</th><th>Rapor Günü</th><th>Kısa Rapor</th><th>Tatile Bitişik</th><th>Beklenen</th><th>Öne Çıkan Gün</th><th>Uzun Rapor</th><th></th></tr></thead>
-        <tbody>${(() => {
-          const rr = ihRaporRanking(ihYear);
-          if (!rr.length) return '<tr><td colspan="8" class="empty-state">Belirgin bir kısa rapor deseni tespit edilmedi.</td></tr>';
-          return rr.map(p => {
-            const key = 'kr-' + p.sicil;
-            ihDetailStore.set(key, { title: `${p.personel} — Tatile Bitişik Kısa Raporlar`, entries: [].concat(...p.bitisikOlaylar).map(t => ({ tarih: t, tur: 'Rapor' })) });
-            const red = p.kopru ? ' style="text-align:right; color:var(--danger,#e85d5d); font-weight:700;"' : ' style="text-align:right;"';
-            return `<tr><td>${p.personel}</td><td style="text-align:right;">${p.raporGun}</td><td style="text-align:right;">${p.kisaN} (${p.kisaGun} gün)</td><td${red}>${p.bitisikN} / ${p.kisaN} · %${Math.round(p.bitisikN / p.kisaN * 100)}</td><td style="text-align:right;">%${Math.round(p.beklenenPay * 100)}</td><td>${p.oneGun.length ? p.oneGun.map(x => `${x.label} (${x.count})`).join(', ') : '—'}</td><td style="text-align:right;">${p.uzunN ? `${p.uzunN} (${p.uzunGun} gün)` : '—'}</td><td>${p.bitisikN ? `<button class="refresh-btn ih-detail-btn" data-detail-key="${key}" style="font-size:11px; padding:3px 8px;">Detay</button>` : ''}</td></tr>`;
-          }).join('');
-        })()}</tbody>
+        <thead style="position:sticky; top:0; z-index:1; background:var(--bg-panel);">${ihKrThead()}</thead>
+        <tbody>${(() => { IH_KR_LISTE = ihRaporRanking(ihYear); return ihKrSatirlar(); })()}</tbody>
       </table></div>`}
     </div>`;
   ihWireDetailButtons(wrap);
@@ -8527,14 +8561,12 @@ async function ihPresGenerateLocation(year){
   {
     const s = pres.addSlide();
     s.addText('Kısa Rapor Deseni', { x: 0.5, y: 0.3, w: 11, h: 0.4, fontFace: 'Georgia', fontSize: 18, color: IH_PRES_NAVY, bold: true });
-    s.addText(`Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${IH_KISA_SINIR} gün ve altı; tatile bitişik = önceki ya da sonraki gün ${IH_KOPRU_DURUM.join(' / ')}. Kırmızı: en az ${IH_KOPRU_MIN} kısa rapor ve bitişik payı beklenenin ${String(IH_ONE_CIKAN_KAT).replace('.', ',')} katı ve üstü.`, { x: 0.5, y: 0.72, w: 12.3, h: 0.4, fontFace: 'Arial', fontSize: 9.5, color: IH_PRES_DIM });
-    const header = ['Personel','Rapor Günü','Kısa Rapor','Tatile Bitişik','Beklenen','Öne Çıkan Gün','Uzun Rapor'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:IH_PRES_NAVY, align:'center', fontSize:9 } }));
+    const header = ['Personel','Rapor Günü','Kısa Rapor','Tatile Bitişik','En Çok Düştüğü Gün','Uzun Rapor'].map(t => ({ text: t, options: { bold:true, fill:{color:'4FC3F7'}, color:IH_PRES_NAVY, align:'center', fontSize:9 } }));
     const bodyRows = raporRanking.slice(0, 15).map(p => [
       { text: p.personel, options: { fontSize: 9 } },
       { text: String(p.raporGun), options: { align:'center', fontSize: 9 } },
       { text: `${p.kisaN} (${p.kisaGun} gün)`, options: { align:'center', fontSize: 9 } },
-      { text: `${p.bitisikN}/${p.kisaN} · %${Math.round(p.bitisikN / p.kisaN * 100)}`, options: { align:'center', fontSize: 9, bold: p.kopru, color: p.kopru ? IH_PRES_RED : IH_PRES_NAVY } },
-      { text: `%${Math.round(p.beklenenPay * 100)}`, options: { align:'center', fontSize: 9 } },
+      { text: `${p.bitisikN}/${p.kisaN} · %${Math.round(p.bitisikN / p.kisaN * 100)}`, options: { align:'center', fontSize: 9, color: IH_PRES_NAVY } },
       { text: p.oneGun.length ? p.oneGun.map(x => `${x.label} (${x.count})`).join(', ') : '—', options: { align:'center', fontSize: 9 } },
       { text: p.uzunN ? `${p.uzunN} (${p.uzunGun} gün)` : '—', options: { align:'center', fontSize: 9 } },
     ]);

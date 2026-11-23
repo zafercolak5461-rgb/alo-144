@@ -4694,8 +4694,8 @@ function asKisiSunumOlustur(D, sicil, A, M, mod, temaKey){
       const r = Z.rapor, y = Z.yillik;
       let sonuc = r.gunler.length || y.gunler.length ? `Dönemde ${r.gunler.length} gün rapor, ${y.gunler.length} gün yıllık izin.` : 'Dönemde rapor ya da yıllık izin günü yok.';
       const ra = r.analiz;
-      if (ra && ra.kisaN) sonuc += ` ${ra.kisaN} kısa raporun ${ra.bitisikN}${asSayiEk(ra.bitisikN)} tatile bitişik (beklenen %${Math.round(ra.beklenenPay * 100)}).`;
-      if (ra && ra.oneGun.length) sonuc += ` Kısa raporlarda öne çıkan gün: ${ra.oneGun[0].ad}.`;
+      if (ra && ra.kisaN) sonuc += ` ${ra.kisaN} kısa raporun ${ra.bitisikN}${asSayiEk(ra.bitisikN)} tatile bitişik (%${Math.round(ra.bitisikN / ra.kisaN * 100)}).`;
+      if (ra && ra.oneGun.length) sonuc += ` Kısa raporların en çok düştüğü gün: ${ra.oneGun[0].ad}.`;
       if (r.gunler.length) sonuc += ` Yoğun çağrı günlerine denk gelen rapor: ${r.yogun.length}.`;
       const s = slide('Rapor ve izin deseni', sonuc, 'VARDİYA ay sekmeleri (gün hücreleri); Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.',
         `${asRaporTanim(D)} Yoğun gün = gelen çağrı o ayın günlük ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde${D.izinAyar.offDahil ? ' (OFF günler ortalamaya 0 olarak dahil)' : ' (yalnız çağrı alınan günler)'}. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.`);
@@ -4710,7 +4710,7 @@ function asKisiSunumOlustur(D, sicil, A, M, mod, temaKey){
       [r, y].forEach(t => yg.push([td(t.ad, { align: 'left', bold: true }), td(`${t.yogun.length} / ${t.gunler.length}`, { bold: true }), td(t.yogun.length ? t.yogun.slice(0, 24).map(asTarihKisa).join(', ') + (t.yogun.length > 24 ? ` … (+${t.yogun.length - 24})` : '') : '—', { align: 'left', fontSize: 8.5 })]));
       s.addTable(yg, Object.assign({ x: 0.5, y: 3.5, w: W - 1, colW: [1.8, 1.8, 8.73], rowH: 0.5 }, tblBase));
       const raB = r.analiz;
-      s.addText(`Kırmızı = kısa raporlarda öne çıkan gün.${raB ? ` Rapor: ${raB.kisaN} kısa rapor (${raB.kisaGun} gün), ${raB.uzunN} uzun rapor (${raB.uzunGun} gün).` : ''}${raB && raB.bitisikOlaylar.length ? ` Tatile bitişik kısa raporlar: ${raB.bitisikOlaylar.slice(0, 14).map(asOlayMetin).join(', ')}${raB.bitisikOlaylar.length > 14 ? ' …' : ''}.` : ''}`, { x: 0.5, y: 5.2, w: W - 1, h: 0.5, fontFace: 'Arial', fontSize: 9, italic: true, color: raB && raB.kopru ? BAD : DIM, valign: 'top' });
+      s.addText(`${raB ? `Rapor: ${raB.kisaN} kısa rapor (${raB.kisaGun} gün), ${raB.uzunN} uzun rapor (${raB.uzunGun} gün).` : ''}${raB && raB.bitisikOlaylar.length ? ` Tatile bitişik kısa raporlar: ${raB.bitisikOlaylar.slice(0, 14).map(asOlayMetin).join(', ')}${raB.bitisikOlaylar.length > 14 ? ' …' : ''}.` : ''}`, { x: 0.5, y: 5.2, w: W - 1, h: 0.5, fontFace: 'Arial', fontSize: 9, italic: true, color: raB && raB.kopru ? BAD : DIM, valign: 'top' });
     }
   }
 
@@ -4976,13 +4976,14 @@ function asRaporAnalizi(D, sicil, aylar){
   });
   const kisaGunler = [].concat(...kisa).filter(d => cal.has(d.getDay()));
   const dowC = new Array(7).fill(0); kisaGunler.forEach(d => dowC[d.getDay()]++);
-  const oneGun = (kisaGunler.length && bekN) ? dowC.map((c, i) => ({ ad: AS_GUN_ADLARI[i], c, oran: c / kisaGunler.length, beklenen: bekDow[i] / bekN }))
-    .filter(x => x.beklenen > 0 && x.c >= A.min && x.oran >= x.beklenen * A.kat - AS_EPS).sort((a, b) => b.c - a.c) : [];
+  // 23.11.2026: beklenen pay kıyası kaldırıldı. En çok düştüğü gün = kısa rapor günlerinde en çok tekrarlanan gün(ler), en az A.min kez.
+  const enCok = Math.max(0, ...dowC);
+  const oneGun = enCok >= A.min ? dowC.map((c, i) => ({ ad: AS_GUN_ADLARI[i], c })).filter(x => x.c === enCok) : [];
   const bitisikOlaylar = kisa.filter(bitisik), pay = bekN ? bekB / bekN : 0;
   return {
     raporGun: rd.length, kisaN: kisa.length, kisaGun: kisa.reduce((t, e) => t + e.length, 0), uzunN: uzun.length, uzunGun: uzun.reduce((t, e) => t + e.length, 0),
     bitisikN: bitisikOlaylar.length, beklenenPay: pay, oneGun, bitisikOlaylar,
-    kopru: kisa.length >= A.kopruMin && pay > 0 && bitisikOlaylar.length / kisa.length >= pay * A.kat - AS_EPS,
+    kopru: false,
   };
 }
 // Sayıya iyelik eki: 1'i, 2'si, 3'ü, 6'sı, 10'u, 40'ı ...
@@ -4998,14 +4999,14 @@ function asRaporCumle(a){
   if (!a || !a.raporGun) return 'Rapor yok';
   const p = x => '%' + Math.round(x * 100);
   const parca = [`${a.raporGun} gün rapor = ${a.kisaN} kısa rapor (${a.kisaGun} gün) + ${a.uzunN} uzun rapor (${a.uzunGun} gün)`];
-  if (a.kisaN) parca.push(`kısa raporların ${a.bitisikN}${asSayiEk(a.bitisikN)} hafta tatiline/resmi tatile bitişik (${p(a.bitisikN / a.kisaN)}; çalışma günlerine göre beklenen ${p(a.beklenenPay)})`);
-  if (a.oneGun.length) parca.push(`kısa raporlarda öne çıkan gün ${a.oneGun.map(x => `${x.ad} (${x.c})`).join(', ')}`);
+  if (a.kisaN) parca.push(`kısa raporların ${a.bitisikN}${asSayiEk(a.bitisikN)} hafta tatiline/resmi tatile bitişik (${p(a.bitisikN / a.kisaN)})`);
+  if (a.oneGun.length) parca.push(`kısa raporların en çok düştüğü gün ${a.oneGun.map(x => `${x.ad} (${x.c})`).join(', ')}`);
   return parca.join('; ');
 }
 function asOlayMetin(e){ return asTarihKisa(e[0]) + (e.length > 1 ? '–' + asTarihKisa(e[e.length - 1]) : ''); }
 function asRaporTanim(D){
   const A = D.izinAyar;
-  return `Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${asFmt(A.kisaSinir, 0)} gün ve altı; desen yalnız kısa raporlarda aranır, uzun raporlar tıbbi nitelikte kabul edilir. Tatile bitişik = raporun önceki ya da sonraki günü ${(A.kopruDurum || []).join(' / ')}. Belirgin (kırmızı): en az ${asFmt(A.kopruMin, 0)} kısa rapor ve bitişik payı, çalışma günlerine göre beklenen payın ${asFmt(A.kat, 2)} katı ve üstü; öne çıkan gün: kısa rapor günlerinin o güne düşen payı beklenenin ${asFmt(A.kat, 2)} katı ve üstü (en az ${asFmt(A.min, 0)} kez). Yıllık izinde gün deseni aranmaz.`;
+  return `Ardışık rapor günleri tek rapor sayılır. Kısa rapor = ${asFmt(A.kisaSinir, 0)} gün ve altı; desen yalnız kısa raporlarda aranır, uzun raporlar tıbbi nitelikte kabul edilir. Tatile bitişik = raporun önceki ya da sonraki günü ${(A.kopruDurum || []).join(' / ')}. En çok düştüğü gün: kısa rapor günlerinin en sık düştüğü gün (en az ${asFmt(A.min, 0)} kez). Yıllık izinde gün deseni aranmaz.`;
 }
 // Kişinin seçilen aylardaki rapor ve yıllık izin günleri, gün/hafta dağılımı, öne çıkanlar ve yoğun günlerle çakışma
 function asKisiIzinDeseni(D, sicil, aylar){
@@ -5063,11 +5064,10 @@ function asRaporDesenListesi(D, aylar, M, kapsam){
     const Z = asKisiIzinDeseni(D, sicil, aylar); const r = Z.rapor, a = r.analiz;
     if (!r.gunler.length || !a) return;
     out.push({ sicil, ad: asPersonName(D, M, sicil, ''), rapor: a.raporGun, kisa: `${a.kisaN} (${a.kisaGun} gün)`, kisaN: a.kisaN,
-      bitisik: a.kisaN ? `${a.bitisikN}/${a.kisaN} · %${Math.round(a.bitisikN / a.kisaN * 100)}` : '—', bitisikN: a.bitisikN, beklenen: `%${Math.round(a.beklenenPay * 100)}`,
-      kopru: a.kopru, oneGun: a.oneGun.map(x => `${x.ad} (${x.c})`).join(', '), uzun: a.uzunN ? `${a.uzunN} (${a.uzunGun} gün)` : '—', yogun: r.yogun.length,
-      desen: a.kopru || a.oneGun.length > 0, skor: (a.kopru ? 1000 : 0) + a.bitisikN * 10 + (a.oneGun[0] ? a.oneGun[0].c : 0) });
+      bitisik: a.kisaN ? `${a.bitisikN}/${a.kisaN} · %${Math.round(a.bitisikN / a.kisaN * 100)}` : '—', bitisikN: a.bitisikN, oran: a.kisaN ? a.bitisikN / a.kisaN : -1,
+      oneGun: a.oneGun.map(x => `${x.ad} (${x.c})`).join(', '), oneGunC: a.oneGun[0] ? a.oneGun[0].c : 0, uzun: a.uzunN ? `${a.uzunN} (${a.uzunGun} gün)` : '—', uzunGun: a.uzunGun, yogun: r.yogun.length });
   });
-  return out.sort((a, b) => b.skor - a.skor || b.rapor - a.rapor);
+  return out.sort((a, b) => b.oran - a.oran || b.bitisikN - a.bitisikN || b.rapor - a.rapor);
 }
 function asTarihKisa(d){ return `${d.getDate()} ${TR_MONTHS[d.getMonth()].slice(0, 3)}`; }
 
@@ -5620,11 +5620,11 @@ function asBuildPresentation(D, M, kapsam, temaKey, A, ekSlayt, paramCols, tleSl
       // ---- (Rapor parametresi) Gün deseni ----
       if (/^RAPOR/.test(p.col)){
         const liste = asRaporDesenListesi(D, aylar, M, kapsam);
-        const kopruN = liste.filter(x => x.kopru).length, gunN = liste.filter(x => x.oneGun).length;
-        const sonuc = liste.length ? `${liste.length} kişinin ${donem ? 'dönemde' : 'son 3 ayda'} raporu var; ${kopruN} kişide kısa raporlar belirgin şekilde tatile bitişik, ${gunN} kişide kısa raporlar belirli bir güne yoğunlaşıyor.` : 'Rapor günü olan personel yok.';
-        const PER = 12, kolW = [0.8, 2.5, 0.9, 1.3, 1.6, 0.95, 1.85, 1.3, 1.13];
-        const hdr = [th('Sicil'), th('Ad Soyad', { align: 'left' }), th('Rapor günü'), th('Kısa rapor'), th('Tatile bitişik'), th('Beklenen'), th('Öne çıkan gün', { align: 'left' }), th('Uzun rapor'), th('Yoğun güne denk')];
-        const satir = x => [td(x.sicil), td(x.ad, { align: 'left' }), td(x.rapor, { bold: true }), td(x.kisa), td(x.bitisik, { bold: x.kopru, color: x.kopru ? BAD : TX }), td(x.beklenen, { color: DIM }), td(x.oneGun || '—', { align: 'left', color: x.oneGun ? BAD : DIM }), td(x.uzun, { color: DIM }), td(x.yogun)];
+        const ust = liste.find(x => x.oran >= 0);
+        const sonuc = liste.length ? `${liste.length} kişinin ${donem ? 'dönemde' : 'son 3 ayda'} raporu var` + (ust ? `; kısa raporları tatile en çok bitişik olan ${ust.ad} (${ust.bitisik}).` : '.') : 'Rapor günü olan personel yok.';
+        const PER = 12, kolW = [0.8, 2.6, 0.95, 1.4, 1.7, 2.05, 1.4, 1.43];
+        const hdr = [th('Sicil'), th('Ad Soyad', { align: 'left' }), th('Rapor günü'), th('Kısa rapor'), th('Tatile bitişik'), th('En çok düştüğü gün', { align: 'left' }), th('Uzun rapor'), th('Yoğun güne denk')];
+        const satir = x => [td(x.sicil), td(x.ad, { align: 'left' }), td(x.rapor, { bold: true }), td(x.kisa), td(x.bitisik), td(x.oneGun || '—', { align: 'left' }), td(x.uzun, { color: DIM }), td(x.yogun)];
         const s = slide(`${p.param} — kısa rapor deseni`, sonuc, 'VARDİYA ay sekmeleri; Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.',
           `${asRaporTanim(D)} Yoğun gün = gelen çağrı, o ayın çağrı alınan günlerinin ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.` + (liste.length > PER ? (ekSlayt ? ' Tam liste ek slaytlarda.' : ` İlk ${PER} kişi.`) : ''));
         if (liste.length) s.addTable([hdr].concat(liste.slice(0, PER).map(satir)), Object.assign({ x: 0.5, y: 1.65, w: W - 1, colW: kolW, rowH: 0.34, fontSize: 9.5 }, tblBase));
@@ -9911,9 +9911,9 @@ function anzParam(D, A, M, kapsam, cols){
       ic += `<div class="anz-alt-baslik" style="margin-top:12px;">Süreklilik — ${donem ? 'dönemin' : 'son 3 ayın'} çoğunda kaybedenler (${kayit.length})</div>` + anzTable([{ t: 'Sicil', al: 'left' }, { t: 'Ad Soyad', al: 'left' }, { t: 'Kayıp ay' }].concat(gos.map(a => ({ t: asShort(a) }))).concat([{ t: 'Toplam' }]), rows, { ilk: 5, siralanir: true, bos: 'Sürekli kaybeden yok.' });
       if (/^RAPOR/.test(p.col)){
         const dl = asRaporDesenListesi(D, aylar, M, kapsam);
-        ic += `<div class="anz-alt-baslik" style="margin-top:12px;">Kısa rapor deseni — ${donem ? 'dönem' : 'son 3 ay'} (${dl.length} kişi; ${dl.filter(x => x.kopru).length} kişide tatile bitişiklik, ${dl.filter(x => x.oneGun).length} kişide öne çıkan gün)</div>` +
-          anzTable([{ t: 'Sicil', al: 'left' }, { t: 'Ad Soyad', al: 'left' }, { t: 'Rapor günü' }, { t: 'Kısa rapor' }, { t: 'Tatile bitişik' }, { t: 'Beklenen' }, { t: 'Öne çıkan gün', al: 'left' }, { t: 'Uzun rapor' }, { t: 'Yoğun güne denk' }],
-            dl.map(x => ({ sicil: x.sicil, cells: [anzTd(anzEsc(x.sicil), { al: 'left' }), anzTd(anzEsc(x.ad), { al: 'left' }), anzTd(`<b>${x.rapor}</b>`, { v: x.rapor }), anzTd(anzEsc(x.kisa), { v: x.kisaN }), anzTd(x.kopru ? `<span style="color:var(--danger);font-weight:700;">${anzEsc(x.bitisik)}</span>` : anzEsc(x.bitisik), { v: x.skor }), anzTd(anzEsc(x.beklenen)), anzTd(x.oneGun ? `<span style="color:var(--danger);">${anzEsc(x.oneGun)}</span>` : '—', { al: 'left' }), anzTd(anzEsc(x.uzun)), anzTd(x.yogun)] })), { ilk: 5, siralanir: true, bos: 'Rapor günü olan personel yok.' }) +
+        ic += `<div class="anz-alt-baslik" style="margin-top:12px;">Kısa rapor deseni — ${donem ? 'dönem' : 'son 3 ay'} (${dl.length} kişi)</div>` +
+          anzTable([{ t: 'Sicil', al: 'left' }, { t: 'Ad Soyad', al: 'left' }, { t: 'Rapor günü' }, { t: 'Kısa rapor' }, { t: 'Tatile bitişik' }, { t: 'En çok düştüğü gün', al: 'left' }, { t: 'Uzun rapor' }, { t: 'Yoğun güne denk' }],
+            dl.map(x => ({ sicil: x.sicil, cells: [anzTd(anzEsc(x.sicil), { al: 'left' }), anzTd(anzEsc(x.ad), { al: 'left' }), anzTd(`<b>${x.rapor}</b>`, { v: x.rapor }), anzTd(anzEsc(x.kisa), { v: x.kisaN }), anzTd(anzEsc(x.bitisik), { v: x.oran }), anzTd(x.oneGun ? anzEsc(x.oneGun) : '—', { al: 'left', v: x.oneGunC }), anzTd(anzEsc(x.uzun), { v: x.uzunGun }), anzTd(x.yogun)] })), { ilk: 5, siralanir: true, bos: 'Rapor günü olan personel yok.' }) +
           `<div class="hint" style="margin-top:4px;">${asRaporTanim(D)} Yoğun gün = gelen çağrı, o ayın çağrı alınan günlerinin ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.</div>`;
       }
     }
@@ -10180,10 +10180,10 @@ function kisiDonemHtml(D, sicil, aylar){
         [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' })].concat(t.byWeek.map((c, i) => { const on = t.oneHafta.some(x => x.ad === `${i + 1}. hafta`); return anzTd(c || '—', { st: on ? anzRenkKayip(1) : '' }); })) })));
       const ygT = anzTable([{ t: 'Tür', al: 'left' }, { t: 'Denk gelen / toplam' }, { t: 'Tarihler', al: 'left' }], [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' }), anzTd(`${t.yogun.length} / ${t.gunler.length}`), anzTd(t.yogun.length ? t.yogun.map(asTarihKisa).join(', ') : '—', { al: 'left', st: 'font-size:12px;' })] })));
       const ra = r.analiz;
-      const bitT = ra && ra.bitisikOlaylar.length ? `<div class="anz-alt-baslik" style="margin-top:12px;${ra.kopru ? ' color:var(--danger);' : ''}">Tatile bitişik kısa raporlar (${ra.bitisikN} / ${ra.kisaN}; beklenen %${Math.round(ra.beklenenPay * 100)})</div><div style="font-size:12.5px;">${ra.bitisikOlaylar.map(asOlayMetin).join(', ')}</div>` : '';
+      const bitT = ra && ra.bitisikOlaylar.length ? `<div class="anz-alt-baslik" style="margin-top:12px;">Tatile bitişik kısa raporlar (${ra.bitisikN} / ${ra.kisaN} · %${Math.round(ra.bitisikN / ra.kisaN * 100)})</div><div style="font-size:12.5px;">${ra.bitisikOlaylar.map(asOlayMetin).join(', ')}</div>` : '';
       html += anzCard(`📅 Rapor ve izin deseni (${donemAd})`, `${anzEsc(asDesenCumle(r))}. ${anzEsc(asDesenCumle(y))}.`,
         `<div class="anz-iki"><div><div class="anz-alt-baslik">Haftanın günlerine göre</div>${gunT}</div><div><div class="anz-alt-baslik">Ayın haftalarına göre</div>${hafT}</div></div>${bitT}<div class="anz-alt-baslik" style="margin-top:12px;">Yoğun çağrı günlerine denk gelenler</div>${ygT}`,
-        'VARDİYA ay sekmeleri; Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.', `Kırmızı = kısa raporlarda öne çıkan gün / belirgin tatile bitişiklik. ${asRaporTanim(D)} Yoğun gün = gelen çağrı, o ayın çağrı alınan günlerinin ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.`);
+        'VARDİYA ay sekmeleri; Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.', `Kırmızı = haftanın günü / ayın haftası dağılımında öne çıkanlar. ${asRaporTanim(D)} Yoğun gün = gelen çağrı, o ayın çağrı alınan günlerinin ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.`);
     }
   }
   return html;
