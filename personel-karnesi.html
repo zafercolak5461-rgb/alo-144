@@ -10126,19 +10126,17 @@ function kisiTakimGecmisi(D, sicil, aylar){
   aylar.forEach(a => { const t = asTakimOf(D, a, sicil) || '—'; const son = parca[parca.length - 1]; if (son && son.t === t) son.b = a; else parca.push({ t, a, b: a }); });
   return parca.map(x => `${asShort(x.a)}${x.b !== x.a ? '–' + asShort(x.b) : ''}: ${x.t}`).join(' · ');
 }
-// uzmHtml (23.11.2026): kişinin uzman aylarının kartları (uzmKisiHtml); VT kaydı olmasa da gösterilir.
-function kisiDonemHtml(D, sicil, aylar, uzmHtml){
+function kisiDonemHtml(D, sicil, aylar){
   const R = {}, LOK = {}, TAK = {}, TK = {};
   aylar.forEach(a => { R[a] = asKisiKayit(D, a, sicil); LOK[a] = asMonthStats(D, a, { tip: 'lokasyon' }); TK[a] = asTakimOf(D, a, sicil); TAK[a] = TK[a] ? asMonthStats(D, a, { tip: 'takim', lider: TK[a] }) : null; });
   const gec = a => R[a] && !R[a].durum && R[a].tutarli;
   const gAy = aylar.filter(gec);
   const donemAd = `${asShort(aylar[0])} – ${asShort(aylar[aylar.length - 1])}`;
-  if (!gAy.length && !uzmHtml) return anzCard(`📈 ${donemAd}`, `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])} arasında bu kişiye ait değerlendirilmiş performans kaydı yok.`, '', 'OSMANİYE-PERFORMANS.', '');
+  if (!gAy.length) return anzCard(`📈 ${donemAd}`, `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])} arasında bu kişiye ait değerlendirilmiş performans kaydı yok.`, '', 'OSMANİYE-PERFORMANS.', '');
   const son = gAy[gAy.length - 1], onc = gAy.length > 1 ? gAy[gAy.length - 2] : undefined;
   const puanP = D.olcek.params.filter(p => p.tur === 'PUAN'), kesP = D.olcek.params.filter(p => p.tur === 'KESİNTİ');
   const durum = a => R[a] ? (R[a].durum || (!R[a].tutarli ? 'tutmuyor' : '')) : 'kayıt yok';
   let html = '';
-  if (gAy.length){
   {
     const ust = gAy.filter(a => LOK[a] && LOK[a].n && R[a].puan >= LOK[a].ortPuan).length;
     const sonuc = gAy.length >= 2 ? `Puan ${asLabelOf(gAy[0])} ${asFmt(R[gAy[0]].puan, 0)} → ${asLabelOf(son)} ${asFmt(R[son].puan, 0)}; ${gAy.length} ayın ${ust} tanesinde lokasyon ortalamasının üstünde.` : `${asLabelOf(son)} puanı ${asFmt(R[son].puan, 0)}.`;
@@ -10178,8 +10176,12 @@ function kisiDonemHtml(D, sicil, aylar, uzmHtml){
           .concat([{ cells: [anzTd('<b style="color:var(--accent);">Hepsi tam puana çıkarsa</b>', { al: 'left' }), anzTd(''), anzTd(''), anzTd(''), anzTd(`<b>${asFmt(R[son].puan, 0)} → ${asFmt(R[son].puan + toplam, 0)}</b>`, { al: 'left' }), anzTd(`<b>+${asFmt(toplam, 0)}</b>`)] }])) : '',
       `OSMANİYE-PERFORMANS ${asKeyOf(son)}; PUANLAMA ÖLÇEĞİ.`, 'Anket 1 ondalığa yuvarlanarak değerlendirilir.');
   }
-  }
-  html += uzmHtml || '';
+  html += kisiIzinKartHtml(D, sicil, aylar, donemAd);
+  return html;
+}
+// Rapor ve izin deseni kartı (Genel Değerlendirme ve Uzman Performansı > Kişi değerlendirmesi ortak).
+function kisiIzinKartHtml(D, sicil, aylar, donemAd){
+  let html = '';
   {
     const Z = asKisiIzinDeseni(D, sicil, aylar);
     if (Z.vardiyaVar){
@@ -10207,13 +10209,7 @@ async function kisiSekmeDoldur(){
     const aylar = []; for (let a = start; a <= end; a++) aylar.push(a);
     if (sekme === 'genel') kisiAralikBarCiz(start, end);
     if (sekme === 'bilgiler'){ const el = document.getElementById('kisiTakimGecmisi'); if (el) el.textContent = 'VARDİYA: ' + kisiTakimGecmisi(D, sicil, aylar); }
-    if (sekme === 'genel'){
-      let uzmHtml = '';
-      try { uzmHtml = uzmKisiHtml(await uzmVeriAl(), sicil, aylar); }
-      catch (e){ uzmHtml = ''; } // uzman sekmeleri yoksa VT kartları yine görünür
-      if (sicil !== selectedSicil || sekme !== selectedLeftTab) return;
-      const el = document.getElementById('kisiDonemWrap'); if (el) el.innerHTML = kisiDonemHtml(D, sicil, aylar, uzmHtml);
-    }
+    if (sekme === 'genel'){ const el = document.getElementById('kisiDonemWrap'); if (el) el.innerHTML = kisiDonemHtml(D, sicil, aylar); }
   } catch (e){
     const el = document.getElementById(sekme === 'genel' ? 'kisiDonemWrap' : 'kisiTakimGecmisi');
     if (el) el.innerHTML = `<span class="hint">Performans verisi okunamadı: ${anzEsc(e.message)}</span>`;
@@ -10248,7 +10244,7 @@ const UZM_V2_ESLEME = [
   [['TEŞEKKÜR ÇAĞRISI ÇARPANI'], 'TEŞEKKÜR ÇAĞRISI ÇARPANI'],
   [['PERFORMANS PUANI'], 'PERFORMANS PUANI'],
 ];
-let UZM = { U: null, bekleyen: null, ay: null, hata: null, yukleme: null, chart: null };
+let UZM = { U: null, bekleyen: null, ay: null, hata: null, yukleme: null, chart: null, mod: 'ay', kisi: null, bas: null, bit: null, izinSeq: 0 };
 const uzmSikis = s => asUp(s).replace(/\s+/g, '');
 function uzmSicilSutun(h){ return h.findIndex(x => x.includes('SİCİL')); }
 function uzmAdSutun(h){ return h.findIndex(x => x.includes('ADI')); }
@@ -10345,7 +10341,7 @@ function uzmKisiHtml(U, sicil, aylar){
     sonuc = gAy.length >= 2 ? `Puan ${asLabelOf(gAy[0])} ${asFmt(R[gAy[0]].puan, 0)} → ${asLabelOf(gAy[gAy.length - 1])} ${asFmt(R[gAy[gAy.length - 1]].puan, 0)}; ${gAy.length} ayın ${ust} tanesinde uzman ortalamasının üstünde ya da eşit.`
       : `${asLabelOf(gAy[0])} puanı ${asFmt(R[gAy[0]].puan, 0)}.`;
   }
-  let html = '<div class="uzm-genis">' + anzCard(`🎓 Uzman performansı (${donemAd})`, sonuc,
+  let html = '<div class="uzm-genis">' + anzCard(`🎓 ${anzEsc(uzmAd(U, sicil))} — uzman performansı (${donemAd})`, sonuc,
     anzTable([{ t: 'Gösterge', al: 'left' }].concat(uAy.map(a => ({ t: asShort(a) }))), rows),
     `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}; ${UZM_OLCEK_TAB}.`, 'Parantez içi: o göstergeden alınan puan. Uzman ortalaması ve sıra yalnız uzmanlar arasında.');
   if (gAy.length){
@@ -10359,17 +10355,47 @@ function uzmKisiHtml(U, sicil, aylar){
 }
 
 // ---------- Sol menü > Uzman Performansı ----------
+// Uzman listesi (son aydan geriye, ada göre) ve kişinin seçili aralığı
+function uzmKisiler(U){ return [...new Set([].concat(...U.aylar.map(a => [...(U.perf.get(a) || new Map()).keys()])))].sort((a, b) => uzmAd(U, a).localeCompare(uzmAd(U, b), 'tr')); }
+function uzmKisiAylari(U, sicil){ return U.aylar.filter(a => uzmKayit(U, a, sicil)); } // yeniden eskiye
+function uzmKisiAralik(U, sicil){
+  const ka = uzmKisiAylari(U, sicil); if (!ka.length) return null;
+  let bit = UZM.bit !== null && U.aylar.includes(UZM.bit) ? UZM.bit : ka[0];
+  let bas = UZM.bas !== null && U.aylar.includes(UZM.bas) ? UZM.bas : Math.max(bit - 5, ka[ka.length - 1]);
+  if (bas > bit){ const x = bas; bas = bit; bit = x; }
+  return { bas, bit };
+}
 function renderUzmanTab(){
   const U = UZM.U, ay = U ? U.aylar : [];
   if (U && (UZM.ay === null || !ay.includes(UZM.ay))) UZM.ay = ay[0];
-  const opt = ay.map(a => `<option value="${a}" ${a === UZM.ay ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
-  return `
+  const btn = (id, on, txt) => `<button class="refresh-btn anz-sec ${on ? 'anz-sec-on' : ''}" id="${id}">${txt}</button>`;
+  const modBar = `<div class="anz-grup" style="margin-bottom:16px; flex-wrap:wrap;">${btn('uzmModAy', UZM.mod === 'ay', '📅 Aylık tablo')}${btn('uzmModKisi', UZM.mod === 'kisi', '👤 Kişi değerlendirmesi')}</div>`;
+  const ust = `
     <div class="topbar" style="margin-bottom:24px;">
       <div class="topbar-left"><div><div class="eyebrow">ALO 144 · ANALİZ</div><h1>Uzman Performansı</h1></div></div>
-    </div>
+    </div>` + modBar;
+  const opt = (list, sel) => list.map(a => `<option value="${a}" ${a === sel ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
+  if (UZM.mod === 'kisi'){
+    const kisiler = U ? uzmKisiler(U) : [];
+    if (U && (!UZM.kisi || !kisiler.includes(UZM.kisi))) UZM.kisi = [...(U.perf.get(U.aylar[0]) || new Map()).keys()].sort((a, b) => uzmAd(U, a).localeCompare(uzmAd(U, b), 'tr'))[0] || kisiler[0] || null;
+    const r = U && UZM.kisi ? uzmKisiAralik(U, UZM.kisi) : null;
+    const varsayilan = UZM.bas === null && UZM.bit === null;
+    const i = kisiler.indexOf(UZM.kisi);
+    return ust + `
     <div class="panel" style="margin-bottom:20px;">
       <div class="panel-body anz-secici">
-        <div><div class="search-label">Ay</div><select class="search" id="uzmAy">${ay.length ? opt : '<option>Yükleniyor…</option>'}</select></div>
+        <div><div class="search-label">Uzman</div><div class="anz-grup"><button class="refresh-btn" id="uzmKisiOnceki" ${i > 0 ? '' : 'disabled'}>◀</button><select class="search" id="uzmKisi">${U ? kisiler.map(k => `<option value="${anzEsc(k)}" ${k === UZM.kisi ? 'selected' : ''}>${anzEsc(uzmAd(U, k))}</option>`).join('') : '<option>Yükleniyor…</option>'}</select><button class="refresh-btn" id="uzmKisiSonraki" ${i !== -1 && i < kisiler.length - 1 ? '' : 'disabled'}>▶</button></div></div>
+        <div><div class="search-label">Başlangıç</div><select class="search" id="uzmBas">${r ? opt(ay, r.bas) : ''}</select></div>
+        <div><div class="search-label">Bitiş</div><select class="search" id="uzmBit">${r ? opt(ay, r.bit) : ''}</select></div>
+        <button class="refresh-btn anz-sec ${varsayilan ? 'anz-sec-on' : ''}" id="uzmSon6">Son 6 ay</button>
+      </div>
+    </div>
+    <div id="uzmIcerik" class="uzm-genis"><div class="anz-bos">Yükleniyor…</div></div>`;
+  }
+  return ust + `
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-body anz-secici">
+        <div><div class="search-label">Ay</div><select class="search" id="uzmAy">${ay.length ? opt(ay, UZM.ay) : '<option>Yükleniyor…</option>'}</select></div>
         <button class="refresh-btn" id="uzmExcelBtn" ${U ? '' : 'disabled'}>⇩ Excel'e Aktar</button>
         ${islemAuthorized ? `<button class="refresh-btn" id="uzmYukleBtn">⇧ Ay Ekle (Uzman Performans Excel'i)</button><input type="file" id="uzmDosya" accept=".xlsx,.xlsm" style="display:none;">` : ''}
       </div>
@@ -10377,12 +10403,34 @@ function renderUzmanTab(){
     <div id="uzmYuklemeAlan"></div>
     <div id="uzmIcerik" class="uzm-genis"><div class="anz-bos">Yükleniyor…</div></div>`;
 }
+// Kişi değerlendirmesi: uzman kartları + rapor/izin deseni (VARDİYA'dan, Genel Değerlendirme'deki kartın aynısı)
+function uzmKisiCiz(el, U){
+  const sicil = UZM.kisi, r = sicil ? uzmKisiAralik(U, sicil) : null;
+  if (!r){ el.innerHTML = '<div class="anz-bos">Uzman seçin.</div>'; return; }
+  const aylar = []; for (let a = r.bas; a <= r.bit; a++) aylar.push(a);
+  const kart = uzmKisiHtml(U, sicil, aylar);
+  el.innerHTML = (kart || `<div class="anz-bos">${asLabelOf(r.bas)} – ${asLabelOf(r.bit)} arasında ${anzEsc(uzmAd(U, sicil))} için uzman kaydı yok.</div>`) +
+    `<div id="uzmIzinWrap" class="uzm-genis"><div class="anz-bos">Rapor ve izin deseni yükleniyor…</div></div>`;
+  const seq = ++UZM.izinSeq;
+  (async () => {
+    let html = '';
+    try {
+      const key = `${r.bas}|${r.bit}`;
+      let D = ANZ_CACHE.get(key);
+      if (!D){ D = await asLoadAll(r.bit, null, r.bas < r.bit ? r.bas : null); ANZ_CACHE.set(key, D); }
+      html = kisiIzinKartHtml(D, sicil, aylar, `${asShort(aylar[0])} – ${asShort(aylar[aylar.length - 1])}`);
+    } catch (e){ html = `<div class="hint">Rapor ve izin deseni okunamadı: ${anzEsc(e.message)}</div>`; }
+    if (seq !== UZM.izinSeq || selectedLeftTab !== 'uzman') return;
+    const w = document.getElementById('uzmIzinWrap'); if (w) w.innerHTML = html;
+  })();
+}
 function uzmIcerikCiz(){
   const el = document.getElementById('uzmIcerik'); if (!el) return;
   if (UZM.chart){ try { UZM.chart.destroy(); } catch(e){} UZM.chart = null; }
   if (UZM.hata){ el.innerHTML = `<div class="error-box">${anzEsc(UZM.hata)}</div>`; return; }
   const U = UZM.U; if (!U){ el.innerHTML = '<div class="anz-bos">Yükleniyor…</div>'; return; }
   if (!U.aylar.length){ el.innerHTML = '<div class="anz-bos">Uzman performans kaydı yok.</div>'; return; }
+  if (UZM.mod === 'kisi'){ uzmKisiCiz(el, U); return; }
   const M = UZM.ay, m = U.perf.get(M) || new Map(), oAy = U.aylar.find(a => a < M);
   const kayitlar = [...m.values()].sort((a, b) => (b.puan || 0) - (a.puan || 0));
   const OZ = uzmAyOzet(U, M);
@@ -10430,7 +10478,18 @@ function uzmIcerikCiz(){
 async function wireUzmanTab(){
   const mq = document.getElementById('analizMarqueeWrap'); if (mq) mq.style.display = 'none';
   anzIcerikOlaylari();
+  const yeniden = () => { contentArea.innerHTML = renderUzmanTab(); bagla(); uzmIcerikCiz(); };
   const bagla = () => {
+    const on = (id, ev, f) => { const e = document.getElementById(id); if (e) e.addEventListener(ev, f); };
+    on('uzmModAy', 'click', () => { UZM.mod = 'ay'; yeniden(); });
+    on('uzmModKisi', 'click', () => { UZM.mod = 'kisi'; yeniden(); });
+    on('uzmKisi', 'change', e => { UZM.kisi = e.target.value; yeniden(); });
+    const kay = d => { const k = uzmKisiler(UZM.U), i = k.indexOf(UZM.kisi) + d; if (i >= 0 && i < k.length){ UZM.kisi = k[i]; yeniden(); } };
+    on('uzmKisiOnceki', 'click', () => kay(-1));
+    on('uzmKisiSonraki', 'click', () => kay(1));
+    on('uzmBas', 'change', e => { UZM.bas = +e.target.value; UZM.bit = +document.getElementById('uzmBit').value; yeniden(); });
+    on('uzmBit', 'change', e => { UZM.bit = +e.target.value; UZM.bas = +document.getElementById('uzmBas').value; yeniden(); });
+    on('uzmSon6', 'click', () => { UZM.bas = null; UZM.bit = null; yeniden(); });
     const s = document.getElementById('uzmAy'); if (s) s.addEventListener('change', () => { UZM.ay = +s.value; uzmIcerikCiz(); });
     const x = document.getElementById('uzmExcelBtn'); if (x) x.addEventListener('click', uzmExcelIndir);
     const y = document.getElementById('uzmYukleBtn'), f = document.getElementById('uzmDosya');
