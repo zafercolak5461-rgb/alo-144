@@ -10323,12 +10323,13 @@ function uzmKisiHtml(U, sicil, aylar){
   const uAy = aylar.filter(a => R[a]);
   if (!uAy.length) return '';
   const gAy = uAy.filter(a => uzmGecerli(R[a]));
-  const donemAd = `${asShort(uAy[0])} – ${asShort(uAy[uAy.length - 1])}`;
-  const OZ = {}; uAy.forEach(a => { OZ[a] = uzmAyOzet(U, a); });
-  const satir = (ad, f) => ({ cells: [anzTd(`<b>${ad}</b>`, { al: 'left' })].concat(uAy.map(f)) });
+  const donemAd = `${asShort(aylar[0])} – ${asShort(aylar[aylar.length - 1])}`;
+  const OZ = {}; aylar.forEach(a => { OZ[a] = uzmAyOzet(U, a); });
+  // Seçilen aralığın bütün ayları sütun olur; kişinin uzman kaydı olmayan aylarda "—" (Performans puanı satırında "uzman değil")
+  const satir = (ad, f, bosta) => ({ cells: [anzTd(`<b>${ad}</b>`, { al: 'left' })].concat(aylar.map(a => R[a] ? f(a) : (bosta ? bosta(a) : anzTd('—')))) });
   const rows = [
-    satir('Performans puanı', a => uzmGecerli(R[a]) ? anzTd(`<b style="color:var(--accent);">${asFmt(R[a].puan, 0)}</b>`) : anzTd(`<span class="hint">${anzEsc(uzmDurum(R[a]))}</span>`)),
-    satir('Uzman ortalaması', a => anzTd(OZ[a].n ? asFmt(OZ[a].ort) : '—')),
+    satir('Performans puanı', a => uzmGecerli(R[a]) ? anzTd(`<b style="color:var(--accent);">${asFmt(R[a].puan, 0)}</b>`) : anzTd(`<span class="hint">${anzEsc(uzmDurum(R[a]))}</span>`), () => anzTd('<span class="hint">uzman değil</span>')),
+    satir('Uzman ortalaması', a => anzTd(OZ[a].n ? asFmt(OZ[a].ort) : '—'), a => anzTd(OZ[a].n ? asFmt(OZ[a].ort) : '—')),
     satir('Uzmanlar içinde sıra', a => anzTd(uzmGecerli(R[a]) ? `${1 + OZ[a].gecerli.filter(x => x.puan > R[a].puan).length}/${OZ[a].n}` : '—')),
   ];
   const UD = { olcek: U.olcek };
@@ -10342,7 +10343,7 @@ function uzmKisiHtml(U, sicil, aylar){
       : `${asLabelOf(gAy[0])} puanı ${asFmt(R[gAy[0]].puan, 0)}.`;
   }
   let html = '<div class="uzm-genis">' + anzCard(`🎓 ${anzEsc(uzmAd(U, sicil))} — uzman performansı (${donemAd})`, sonuc,
-    anzTable([{ t: 'Gösterge', al: 'left' }].concat(uAy.map(a => ({ t: asShort(a) }))), rows),
+    anzTable([{ t: 'Gösterge', al: 'left' }].concat(aylar.map(a => ({ t: asShort(a) }))), rows),
     `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}; ${UZM_OLCEK_TAB}.`, 'Parantez içi: o göstergeden alınan puan. Uzman ortalaması ve sıra yalnız uzmanlar arasında.');
   if (gAy.length){
     const son = gAy[gAy.length - 1], onc = gAy.length > 1 ? gAy[gAy.length - 2] : undefined;
@@ -10361,7 +10362,7 @@ function uzmKisiAylari(U, sicil){ return U.aylar.filter(a => uzmKayit(U, a, sici
 function uzmKisiAralik(U, sicil){
   const ka = uzmKisiAylari(U, sicil); if (!ka.length) return null;
   let bit = UZM.bit !== null && U.aylar.includes(UZM.bit) ? UZM.bit : ka[0];
-  let bas = UZM.bas !== null && U.aylar.includes(UZM.bas) ? UZM.bas : Math.max(bit - 5, ka[ka.length - 1]);
+  let bas = UZM.bas !== null && U.aylar.includes(UZM.bas) ? UZM.bas : Math.max(bit - 5, U.aylar[U.aylar.length - 1]);
   if (bas > bit){ const x = bas; bas = bit; bit = x; }
   return { bas, bit };
 }
