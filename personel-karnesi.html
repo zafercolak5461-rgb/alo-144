@@ -10409,8 +10409,18 @@ function uzmKisiCiz(el, U){
   if (!r){ el.innerHTML = '<div class="anz-bos">Uzman seçin.</div>'; return; }
   const aylar = []; for (let a = r.bas; a <= r.bit; a++) aylar.push(a);
   const kart = uzmKisiHtml(U, sicil, aylar);
-  el.innerHTML = (kart || `<div class="anz-bos">${asLabelOf(r.bas)} – ${asLabelOf(r.bit)} arasında ${anzEsc(uzmAd(U, sicil))} için uzman kaydı yok.</div>`) +
+  el.innerHTML = (kart ? uzmGrafikPanel('uzmG2', `Grafik — ${uzmAd(U, sicil)}`) + kart : `<div class="anz-bos">${asLabelOf(r.bas)} – ${asLabelOf(r.bit)} arasında ${anzEsc(uzmAd(U, sicil))} için uzman kaydı yok.</div>`) +
     `<div id="uzmIzinWrap" class="uzm-genis"><div class="anz-bos">Rapor ve izin deseni yükleniyor…</div></div>`;
+  if (kart){
+    const R = aylar.map(a => uzmKayit(U, a, sicil));
+    createChartBuilderPanel({
+      chipsContainerId: 'uzmG2-chips', typeGroupId: 'uzmG2-typeGroup', canvasId: 'uzmG2-canvas', defaultType: 'bar',
+      getContext: () => ({ labels: aylar.map(asShort), metrics: [{ key: '__PUAN', label: 'Performans puanı', type: 'num', agg: 'avg', values: R.map(x => uzmGecerli(x) ? x.puan : null) },
+        { key: '__ORT', label: 'Uzman ortalaması', type: 'num', agg: 'avg', values: aylar.map(a => uzmAyOzet(U, a).ort) }]
+        .concat(U.olcek.params.map(p => ({ key: p.col, label: `${p.param} (puan)`, type: 'num', agg: 'avg', values: R.map(x => uzmGecerli(x) && x.params[p.col] ? x.params[p.col].kazanilan : null) }))) }),
+      getDefaultSelected: () => ['__PUAN'],
+    }).render();
+  }
   const seq = ++UZM.izinSeq;
   (async () => {
     let html = '';
@@ -10426,7 +10436,6 @@ function uzmKisiCiz(el, U){
 }
 function uzmIcerikCiz(){
   const el = document.getElementById('uzmIcerik'); if (!el) return;
-  if (UZM.chart){ try { UZM.chart.destroy(); } catch(e){} UZM.chart = null; }
   if (UZM.hata){ el.innerHTML = `<div class="error-box">${anzEsc(UZM.hata)}</div>`; return; }
   const U = UZM.U; if (!U){ el.innerHTML = '<div class="anz-bos">Yükleniyor…</div>'; return; }
   if (!U.aylar.length){ el.innerHTML = '<div class="anz-bos">Uzman performans kaydı yok.</div>'; return; }
@@ -10461,19 +10470,26 @@ function uzmIcerikCiz(){
   const kisiler = [...new Set([].concat(...aylar.map(a => [...(U.perf.get(a) || new Map()).keys()])))].sort((a, b) => uzmAd(U, a).localeCompare(uzmAd(U, b), 'tr'));
   const seyirRows = kisiler.map(s => ({ sicil: s, cells: [anzTd(`<b>${anzEsc(uzmAd(U, s))}</b>`, { al: 'left' })].concat(aylar.map(a => { const r = uzmKayit(U, a, s); return anzTd(uzmGecerli(r) ? asFmt(r.puan, 0) : (r ? `<span class="hint">${anzEsc(uzmDurum(r))}</span>` : ''), { v: uzmGecerli(r) ? r.puan : '' }); })) }));
   seyirRows.push({ cells: [anzTd('<b>Uzman ortalaması</b>', { al: 'left' })].concat(aylar.map(a => { const z = uzmAyOzet(U, a); return anzTd(z.n ? `<b>${asFmt(z.ort)}</b>` : '—'); })) });
+  html += uzmGrafikPanel('uzmG1', 'Grafik — aylara göre performans puanı');
   html += anzCard('📈 Aylara göre performans puanı', `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])}, ${kisiler.length} uzman.`,
-    `<div style="height:280px; margin-bottom:12px;"><canvas id="uzmSeyirCanvas"></canvas></div>` + anzTable([{ t: 'Uzman', al: 'left' }].concat(aylar.map(a => ({ t: asShort(a) }))), seyirRows),
+    anzTable([{ t: 'Uzman', al: 'left' }].concat(aylar.map(a => ({ t: asShort(a) }))), seyirRows),
     `OSMANİYE-PERFORMANS > ${UZM_PERF_TAB}.`, 'Boş hücre: kişi o ay uzman değildi.');
   el.innerHTML = html;
-  if (typeof Chart !== 'undefined'){
-    const c = document.getElementById('uzmSeyirCanvas');
-    const css = getComputedStyle(document.documentElement);
-    const renk = n => (css.getPropertyValue('--' + n) || '').trim();
-    const slot = gorunumBeyaz() ? GORUNUM_BEYAZ_SLOTLAR : ['#E8A53D', '#4FB3BF', '#E56B6F', '#9B8CF2', '#6CC48A'];
-    const dim = renk('dim') || '#888', line = renk('line') || '#ddd';
-    if (c) UZM.chart = new Chart(c, { type: 'line', data: { labels: aylar.map(asShort), datasets: kisiler.map((s, i) => ({ label: uzmAd(U, s), data: aylar.map(a => { const r = uzmKayit(U, a, s); return uzmGecerli(r) ? r.puan : null; }), borderColor: slot[i % slot.length], backgroundColor: slot[i % slot.length], tension: 0, spanGaps: false, datalabels: { display: false } })) },
-      options: { maintainAspectRatio: false, plugins: { legend: { labels: { color: dim } }, datalabels: { display: false } }, scales: { x: { ticks: { color: dim }, grid: { color: line } }, y: { ticks: { color: dim }, grid: { color: line }, suggestedMax: 100 } } } });
-  }
+  // Panelin standart grafik yapısı (çipler + Çubuk/Çizgi/Pasta/Halka) — Genel Değerlendirme ile aynı
+  createChartBuilderPanel({
+    chipsContainerId: 'uzmG1-chips', typeGroupId: 'uzmG1-typeGroup', canvasId: 'uzmG1-canvas', defaultType: 'bar',
+    getContext: () => ({ labels: aylar.map(asShort), metrics: [{ key: '__ORT', label: 'Uzman ortalaması', type: 'num', agg: 'avg', values: aylar.map(a => uzmAyOzet(U, a).ort) }]
+      .concat(kisiler.map(s => ({ key: s, label: uzmAd(U, s), type: 'num', agg: 'avg', values: aylar.map(a => { const r = uzmKayit(U, a, s); return uzmGecerli(r) ? r.puan : null; }) }))) }),
+    getDefaultSelected: () => ['__ORT'],
+  }).render();
+}
+// Genel Değerlendirme'deki grafik paneliyle aynı işaretleme
+function uzmGrafikPanel(id, baslik){
+  return `<div class="panel" style="margin-bottom:20px;">
+    <div class="panel-head">${anzEsc(baslik)} <div id="${id}-typeGroup" style="display:flex; gap:6px;"></div></div>
+    <div class="panel-body" style="padding-bottom:0;"><div id="${id}-chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;"></div></div>
+    <div class="panel-body" style="padding-top:0;"><div class="chart-wrap"><canvas id="${id}-canvas"></canvas></div></div>
+  </div>`;
 }
 async function wireUzmanTab(){
   const mq = document.getElementById('analizMarqueeWrap'); if (mq) mq.style.display = 'none';
