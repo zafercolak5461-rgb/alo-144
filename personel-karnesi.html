@@ -6936,7 +6936,8 @@ function renderGenelTab(){
   }).join('');
 
   return `
-    <div id="kisiDonemWrap" style="margin-bottom:22px;"><div class="anz-bos">Son 6 ayın performans analizi yükleniyor…</div></div>
+    <div id="kisiAralikBar" class="anz-secici" style="margin-bottom:12px; display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;"></div>
+    <div id="kisiDonemWrap" style="margin-bottom:22px;"><div class="anz-bos">Performans analizi yükleniyor…</div></div>
     <div class="anz-alt-baslik" style="margin:6px 0 10px;">Karne — yıllık özet</div>
     <div class="gd-grid">${cardsHtml}</div>
 
@@ -10080,12 +10081,34 @@ function wireAnalizTab(){
 // ===== Kişi sekmeleri: son 6 ay analizi (Genel Değerlendirme üstü) ve takım geçmişi (Personel Bilgileri) =====
 // Analiz/Personel Sunum ile aynı hesaplar. Veri ANZ_CACHE ile paylaşılır.
 let KISI_AYLAR = null;
+// Kişi analizi aralığı (23.11.2026): null = son 6 ay. Seçim sekmeler ve kişiler arasında korunur.
+const KISI_ARALIK = { start: null, end: null };
+function kisiAralikHesap(){
+  const enYeni = KISI_AYLAR[0], enEski = KISI_AYLAR[KISI_AYLAR.length - 1];
+  let end = KISI_ARALIK.end !== null && KISI_AYLAR.includes(KISI_ARALIK.end) ? KISI_ARALIK.end : enYeni;
+  let start = KISI_ARALIK.start !== null && KISI_AYLAR.includes(KISI_ARALIK.start) ? KISI_ARALIK.start : Math.max(end - 5, enEski);
+  if (start > end){ const x = start; start = end; end = x; }
+  return { start, end };
+}
+function kisiAralikBarCiz(start, end){
+  const el = document.getElementById('kisiAralikBar');
+  if (!el || !KISI_AYLAR) return;
+  const opt = sel => KISI_AYLAR.map(a => `<option value="${a}" ${a === sel ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
+  const varsayilan = KISI_ARALIK.start === null && KISI_ARALIK.end === null;
+  el.innerHTML = `<div><div class="search-label">Başlangıç</div><select class="search" id="kisiAralikBas">${opt(start)}</select></div>` +
+    `<div><div class="search-label">Bitiş</div><select class="search" id="kisiAralikBit">${opt(end)}</select></div>` +
+    `<button class="refresh-btn anz-sec ${varsayilan ? 'anz-sec-on' : ''}" id="kisiAralikSon6">Son 6 ay</button>`;
+  const yenile = () => { const el2 = document.getElementById('kisiDonemWrap'); if (el2) el2.innerHTML = '<div class="anz-bos">Performans analizi yükleniyor…</div>'; kisiSekmeDoldur(); };
+  document.getElementById('kisiAralikBas').onchange = e => { KISI_ARALIK.start = +e.target.value; KISI_ARALIK.end = +document.getElementById('kisiAralikBit').value; yenile(); };
+  document.getElementById('kisiAralikBit').onchange = e => { KISI_ARALIK.end = +e.target.value; KISI_ARALIK.start = +document.getElementById('kisiAralikBas').value; yenile(); };
+  document.getElementById('kisiAralikSon6').onclick = () => { KISI_ARALIK.start = null; KISI_ARALIK.end = null; yenile(); };
+}
 async function kisiVeriAl(){
   if (!KISI_AYLAR){
     if (typeof ANZ !== 'undefined' && ANZ.aylar) KISI_AYLAR = ANZ.aylar;
     else { const t = await asFetchTabTitles(PERF_SHEET_ID); KISI_AYLAR = t.map(asParseKey).filter(a => a !== null).sort((a, b) => b - a); }
   }
-  const end = KISI_AYLAR[0], start = Math.max(end - 5, KISI_AYLAR[KISI_AYLAR.length - 1]);
+  const { start, end } = kisiAralikHesap();
   const key = `${start}|${end}`;
   if (ANZ_CACHE.has(key)) return { D: ANZ_CACHE.get(key), start, end };
   const D = await asLoadAll(end, null, start);
@@ -10102,7 +10125,8 @@ function kisiDonemHtml(D, sicil, aylar){
   aylar.forEach(a => { R[a] = asKisiKayit(D, a, sicil); LOK[a] = asMonthStats(D, a, { tip: 'lokasyon' }); TK[a] = asTakimOf(D, a, sicil); TAK[a] = TK[a] ? asMonthStats(D, a, { tip: 'takim', lider: TK[a] }) : null; });
   const gec = a => R[a] && !R[a].durum && R[a].tutarli;
   const gAy = aylar.filter(gec);
-  if (!gAy.length) return anzCard('📈 Son 6 ay', `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])} arasında bu kişiye ait değerlendirilmiş performans kaydı yok.`, '', 'OSMANİYE-PERFORMANS.', '');
+  const donemAd = `${asShort(aylar[0])} – ${asShort(aylar[aylar.length - 1])}`;
+  if (!gAy.length) return anzCard(`📈 ${donemAd}`, `${asLabelOf(aylar[0])} – ${asLabelOf(aylar[aylar.length - 1])} arasında bu kişiye ait değerlendirilmiş performans kaydı yok.`, '', 'OSMANİYE-PERFORMANS.', '');
   const son = gAy[gAy.length - 1], onc = gAy.length > 1 ? gAy[gAy.length - 2] : undefined;
   const puanP = D.olcek.params.filter(p => p.tur === 'PUAN'), kesP = D.olcek.params.filter(p => p.tur === 'KESİNTİ');
   const durum = a => R[a] ? (R[a].durum || (!R[a].tutarli ? 'tutmuyor' : '')) : 'kayıt yok';
@@ -10120,7 +10144,7 @@ function kisiDonemHtml(D, sicil, aylar){
       satir('Lokasyonda sıra', a => anzTd(gec(a) ? `${asSira(LOK[a], R[a].puan)}/${LOK[a].n}` : '—')),
       satir('Takımda sıra', a => anzTd(gec(a) && TAK[a] ? `${asSira(TAK[a], R[a].puan)}/${TAK[a].n}` : '—')),
     ];
-    html += anzCard('📈 Son 6 ay', sonuc, anzTable([{ t: 'Gösterge', al: 'left' }].concat(ay), rows), 'OSMANİYE-PERFORMANS; VARDİYA.', 'Takım = kişinin o ay VARDİYA\'da bağlı olduğu takım. Sıra: aynı puanlılar aynı sırayı alır.');
+    html += anzCard(`📈 ${donemAd}`, sonuc, anzTable([{ t: 'Gösterge', al: 'left' }].concat(ay), rows), 'OSMANİYE-PERFORMANS; VARDİYA.', 'Takım = kişinin o ay VARDİYA\'da bağlı olduğu takım. Sıra: aynı puanlılar aynı sırayı alır.');
   }
   {
     const r = R[son], o = onc !== undefined ? R[onc] : null;
@@ -10157,7 +10181,7 @@ function kisiDonemHtml(D, sicil, aylar){
       const ygT = anzTable([{ t: 'Tür', al: 'left' }, { t: 'Denk gelen / toplam' }, { t: 'Tarihler', al: 'left' }], [r, y].map(t => ({ cells: [anzTd(`<b>${t.ad}</b>`, { al: 'left' }), anzTd(`${t.yogun.length} / ${t.gunler.length}`), anzTd(t.yogun.length ? t.yogun.map(asTarihKisa).join(', ') : '—', { al: 'left', st: 'font-size:12px;' })] })));
       const ra = r.analiz;
       const bitT = ra && ra.bitisikOlaylar.length ? `<div class="anz-alt-baslik" style="margin-top:12px;${ra.kopru ? ' color:var(--danger);' : ''}">Tatile bitişik kısa raporlar (${ra.bitisikN} / ${ra.kisaN}; beklenen %${Math.round(ra.beklenenPay * 100)})</div><div style="font-size:12.5px;">${ra.bitisikOlaylar.map(asOlayMetin).join(', ')}</div>` : '';
-      html += anzCard('📅 Rapor ve izin deseni (son 6 ay)', `${anzEsc(asDesenCumle(r))}. ${anzEsc(asDesenCumle(y))}.`,
+      html += anzCard(`📅 Rapor ve izin deseni (${donemAd})`, `${anzEsc(asDesenCumle(r))}. ${anzEsc(asDesenCumle(y))}.`,
         `<div class="anz-iki"><div><div class="anz-alt-baslik">Haftanın günlerine göre</div>${gunT}</div><div><div class="anz-alt-baslik">Ayın haftalarına göre</div>${hafT}</div></div>${bitT}<div class="anz-alt-baslik" style="margin-top:12px;">Yoğun çağrı günlerine denk gelenler</div>${ygT}`,
         'VARDİYA ay sekmeleri; Alo 144 Genel Çağrı Raporu; İZİN HARİTASI AYARLARI.', `Kırmızı = kısa raporlarda öne çıkan gün / belirgin tatile bitişiklik. ${asRaporTanim(D)} Yoğun gün = gelen çağrı, o ayın çağrı alınan günlerinin ortalamasının %${asFmt(D.izinAyar.esik, 0)} üstünde. Dashboard İzin Haritası ile aynı tanımlar. Desen bir eğilimdir, tek başına kanıt değildir.`);
     }
@@ -10171,6 +10195,7 @@ async function kisiSekmeDoldur(){
     const { D, start, end } = await kisiVeriAl();
     if (sicil !== selectedSicil || sekme !== selectedLeftTab) return; // bu arada başka kişi/sekme seçildi
     const aylar = []; for (let a = start; a <= end; a++) aylar.push(a);
+    if (sekme === 'genel') kisiAralikBarCiz(start, end);
     if (sekme === 'bilgiler'){ const el = document.getElementById('kisiTakimGecmisi'); if (el) el.textContent = 'VARDİYA: ' + kisiTakimGecmisi(D, sicil, aylar); }
     if (sekme === 'genel'){ const el = document.getElementById('kisiDonemWrap'); if (el) el.innerHTML = kisiDonemHtml(D, sicil, aylar); }
   } catch (e){
