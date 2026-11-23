@@ -4971,11 +4971,10 @@ function wkListData(){
     if (to && p.start > to) continue;
     const partner = wkPartner(periods, i);
     const ekler = [];
-    if (p.inProgress) ekler.push('devam ediyor');
-    if (partner.forcePerday && WK_LIST_MODE === 'total') ekler.push('sayılar gün ort.');
-    if (p.tur === 'ay' && p.inProgress && partner.prev) ekler.push(`${partner.cur.etiket} ↔ ${partner.prev.etiket}`);
+    if (p.inProgress) ekler.push('devam');
+    if (partner.forcePerday && WK_LIST_MODE === 'total') ekler.push('gün ort.');
     satirlar.push({
-      etiket: wkLabel(p) + (ekler.length ? ` (${ekler.join('; ')})` : ''),
+      etiket: wkLabel(p) + (ekler.length ? ` (${ekler.join(', ')})` : ''),
       gun: p.days,
       hucreler: COLUMN_DEFS.map(def => {
         const mode = (def.agg === 'sum' && partner.forcePerday) ? 'perday' : WK_LIST_MODE;
@@ -4996,13 +4995,10 @@ function wkXlListeSayfasi(wb){
   const s = wkXlSayfa(wb, ay ? 'Tüm Aylar' : 'Tüm Haftalar');
   const ws = s.ws;
   const tr = d => d.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' });
-  const aralik = (L.from || L.to)
-    ? `Aralık: ${L.from ? tr(L.from) : 'ilk veri'} – ${L.to ? tr(L.to) : 'son veri'}`
-    : `Aralık: seçilmedi (tüm ${ay ? 'aylar' : 'haftalar'})`;
-  const modAd = WK_LIST_MODE === 'perday' ? 'İş günü ortalaması' : 'Toplam';
-  s.baslikSatiri(1, `ALO 144 — Tüm ${ay ? 'Aylar' : 'Haftalar'}`, `${aralik} · ${modAd} · ${L.satirlar.length} ${ay ? 'ay' : 'hafta'}`);
+  const aralik = (L.from || L.to) ? ` (${L.from ? tr(L.from) : ''} – ${L.to ? tr(L.to) : ''})` : '';
+  s.baslikSatiri(1, `ALO 144 — Tüm ${ay ? 'Aylar' : 'Haftalar'}${aralik}`);
 
-  const r1 = 4, r2 = 5;
+  const r1 = 3, r2 = 4;
   ws.getColumn(1).width = ay ? 26 : 30; ws.getColumn(2).width = 8;
   s.basBirles(r1, 1, r2, 1, ay ? 'AY' : 'HAFTA', { yatay:'left' });
   s.basBirles(r1, 2, r2, 2, 'İŞ GÜNÜ');
@@ -5026,9 +5022,6 @@ function wkXlListeSayfasi(wb){
       s.yuzde(r, c + 2, h.yuzde, h.yon);
     });
   });
-  if (!L.satirlar.length){ r++; s.not(r, `Seçilen aralıkta ${ay ? 'ay' : 'hafta'} yok.`); }
-  r += 2;
-  s.not(r, 'Fark ve % her satırda bir önceki döneme göredir. Oran ve süre sütunları günlük değerlerin ortalamasıdır; yüzde sütunlarında fark "puan" olarak verilir.');
   ws.views = [{ state:'frozen', xSplit:2, ySplit:r2, showGridLines:false }];
 }
 
@@ -5042,7 +5035,7 @@ async function wkExcel(){
 
   if (d.kind === 'gun'){
     // A: Tarih; her metrik için iki sütun: değer + bir önceki iş gününe göre değişim yüzdesi
-    s.baslikSatiri(1, d.baslik);
+    s.baslikSatiri(1, 'ALO 144 — Günlük Karşılaştırma');
     ws.getColumn(1).width = 18;
     s.basBirles(3, 1, 4, 1, 'TARİH', { yatay:'left' });
     d.defs.forEach((def, k) => {
@@ -5085,9 +5078,6 @@ async function wkExcel(){
       s.yuzde(r, 5, x.yuzde, yon);
     });
   }
-  r++;
-  d.notlar.forEach(n => { r++; s.not(r, n); });
-
   if (d.kind !== 'gun') wkXlListeSayfasi(wb);
 
   const buf = await wb.xlsx.writeBuffer();
