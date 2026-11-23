@@ -3176,7 +3176,9 @@ function computeColumnDefs(HEADERS, ALL_ROWS, options){
     gelen: findCol(['gelen']),
     cevap: findCol(['cevaplanan']),
     kacan: findCol(['kaçan','kacan']),
-    sla: findCol(['sla']),
+    // SL sütunu: başlık "SL", "SL %" ya da "SLA" olabilir. "sl" kısa olduğu için başka başlıkların içinde
+    // aranmaz; başlığın kendisi SL olmalı (Gelen Arama Dağılımı'nda başlık "SL").
+    sla: HEADERS.findIndex(h => { const t = String(h || '').trim().toLocaleLowerCase('tr'); return t === 'sl' || t === 'sla' || /^sla?\s*%$/.test(t) || t.includes('sla'); }),
     ach: findCol(['ach','aht']),
     talep: findCol(['talep']),
     kopuk: kopukOranIdx >= 0 ? kopukOranIdx : findCol(['köpük','kopuk']),
@@ -5151,10 +5153,7 @@ const wkChart = createSlotChartPanel({
   selectorsId: 'wkCh-selectors',
   canvasId: 'wkCh-canvas',
   getContext: wkChartContext,
-  // Not: başlık "SL" olduğunda ortak COL.sla ('sla' arar) bulamıyor; burada başlığın tam "SL" olması da kabul edilir.
-  getDefaultMetricKeys: () => [COL.gelen, COL.cevap, COL.kacan,
-    COL.sla >= 0 ? COL.sla : HEADERS.findIndex(h => String(h || '').trim().toLocaleUpperCase('tr') === 'SL'),
-    COL.ach].filter(i => i >= 0),
+  getDefaultMetricKeys: () => [COL.gelen, COL.cevap, COL.kacan, COL.sla, COL.ach].filter(i => i >= 0),
   forceMultiDefault: true,
   defaultTypes: ['bar', 'bar', 'line', 'line', 'line']
 });
