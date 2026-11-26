@@ -11424,8 +11424,10 @@ function kqXlStil(c, o){ o = o || {}; c.font = { name: 'Arial', size: 10, bold: 
 function kqXlKkoKosul(ws, ref, D, ay){
   let b = D.olcek ? asBandsFor(D.olcek, 'KKO', ay) : []; if (!b.length) b = [{ lo: 97 }, { lo: 91 }, { lo: 85 }];
   const r = [KQ_XL_RENK.yesil, KQ_XL_RENK.mavi, KQ_XL_RENK.turuncu];
-  const kurallar = b.slice(0, 3).map((x, i) => ({ type: 'cellIs', operator: 'greaterThanOrEqual', formulae: [String(x.lo)], priority: i + 1, stopIfTrue: true, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: r[i] } } } }));
-  kurallar.push({ type: 'cellIs', operator: 'lessThan', formulae: [String(b[Math.min(2, b.length - 1)].lo)], priority: 4, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.kirmizi } } } });
+  // Yalnız sayı olan hücre boyanır (Excel boş metni "" her sayıdan büyük sayar)
+  const sol = ref.split(':')[0], sayi = `ISNUMBER(${sol})`;
+  const kurallar = b.slice(0, 3).map((x, i) => ({ type: 'expression', formulae: [`AND(${sayi},${sol}>=${x.lo})`], priority: i + 1, stopIfTrue: true, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: r[i] } } } }));
+  kurallar.push({ type: 'expression', formulae: [`AND(${sayi},${sol}<${b[Math.min(2, b.length - 1)].lo})`], priority: 4, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.kirmizi } } } });
   ws.addConditionalFormatting({ ref, rules: kurallar });
 }
 async function kqKisiExcel(D, sicil, aylar, H){
@@ -11537,6 +11539,17 @@ async function kqDegExcel(D, ev, aylar){
   await kqXlIndir(wb, `${ev} Değerlendirici Kartı.xlsx`);
 }
 async function kqXlIndir(wb, ad){
+  // Başlık ve altındaki açıklama satırı: tablonun genişliğince birleştir ve ortala
+  wb.worksheets.forEach(ws => {
+    let son = 1; ws.eachRow(row => row.eachCell(c => { if (c.row > 2 && c.col > son) son = c.col; }));
+    [1, 2].forEach(r => {
+      const c = ws.getCell(r, 1); if (c.value === null || c.value === undefined || c.value === '') return;
+      for (let j = 2; j <= son; j++){ const v = ws.getCell(r, j).value; if (v !== null && v !== undefined && v !== '') return; }
+      if (son > 1) ws.mergeCells(r, 1, r, son);
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+      if (r === 1) ws.getRow(1).height = 22;
+    });
+  });
   const buf = await wb.xlsx.writeBuffer();
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = ad; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
