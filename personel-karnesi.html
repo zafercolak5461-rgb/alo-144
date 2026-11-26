@@ -10850,10 +10850,11 @@ function kqAralik(D){
   KQ.bas = bas; KQ.bit = bit;
   return A.filter(a => a >= bas && a <= bit);
 }
-function kqSecici(D){
+function kqSecici(D, ek){ // ek: aynı sayfadaki ikinci seçicinin id son eki (ikisi de KQ.bas/KQ.bit'i kullanır)
+  ek = ek || '';
   const opt = sel => D.aylar.slice().reverse().map(a => `<option value="${a}" ${a === sel ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
-  return `<div><div class="search-label">Başlangıç ayı</div><select class="search" id="kqBas">${opt(KQ.bas)}</select></div>
-    <div><div class="search-label">Bitiş ayı</div><select class="search" id="kqBit">${opt(KQ.bit)}</select></div>`;
+  return `<div><div class="search-label">Başlangıç ayı</div><select class="search" id="kqBas${ek}">${opt(KQ.bas)}</select></div>
+    <div><div class="search-label">Bitiş ayı</div><select class="search" id="kqBit${ek}">${opt(KQ.bit)}</select></div>`;
 }
 const KQ_CSS = `<style>
 .kq-tb{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12.5px;}
@@ -11181,7 +11182,7 @@ function renderKaliteOzetTab(){
       <select class="search" id="kqEgGrup" style="max-width:200px;"><option value="K">Kalite ekibi</option><option value="T">Takım liderleri</option></select>
       <button class="refresh-btn" id="kqTumu">Tümünü aç</button></div><div id="kqEgilim"></div>
     <div style="display:flex;align-items:center;gap:10px;margin:22px 0 4px;flex-wrap:wrap;"><div style="font-weight:700;">3) Sıfırlanan çağrılar</div>
-      <select class="search" id="kqSifFiltre" style="max-width:260px;"></select></div><div id="kqSif"></div></div>`;
+      <select class="search" id="kqSifFiltre" style="max-width:260px;"></select><span id="kqSeciciAlan2" style="margin-left:auto;"></span></div><div id="kqSif"></div></div>`;
 }
 function wireKaliteOzetTab(){
   kqYuklemeBagla();
@@ -11208,6 +11209,8 @@ function wireKaliteOzetTab(){
       const aylar = kqAralik(D);
       document.getElementById('kqSeciciAlan').innerHTML = `<span style="display:inline-flex;gap:10px;">${kqSecici(D)}</span>`;
       ['kqBas', 'kqBit'].forEach(id => document.getElementById(id).onchange = e => { KQ[id === 'kqBas' ? 'bas' : 'bit'] = +e.target.value; ciz(); });
+      document.getElementById('kqSeciciAlan2').innerHTML = `<span style="display:inline-flex;gap:10px;">${kqSecici(D, '2')}</span>`;
+      ['kqBas2', 'kqBit2'].forEach(id => document.getElementById(id).onchange = e => { KQ[id === 'kqBas2' ? 'bas' : 'bit'] = +e.target.value; const y = window.scrollY; ciz(); window.scrollTo(0, y); });
       document.getElementById('kqOzet').innerHTML = kqOzetTablo(D, aylar);
       const g = document.getElementById('kqEgGrup'); g.value = KQ.egGrup; g.onchange = e => { KQ.egGrup = e.target.value; egCiz(aylar); };
       egCiz(aylar); sifCiz(aylar);
