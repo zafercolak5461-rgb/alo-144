@@ -468,6 +468,7 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
           <button class="refresh-btn" id="exportModeIzinBtn">Personel Yıllık İzin</button>
           <button class="refresh-btn" id="exportModeOzelBtn">Excel Veri Oluşturma</button>
           <button class="refresh-btn" id="exportModeTleBtn">Takım Lideri Etkisi</button>
+          <button class="refresh-btn" id="exportModeParamBtn">Parametre Tablosu</button>
         </div>
         <div id="exportKarneSection">
           <div style="display:flex; gap:8px; margin-bottom:14px;">
@@ -511,6 +512,18 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
           </div>
           <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:12.5px; cursor:pointer;"><input type="checkbox" id="exportTleSadece"> <span>Yalnız takım lideri değişenler</span></label>
           <button class="refresh-btn" id="tleBosSablonBtn">📥 Boş Şablon İndir (Sadece Başlıklar)</button>
+        </div>
+        <div id="exportParamSection" style="display:none;">
+          <p class="hint" style="font-size:13px; line-height:1.6; margin:0 0 14px 0;">Seçtiğin her parametre için iki sayfa: Takım Lideri × Ay ve Personel × Ay (Genel Ortalama ile). Kaynak: OSMANİYE-PERFORMANS ay sekmeleri; takım lideri o ayın VARDİYA "Takım" sütunundan, eşleştirme Sicil ile. Değerler formülle "Kaynak Veri" sayfasından hesaplanır.</p>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+            <div><div class="search-label">Başlangıç ayı</div><select class="search" id="exportParamA" style="width:auto; padding:6px 10px;"><option value="">Yükleniyor…</option></select></div>
+            <div><div class="search-label">Bitiş ayı</div><select class="search" id="exportParamB" style="width:auto; padding:6px 10px;"><option value="">Yükleniyor…</option></select></div>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button class="refresh-btn" id="exportParamSelectAllBtn">Tümünü Seç</button>
+            <button class="refresh-btn" id="exportParamClearBtn">Temizle</button>
+          </div>
+          <div id="exportParamChecklist"><div class="hint">Yükleniyor…</div></div>
         </div>
         <div id="exportSablonSection" style="display:none;" class="formatpanel-only">
           <div class="search-label" style="border-top:1px solid var(--line); padding-top:14px;">Biçimlendirme Şablonu (Sadece Süper Yetkili) — <span id="exportSablonHedefAdi"></span></div>
@@ -3131,7 +3144,7 @@ async function exportSelectedMetricsToExcel(selectedKeys){
 // --- Modal aç/kapa + seçim mantığı ---
 const exportModalOverlay = document.getElementById('exportModalOverlay');
 const exportMetricChecklist = document.getElementById('exportMetricChecklist');
-let exportMode = 'karne'; // 'karne' | 'izin' | 'ozel' | 'tletki'
+let exportMode = 'karne'; // 'karne' | 'izin' | 'ozel' | 'tletki' | 'param'
 
 function setExportMode(mode){
   exportMode = mode;
@@ -3143,6 +3156,9 @@ function setExportMode(mode){
   izinBtn.style.cssText = mode === 'izin' ? activeStyle : '';
   ozelBtn.style.cssText = mode === 'ozel' ? activeStyle : '';
   document.getElementById('exportModeTleBtn').style.cssText = mode === 'tletki' ? activeStyle : '';
+  document.getElementById('exportModeParamBtn').style.cssText = mode === 'param' ? activeStyle : '';
+  document.getElementById('exportParamSection').style.display = mode === 'param' ? '' : 'none';
+  if (mode === 'param') ptExportHazirla();
   document.getElementById('exportTleSection').style.display = mode === 'tletki' ? '' : 'none';
   if (mode === 'tletki') tleExportAylariDoldur();
   document.getElementById('exportKarneSection').style.display = mode === 'karne' ? '' : 'none';
@@ -3214,6 +3230,9 @@ document.getElementById('exportModeKarneBtn').addEventListener('click', () => se
 document.getElementById('exportModeIzinBtn').addEventListener('click', () => setExportMode('izin'));
 document.getElementById('exportModeOzelBtn').addEventListener('click', () => setExportMode('ozel'));
 document.getElementById('exportModeTleBtn').addEventListener('click', () => setExportMode('tletki'));
+document.getElementById('exportModeParamBtn').addEventListener('click', () => setExportMode('param'));
+document.getElementById('exportParamSelectAllBtn').addEventListener('click', () => document.querySelectorAll('#exportParamChecklist input[type=checkbox]').forEach(cb => cb.checked = true));
+document.getElementById('exportParamClearBtn').addEventListener('click', () => document.querySelectorAll('#exportParamChecklist input[type=checkbox]').forEach(cb => cb.checked = false));
 
 document.getElementById('ozelAddColumnBtn').addEventListener('click', () => {
   ozelColumns.push({ id: ozelNextId(ozelColumns), kaynak: null, headerKey: null });
@@ -3466,6 +3485,197 @@ async function tleExportAylariDoldur(){
     a.innerHTML = opt(A); b.innerHTML = opt(B);
   } catch (e){ a.innerHTML = b.innerHTML = '<option value="">Ay listesi okunamadı</option>'; }
 }
+// ===== Excel'e Aktar > "Parametre Tablosu" (26.11.2026) =====
+// Seçilen her parametre (OSMANİYE-PERFORMANS ay sekmelerinin başlıkları) için iki sayfa:
+// Takım Lideri × Ay ve Personel × Ay. Takım = o ayın VARDİYA "Takım" sütunu; eşleştirme Sicil ile.
+// Hücreler formülle "Kaynak Veri" sayfasından hesaplanır (Excel'de nasıl hesaplandığı görünsün).
+// Ortalama/toplam türü Karne'nin genel kuralından (inferAgg) gelir; takım lideri satırı her zaman kişi başı ortalamadır.
+// Ortalama türü parametrelerde (Anket, KKO, Performans) 0 = değerlendirme yok sayılır; metin değerler (Rapor, Doğum İzni, Eğitim…) alınmaz.
+const PT = { basliklar: null, cizildi: false };
+function ptBicim(h){
+  const H = asUp(h);
+  const ort = inferAgg(H) === 'avg';
+  return { ort, fmt: H.includes('ANKET') ? '0.000' : (ort ? '0.0' : null) };
+}
+function ptEsc(s){ return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+async function ptExportHazirla(){
+  const a = document.getElementById('exportParamA'), b = document.getElementById('exportParamB'), box = document.getElementById('exportParamChecklist');
+  try {
+    const ay = await tleAyListesi(); // yeniden eskiye
+    if (a.options.length <= 1){
+      const opt = sel => ay.map(x => `<option value="${x}" ${x === sel ? 'selected' : ''}>${asLabelOf(x)}</option>`).join('');
+      const B0 = ay[0];
+      const A0 = ay.filter(x => x >= B0 - 7).pop();
+      a.innerHTML = opt(A0); b.innerHTML = opt(B0);
+    }
+    if (!PT.basliklar){
+      const rows = await asFetchValues(PERF_SHEET_ID, `'${asKeyOf(ay[0])}'!A1:Z500`) || [];
+      const h = rows[0] || [];
+      PT.basliklar = h.map((x, i) => ({ i, ad: String(x == null ? '' : x).trim() }))
+        .filter(x => x.i >= 2 && x.ad && !asUp(x.ad).includes('ÇARPAN') && rows.slice(1).some(r => asNum(r[x.i]) !== null))
+        .map(x => x.ad);
+    }
+    if (!PT.cizildi){
+      box.innerHTML = PT.basliklar.length
+        ? PT.basliklar.map(h => `<label class="modal-check-item"><input type="checkbox" value="${ptEsc(h)}" ${asUp(h).includes('ANKET') ? 'checked' : ''}> ${ptEsc(h)}</label>`).join('')
+        : '<div class="hint">Performans tablosunda parametre bulunamadı.</div>';
+      PT.cizildi = !!PT.basliklar.length;
+    }
+  } catch (e){ box.innerHTML = `<div class="hint">Okunamadı: ${ptEsc(e.message)}</div>`; }
+}
+async function exportParamTabloToExcel(A, B, params){
+  const btn = document.getElementById('openExportModalBtn');
+  const eski = btn ? btn.textContent : '';
+  try {
+    if (btn){ btn.textContent = '⏳ Hazırlanıyor…'; btn.disabled = true; }
+    const [pT, vT] = await Promise.all([asFetchTabTitles(PERF_SHEET_ID), asFetchTabTitles(VARDIYA_SHEET_ID)]);
+    const pKey = new Map(pT.map(t => [asParseKey(t), t])), vKey = new Map(vT.map(t => [asParseKey(t), t]));
+    const aylar = []; for (let x = A; x <= B; x++) if (pKey.has(x)) aylar.push(x);
+    if (!aylar.length) throw new Error('Seçilen aralıkta performans sekmesi yok.');
+    const tekYil = Math.floor(A / 12) === Math.floor(B / 12);
+    const ayAd = x => tekYil ? TR_MONTHS_UPPER[x % 12] : `${TR_MONTHS_UPPER[x % 12]} ${Math.floor(x / 12)}`;
+    const donem = A === B ? `${Math.floor(A / 12)} ${TR_MONTHS_UPPER[A % 12]}`
+      : tekYil ? `${Math.floor(A / 12)} ${TR_MONTHS_UPPER[A % 12]}-${TR_MONTHS_UPPER[B % 12]}`
+      : `${TR_MONTHS_UPPER[A % 12]} ${Math.floor(A / 12)}-${TR_MONTHS_UPPER[B % 12]} ${Math.floor(B / 12)}`;
+
+    const veri = await Promise.all(aylar.map(async x => {
+      const [p, v] = await Promise.all([
+        asFetchValues(PERF_SHEET_ID, `'${pKey.get(x)}'!A1:Z500`),
+        vKey.has(x) ? asFetchValues(VARDIYA_SHEET_ID, `'${vKey.get(x)}'!A1:C1000`) : Promise.resolve(null),
+      ]);
+      return { x, p, v };
+    }));
+    const adlar = new Map(), kayit = new Map(), eksikTakim = new Set();
+    veri.forEach(({ x, p, v }) => {
+      const tl = new Map();
+      if (v && v.length > 1){
+        const h = v[0].map(asUp);
+        const si = h.findIndex(c => c.includes('SİCİL')), ai = h.indexOf('PERSONEL'), ti = h.indexOf('TAKIM');
+        v.slice(1).forEach(r => {
+          const s = String(r[si] == null ? '' : r[si]).trim(); if (!s) return;
+          if (ti > -1) tl.set(s, asUp(r[ti]));
+          if (ai > -1 && r[ai]) adlar.set(s, asUp(r[ai]));
+        });
+      }
+      if (!p || p.length < 2) return;
+      const h = p[0].map(asUp);
+      const si = h.findIndex(c => c.includes('SİCİL'));
+      const idx = params.map(pr => h.indexOf(asUp(pr)));
+      p.slice(1).forEach(r => {
+        const s = String(r[si] == null ? '' : r[si]).trim(); if (!/^\d+$/.test(s)) return;
+        if (!adlar.has(s) && r[1]) adlar.set(s, asUp(r[1]));
+        const k = `${x}|${s}`;
+        let o = kayit.get(k);
+        if (!o){ o = { x, sicil: s, tl: tl.get(s) || '', deg: {} }; kayit.set(k, o); }
+        params.forEach((pr, j) => {
+          if (idx[j] < 0) return;
+          const n = asNum(r[idx[j]]);
+          if (n === null || (ptBicim(pr).ort && n === 0)) return;
+          if (o.deg[pr] === undefined) o.deg[pr] = n;
+        });
+      });
+    });
+    const ad = s => adlar.get(s) || s;
+    const satirlar = [...kayit.values()].filter(o => Object.keys(o.deg).length)
+      .sort((a, b) => a.x - b.x || ad(a.sicil).localeCompare(ad(b.sicil), 'tr'));
+    if (!satirlar.length) throw new Error('Seçilen parametre ve aylarda sayısal değer bulunamadı.');
+    satirlar.forEach(o => { if (!o.tl) eksikTakim.add(`${ad(o.sicil)} (${asLabelOf(o.x)})`); });
+
+    const NAVY = 'FF0B2265', FONT = 'Arial';
+    const siyah = { style: 'thin', color: { argb: 'FF000000' } }, beyaz = { style: 'thin', color: { argb: 'FFFFFFFF' } };
+    const KENAR = { top: siyah, left: siyah, bottom: siyah, right: siyah }, BKENAR = { top: beyaz, left: beyaz, bottom: beyaz, right: beyaz };
+    const lacivert = (c, v, o) => { o = o || {}; if (v !== undefined) c.value = v; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } }; c.font = { name: FONT, bold: true, size: o.size || 11, color: { argb: 'FFFFFFFF' } }; c.alignment = { horizontal: o.sol ? 'left' : 'center', vertical: 'middle' }; c.border = BKENAR; };
+    const hucre = (c, formula, result, fmt) => { c.value = { formula, result: result === null ? '' : result }; c.font = { name: FONT, bold: true, size: 11 }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = KENAR; if (fmt) c.numFmt = fmt; };
+    const kol = n => { let s = ''; n++; while (n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }; // 0 tabanlı
+    const ortala = arr => { const c = arr.filter(v => v !== null && v !== undefined); return c.length ? c.reduce((a, b) => a + b, 0) / c.length : null; };
+    const sayfaOpts = (frz) => ({ views: [{ showGridLines: false, state: 'frozen', xSplit: frz.x, ySplit: frz.y }], pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Zafer Çolak'; wb.lastModifiedBy = 'Zafer Çolak'; wb.created = new Date();
+    const KS = 'Kaynak Veri', N = satirlar.length + 1;
+    const kAralik = j => `'${KS}'!$${kol(j)}$2:$${kol(j)}$${N}`;
+    const kullanilan = new Set();
+    const sayfaAdi = t => { let n = t.replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31).trim(); let i = 2; while (kullanilan.has(n)) n = `${t.slice(0, 27)} ${i++}`; kullanilan.add(n); return n; };
+
+    params.forEach((pr, j) => {
+      const b = ptBicim(pr), PR = asUp(pr), kCol = 4 + j;
+      const vals = satirlar.filter(o => o.deg[pr] !== undefined);
+      if (!vals.length) return;
+      const kisa = PR.replace(/\s*DEĞERLENDİRMESİ$/, '').slice(0, 20);
+      const nAy = aylar.length;
+
+      // --- Takım Lideri ---
+      const tls = [...new Set(vals.map(o => o.tl).filter(Boolean))].sort((a, c) => a.localeCompare(c, 'tr'));
+      const ws = wb.addWorksheet(sayfaAdi(`${kisa} - TL`), sayfaOpts({ x: 1, y: 2 }));
+      const nc = nAy + 2;
+      ws.mergeCells(1, 1, 1, nc);
+      lacivert(ws.getCell(1, 1), `${donem} TAKIM LİDERİ BAZLI ${kisa} ORTALAMALARI`, { size: 12 });
+      for (let c = 2; c <= nc; c++) lacivert(ws.getCell(1, c));
+      ['TAKIM LİDERİ', ...aylar.map(ayAd), 'Genel Ortalama'].forEach((h, i) => lacivert(ws.getCell(2, i + 1), h));
+      tls.forEach((tl, r) => {
+        const R = r + 3, aylik = [];
+        lacivert(ws.getCell(R, 1), tl, { sol: true });
+        aylar.forEach((x, i) => {
+          const v = ortala(vals.filter(o => o.x === x && o.tl === tl).map(o => o.deg[pr])); aylik.push(v);
+          hucre(ws.getCell(R, i + 2), `IFERROR(AVERAGEIFS(${kAralik(kCol)},${kAralik(3)},$A${R},${kAralik(0)},${kol(i + 1)}$2),"")`, v, b.fmt || '0.0');
+        });
+        hucre(ws.getCell(R, nc), `IFERROR(AVERAGE(B${R}:${kol(nc - 2)}${R}),"")`, ortala(aylik), b.fmt || '0.0');
+      });
+      ws.getRow(1).height = 24; ws.getRow(2).height = 22;
+      ws.columns = [{ width: 30 }, ...aylar.map(() => ({ width: 14 })), { width: 18 }];
+
+      // --- Personel ---
+      const kisiler = [...new Set(vals.map(o => o.sicil))].sort((a, c) => ad(a).localeCompare(ad(c), 'tr'));
+      const wp = wb.addWorksheet(sayfaAdi(`${kisa} - Personel`), sayfaOpts({ x: 2, y: 2 }));
+      const np = nAy + 3, son = b.ort ? 'Genel Ortalama' : 'Toplam';
+      wp.mergeCells(1, 1, 1, np);
+      lacivert(wp.getCell(1, 1), `${donem} VATANDAŞ TEMSİLCİSİ BAZLI ${kisa} ${b.ort ? 'ORTALAMALARI' : 'DEĞERLERİ'}`, { size: 12 });
+      for (let c = 2; c <= np; c++) lacivert(wp.getCell(1, c));
+      ['SİCİL', 'AD SOYAD', ...aylar.map(ayAd), son].forEach((h, i) => lacivert(wp.getCell(2, i + 1), h));
+      kisiler.forEach((s, r) => {
+        const R = r + 3, aylik = [];
+        lacivert(wp.getCell(R, 1), Number(s)); lacivert(wp.getCell(R, 2), ad(s));
+        aylar.forEach((x, i) => {
+          const o = kayit.get(`${x}|${s}`); const v = o && o.deg[pr] !== undefined ? o.deg[pr] : null; aylik.push(v);
+          hucre(wp.getCell(R, i + 3), `IFERROR(AVERAGEIFS(${kAralik(kCol)},${kAralik(1)},$A${R},${kAralik(0)},${kol(i + 2)}$2),"")`, v, b.fmt);
+        });
+        const rng = `C${R}:${kol(np - 2)}${R}`, dolu = aylik.filter(v => v !== null);
+        if (b.ort) hucre(wp.getCell(R, np), `IFERROR(AVERAGE(${rng}),"")`, ortala(aylik), b.fmt);
+        else hucre(wp.getCell(R, np), `IF(COUNT(${rng}),SUM(${rng}),"")`, dolu.length ? dolu.reduce((a, c) => a + c, 0) : null, b.fmt);
+      });
+      wp.getRow(1).height = 24; wp.getRow(2).height = 22;
+      wp.columns = [{ width: 10 }, { width: 34 }, ...aylar.map(() => ({ width: 14 })), { width: 18 }];
+      wp.autoFilter = { from: { row: 2, column: 1 }, to: { row: kisiler.length + 2, column: np } };
+    });
+
+    // --- Kaynak Veri ---
+    const wk = wb.addWorksheet(KS, sayfaOpts({ x: 0, y: 1 }));
+    ['AY', 'SİCİL', 'AD SOYAD', 'TAKIM LİDERİ', ...params.map(asUp)].forEach((h, i) => lacivert(wk.getCell(1, i + 1), h));
+    satirlar.forEach((o, r) => {
+      const row = wk.getRow(r + 2);
+      [ayAd(o.x), Number(o.sicil), ad(o.sicil), o.tl || null, ...params.map(pr => o.deg[pr] === undefined ? null : o.deg[pr])].forEach((v, i) => {
+        const c = row.getCell(i + 1); c.value = v; c.font = { name: FONT, size: 10 }; c.border = KENAR;
+        c.alignment = { horizontal: i === 2 || i === 3 ? 'left' : 'center', vertical: 'middle' };
+        if (i >= 4 && ptBicim(params[i - 4]).fmt) c.numFmt = ptBicim(params[i - 4]).fmt;
+      });
+    });
+    wk.columns = [{ width: 14 }, { width: 10 }, { width: 34 }, { width: 24 }, ...params.map(() => ({ width: 16 }))];
+    wk.autoFilter = { from: { row: 1, column: 1 }, to: { row: N, column: 4 + params.length } };
+
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const dosyaAd = params.length === 1 ? `${donem} ${asUp(params[0]).replace(/\s*DEĞERLENDİRMESİ$/, '')} ORTALAMALARI` : `${donem} PARAMETRE TABLOSU`;
+    a.download = dosyaAd.replace(/[\\\/:*?"<>|]/g, ' ') + '.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    if (eksikTakim.size) alert(`Dosya hazır. ${eksikTakim.size} kayıt o ayın VARDİYA'sında bulunmadığı için takım lideri ortalamasına girmedi (personel sayfasında var):\n` + [...eksikTakim].slice(0, 15).join('\n') + (eksikTakim.size > 15 ? '\n…' : ''));
+  } catch (e){
+    alert('Parametre tablosu hazırlanamadı: ' + e.message);
+    console.error(e);
+  } finally {
+    if (btn){ btn.textContent = eski; btn.disabled = false; }
+  }
+}
 document.getElementById('tleBosSablonBtn').addEventListener('click', () => tleBosSablonIndir());
 document.getElementById('ozelKolonKaydetBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('ozelKolonKaydetStatus');
@@ -3598,6 +3808,17 @@ document.getElementById('exportClearBtn').addEventListener('click', () => {
   exportMetricChecklist.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
 });
 document.getElementById('exportConfirmBtn').addEventListener('click', () => {
+  if (exportMode === 'param'){
+    const A = parseInt(document.getElementById('exportParamA').value, 10), B = parseInt(document.getElementById('exportParamB').value, 10);
+    if (isNaN(A) || isNaN(B)){ alert('Ay listesi henüz yüklenmedi.'); return; }
+    if (A > B){ alert('Başlangıç ayı, bitiş ayından sonra olamaz.'); return; }
+    if (B - A > 23){ alert('En fazla 24 ay seçilebilir.'); return; }
+    const secili = [...document.querySelectorAll('#exportParamChecklist input[type=checkbox]:checked')].map(cb => cb.value);
+    if (!secili.length){ alert('En az bir parametre seçin.'); return; }
+    exportModalOverlay.style.display = 'none';
+    exportParamTabloToExcel(A, B, secili);
+    return;
+  }
   if (exportMode === 'tletki'){
     const A = parseInt(document.getElementById('exportTleA').value, 10), B = parseInt(document.getElementById('exportTleB').value, 10);
     if (isNaN(A) || isNaN(B)){ alert('Ay listesi henüz yüklenmedi.'); return; }
