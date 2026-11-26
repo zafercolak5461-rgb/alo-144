@@ -11348,7 +11348,12 @@ function kqKisiSecenek(D, sicil, ad){
   const kisi = PERSONNEL.slice().sort((a, b) => a.adSoyad.localeCompare(b.adSoyad, 'tr'));
   let h = `<option value="" ${!sicil ? 'selected' : ''}>— Bizim personel değil —</option><option value="__AYR__">Çalışmıyor (ayrıldı)…</option>`;
   if (sicil && !kqCalisiyor(sicil)) h += `<option value="${kqEsc(sicil)}" selected>${kqEsc(kqKisiAd(D, sicil, ad))}${kqSicilGoster(sicil) ? ' (' + kqEsc(sicil) + ')' : ''} · çalışmıyor</option>`;
-  return h + kisi.map(p => `<option value="${kqEsc(p.sicil)}" ${p.sicil === sicil ? 'selected' : ''}>${kqEsc(asUp(p.adSoyad))} (${kqEsc(p.sicil)})</option>`).join('');
+  // Çalışmayanlar da seçilebilir: soyadı değişmiş eski personelin ikinci ismi aynı kişiye bağlanır
+  const ayr = new Map(); D.isimSatir.forEach(x => { if (x.sicil && !kqCalisiyor(x.sicil) && !ayr.has(x.sicil)) ayr.set(x.sicil, kqKisiAd(D, x.sicil, x.ad)); });
+  D.kayit.forEach(k => { if (k.sicil && !kqCalisiyor(k.sicil) && !ayr.has(k.sicil)) ayr.set(k.sicil, kqKisiAd(D, k.sicil, k.ad)); });
+  ayr.delete(sicil);
+  const ayrOpt = [...ayr.entries()].sort((x, y) => x[1].localeCompare(y[1], 'tr')).map(([s, a]) => `<option value="${kqEsc(s)}">${kqEsc(a)}${kqSicilGoster(s) ? ' (' + kqEsc(s) + ')' : ''} · çalışmıyor</option>`).join('');
+  return h + `<optgroup label="Çalışan personel">` + kisi.map(p => `<option value="${kqEsc(p.sicil)}" ${p.sicil === sicil ? 'selected' : ''}>${kqEsc(asUp(p.adSoyad))} (${kqEsc(p.sicil)})</option>`).join('') + `</optgroup>` + (ayrOpt ? `<optgroup label="Çalışmayanlar">${ayrOpt}</optgroup>` : '');
 }
 function renderKaliteEsleTab(){
   return `<div class="topbar"><div class="topbar-left"><div><div class="eyebrow">ALO 144 · ÇAĞRI KALİTESİ</div><h1>Eşleştirme</h1></div></div></div>` + KQ_CSS +
