@@ -11371,7 +11371,7 @@ function renderKaliteEsleTab(){
 }
 function wireKaliteEsleTab(){
   const durumYaz = (t, hata) => { const el = document.getElementById('kqEsDurumYazi'); if (el){ el.textContent = t; el.style.color = hata ? 'var(--red,#dc2626)' : ''; } };
-  const yenile = () => { KQ.D = null; KQ_SHEET_IDS = null; if (selectedLeftTab === 'kaliteesle') wireKaliteEsleTab(); };
+  const yenile = () => { KQ.D = null; KQ_SHEET_IDS = null; asHafizaTemizle(); if (selectedLeftTab === 'kaliteesle') wireKaliteEsleTab(); }; // okuma önbelleği de temizlenir, kayıt hemen görünür
   kqVeriAl().then(D => {
     if (selectedLeftTab !== 'kaliteesle') return;
     KQ.esle = KQ.esle || { ara: '', durum: '' };
