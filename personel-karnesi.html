@@ -400,6 +400,9 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
     <button class="sidebar-nav-item analiz-only" data-lefttab="tletki" data-ikon="kisiler" data-grup="Analiz"><span class="nav-ikon"></span>Takım Lideri Etkisi</button>
     <button class="sidebar-nav-item performans-only" data-lefttab="performans" data-ikon="grafik" data-grup="Analiz"><span class="nav-ikon"></span>Personel Performansı</button>
     <button class="sidebar-nav-item performans-only" data-lefttab="uzman" data-ikon="hedef" data-grup="Analiz"><span class="nav-ikon"></span>Uzman Performansı</button>
+    <div class="nav-bolum">Çağrı Kalitesi</div>
+    <button class="sidebar-nav-item analiz-only" data-lefttab="kalite" data-ikon="onay" data-grup="Çağrı Kalitesi"><span class="nav-ikon"></span>Personel Kalite Kartı</button>
+    <button class="sidebar-nav-item yetki-only" data-lefttab="kalitedeg" data-ikon="kisiler" data-grup="Çağrı Kalitesi"><span class="nav-ikon"></span>Değerlendirici Kartı</button>
     <div class="nav-bolum">Yönetim</div>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn" data-ikon="yenile" data-grup="Yönetim"><span class="nav-ikon"></span>Güncelleme</button>
     <button class="sidebar-nav-item yetki-only" data-lefttab="yetki" data-ikon="kamera" data-grup="Yönetim"><span class="nav-ikon"></span>Fotoğraf ve Tema</button>
@@ -4827,6 +4830,7 @@ function asHafizaTemizle(){
   if (typeof TLS !== 'undefined' && TLS) TLS.D = null;
   if (typeof TLE !== 'undefined' && TLE){ TLE.T = null; TLE.key = null; }
   if (typeof UZM !== 'undefined' && UZM) UZM.U = null;
+  if (typeof KQ !== 'undefined' && KQ) KQ.D = null;
 }
 function asFetchValues(sheetId, range){
   return asHafizali('v|' + sheetId + '|' + range, async () => {
@@ -6725,7 +6729,7 @@ sidebarEl.addEventListener('click', (e) => {
   if (!btn) return;
   selectedLeftTab = btn.dataset.lefttab;
   sidebarEl.querySelectorAll('[data-lefttab]').forEach(b => b.classList.toggle('active', b === btn));
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman'){
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman' || selectedLeftTab === 'kalitedeg'){
     identityStrip.innerHTML = '';
     document.getElementById('marqueeWrap').style.display = 'none';
   } else {
@@ -6735,7 +6739,7 @@ sidebarEl.addEventListener('click', (e) => {
     document.getElementById('analizMarqueeWrap').style.display = 'none';
   }
   const searchStackWrap = document.getElementById('searchStackWrap');
-  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman') ? 'none' : '';
+  if (searchStackWrap) searchStackWrap.style.display = (selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman' || selectedLeftTab === 'kalitedeg') ? 'none' : '';
   renderContentArea();
 });
 document.getElementById('hamburgerBtn').addEventListener('click', () => {
@@ -6821,7 +6825,7 @@ document.addEventListener('click', (e) => {
 });
 
 function renderIdentityStrip(){
-  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman'){ identityStrip.innerHTML = ''; return; }
+  if (selectedLeftTab === 'islem' || selectedLeftTab === 'yetki' || selectedLeftTab === 'analiz' || selectedLeftTab === 'tletki' || selectedLeftTab === 'performans' || selectedLeftTab === 'uzman' || selectedLeftTab === 'kalitedeg'){ identityStrip.innerHTML = ''; return; }
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p){ identityStrip.innerHTML = ''; return; }
   const avatarHtml = p.fotoUrl
@@ -7163,6 +7167,12 @@ function renderContentArea(){
     wireUzmanTab();
     return;
   }
+  if (selectedLeftTab === 'kalitedeg'){
+    Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
+    contentArea.innerHTML = renderKaliteDegTab();
+    wireKaliteDegTab();
+    return;
+  }
 
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
   if (!p){
@@ -7171,6 +7181,8 @@ function renderContentArea(){
   }
 
   Object.keys(PARAM_CHART_INSTANCES).forEach(k => { try { PARAM_CHART_INSTANCES[k].destroy(); } catch(e){} delete PARAM_CHART_INSTANCES[k]; });
+
+  if (selectedLeftTab === 'kalite'){ contentArea.innerHTML = renderKaliteKisiTab(p); wireKaliteKisiTab(p); return; }
 
   contentArea.innerHTML =
     selectedLeftTab === 'bilgiler' ? renderBilgilerTab(p) :
@@ -10713,6 +10725,614 @@ async function uzmYuklemeKaydet(){
     UZM.yukleme = null; UZM.U = null; UZM.ay = kaydedilenAy;
     asHafizaTemizle();
     if (selectedLeftTab === 'uzman'){ contentArea.innerHTML = renderUzmanTab(); wireUzmanTab(); }
+  } catch (e){ yaz('✗ ' + e.message); btn.disabled = false; }
+}
+
+// ===== ÇAĞRI KALİTESİ (24.11.2026) =====
+// Kaynak: Drive > ALO-144 > "ÇAĞRI KALİTE" tablosu. Sekmeler:
+//   DEĞERLENDİRMELER  — çağrı başına bir satır (AY = değerlendirme ayı, SİCİL, DEĞERLENDİREN, FORM, SKOR, NOT, M01..M33 madde değerleri)
+//   MADDE SÖZLÜĞÜ     — her formun maddeleri: kısa ad, ortak başlık, tam puan, sıfırlama mı, özel değer (ör. −49 = güncelleme anonsu cezası)
+//   DEĞERLENDİRİCİLER — rapordaki ad → ad, tip (TAKIM LİDERİ / KALİTE)
+//   İSİM EŞLEME       — rapordaki isim → Sicil (soyadı değişenler vb.)
+//   AYARLAR           — sistematik eşikleri, değerlendirici sapma eşiği, sıfır notlarını kimin göreceği
+// İş mantığı bu sekmelerden okunur. Kişinin o ayki takımı = o ay onu değerlendiren takım lideri
+// (yoksa o ayın VARDİYA sekmesi). KKO renkleri OSMANİYE-PERFORMANS > PUANLAMA ÖLÇEĞİ "KKO" dilimlerinden.
+const KQ_SHEET_ID = '1-mvGMGLX8HZw04GpuH2pYsrsjX818B5eR5DPGiUzLrY';
+const KQ_TAB = { deg: 'DEĞERLENDİRMELER', soz: 'MADDE SÖZLÜĞÜ', ev: 'DEĞERLENDİRİCİLER', isim: 'İSİM EŞLEME', ayar: 'AYARLAR' };
+let KQ = { D: null, bekleyen: null, hata: null, bas: null, bit: null, ev: null, yukleme: null };
+const kqEsc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const kqNorm = s => asUp(s).replace(/Ç/g,'C').replace(/Ğ/g,'G').replace(/İ/g,'I').replace(/Ö/g,'O').replace(/Ş/g,'S').replace(/Ü/g,'U').replace(/[\t\r\n]+/g,' ').replace(/\s+/g,' ').trim();
+const kqMetin = s => String(s == null ? '' : s).replace(/[\t\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+const kqSayi = v => { if (v === null || v === undefined || v === '') return null; if (typeof v === 'number') return v; const n = Number(String(v).replace(/\./g, '').replace(',', '.')); const m = Number(String(v).replace(',', '.')); return isNaN(m) ? (isNaN(n) ? null : n) : m; };
+const kqF = (n, d) => n === null || n === undefined || isNaN(n) ? '' : Number(n).toFixed(d === undefined ? 1 : d).replace('.', ',').replace(/,0+$/, '').replace(/(,\d*?)0+$/, '$1');
+function kqTarihAy(t){ // "31.08.2026 15:" / "31.08.2026" → abs ay
+  const m = String(t || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/); return m ? asAbs(+m[3], +m[2] - 1) : null;
+}
+
+async function kqVeriAl(){
+  if (KQ.D) return KQ.D;
+  if (!KQ.bekleyen){
+    KQ.bekleyen = (async () => {
+      const [deg, soz, ev, isim, ayar, olc, vTitles] = await Promise.all([
+        asFetchValues(KQ_SHEET_ID, `'${KQ_TAB.deg}'!A1:AR60000`),
+        asFetchValues(KQ_SHEET_ID, `'${KQ_TAB.soz}'!A1:K1000`),
+        asFetchValues(KQ_SHEET_ID, `'${KQ_TAB.ev}'!A1:C1000`),
+        asFetchValues(KQ_SHEET_ID, `'${KQ_TAB.isim}'!A1:B5000`),
+        asFetchValues(KQ_SHEET_ID, `'${KQ_TAB.ayar}'!A1:B100`),
+        asFetchValues(PERF_SHEET_ID, `'${AS_OLCEK_TAB}'!A1:Z500`),
+        asFetchTabTitles(VARDIYA_SHEET_ID),
+      ]);
+      if (!deg || deg.length < 1) throw new Error(`ÇAĞRI KALİTE tablosunda "${KQ_TAB.deg}" sekmesi yok ya da okunamadı.`);
+      if (!soz || soz.length < 2) throw new Error(`ÇAĞRI KALİTE tablosunda "${KQ_TAB.soz}" sekmesi yok ya da boş.`);
+      const D = { kayit: [], soz: new Map(), sozSatir: soz, evAd: new Map(), evTip: new Map(), isim: new Map(), isimAtla: new Set(), ayar: {}, olcek: null, vardiya: new Map(), takim: new Map(), aylar: [], callIds: new Set(), basliklar: deg[0] };
+      // Madde sözlüğü
+      const sh = soz[0].map(asUp), si = n => sh.indexOf(n);
+      soz.slice(1).forEach(r => {
+        const form = kqMetin(r[si('FORM')]); const sut = String(r[si('SÜTUN')] || '').trim(); if (!form || !/^M\d+$/i.test(sut)) return;
+        const ix = +sut.slice(1) - 1;
+        if (!D.soz.has(form)) D.soz.set(form, []);
+        D.soz.get(form)[ix] = { madde: kqMetin(r[si('MADDE (FORMDAKİ)')]), kisa: kqMetin(r[si('KISA AD')]) || kqMetin(r[si('MADDE (FORMDAKİ)')]), baslik: kqMetin(r[si('ORTAK BAŞLIK')]) || 'Diğer',
+          tam: kqSayi(r[si('TAM PUAN')]) || 0, sif: asUp(r[si('SIFIRLAMA')]) === 'EVET', ozDeger: kqSayi(r[si('ÖZEL DEĞER')]), ozBaslik: kqMetin(r[si('ÖZEL BAŞLIK')]), ozKisa: kqMetin(r[si('ÖZEL KISA AD')]) };
+      });
+      // Değerlendiriciler
+      (ev || []).slice(1).forEach(r => { const raw = kqNorm(r[0]); const ad = asUp(r[1]); if (!raw || !ad) return; D.evAd.set(raw, ad); D.evTip.set(ad, asUp(r[2]).startsWith('TAKIM') ? 'TL' : 'KALİTE'); });
+      // İsim eşleme
+      (isim || []).slice(1).forEach(r => { const k = kqNorm(r[0]); const s = String(r[1] == null ? '' : r[1]).trim(); if (!k) return; if (s) D.isim.set(k, s); else D.isimAtla.add(k); }); // Sicil boş = bizim personel değil
+      // Ayarlar
+      (ayar || []).slice(1).forEach(r => { const k = asUp(r[0]); if (k) D.ayar[k] = r[1]; });
+      const ay = (parca, vars) => { const k = Object.keys(D.ayar).find(x => x.includes(parca)); const v = k ? kqSayi(D.ayar[k]) : null; return v === null ? vars : v; };
+      D.sisAy = ay('KAÇ AYDA', 2); D.sisN = ay('KAÇ KESİNTİ', 2); D.sapma = ay('SAPMA', 3); D.minDeg = ay('EN AZ DEĞERLENDİRME', 50);
+      const notK = Object.keys(D.ayar).find(x => x.includes('NOT')); D.notHerkes = notK ? asUp(D.ayar[notK]).includes('HERKES') : false;
+      try { D.olcek = asParseOlcek(olc); } catch(e){ D.olcek = null; }
+      // Değerlendirmeler
+      const h = deg[0].map(asUp), hi = n => h.indexOf(n);
+      const c = { ay: hi('AY'), tar: hi('DEĞERLENDİRME TARİHİ'), cz: hi('ÇAĞRI ZAMANI'), id: hi('CALLID'), sic: hi('SİCİL'), ad: hi('PERSONEL (RAPORDAKİ)'), ev: hi('DEĞERLENDİREN'), form: hi('FORM'), grup: hi('ÇALIŞMA GRUBU'), skor: hi('SKOR'), not: hi('NOT'), m1: hi('M01') };
+      deg.slice(1).forEach(r => {
+        const a = asParseKey(r[c.ay]); const skor = kqSayi(r[c.skor]); if (a === null || skor === null) return;
+        const evAd = asUp(r[c.ev]);
+        const v = []; for (let i = 0; i < 33; i++) v.push(kqSayi(r[c.m1 + i]));
+        const k = { ay: a, tar: String(r[c.tar] || ''), cz: String(r[c.cz] || ''), id: String(r[c.id] || ''), sicil: String(r[c.sic] == null ? '' : r[c.sic]).trim(), ad: asUp(r[c.ad]), ev: evAd, tl: D.evTip.get(evAd) === 'TL', form: kqMetin(r[c.form]), grup: kqMetin(r[c.grup]), skor, not: String(r[c.not] || ''), v };
+        D.kayit.push(k); D.callIds.add(k.id);
+      });
+      D.aylar = [...new Set(D.kayit.map(k => k.ay))].sort((x, y) => x - y);
+      // VARDİYA (yedek takım ve ad)
+      await Promise.all(D.aylar.map(async a => { if (!(vTitles || []).includes(asKeyOf(a))) return; try { D.vardiya.set(a, asParseVardiya(await asFetchValues(VARDIYA_SHEET_ID, `'${asKeyOf(a)}'!A1:D1000`))); } catch(e){} }));
+      // Takım: o ay kişiyi en çok değerlendiren takım lideri
+      const say = new Map();
+      D.kayit.forEach(k => { if (!k.tl || !k.sicil) return; const key = k.ay + '|' + k.sicil; const m = say.get(key) || new Map(); m.set(k.ev, (m.get(k.ev) || 0) + 1); say.set(key, m); });
+      say.forEach((m, key) => D.takim.set(key, [...m.entries()].sort((x, y) => y[1] - x[1])[0][0]));
+      D.kayit.forEach(k => { k.ded = kqDed(D, k); });
+      KQ.D = D; return D;
+    })().finally(() => { KQ.bekleyen = null; });
+  }
+  return KQ.bekleyen;
+}
+function kqTakim(D, ay, sicil){ const t = D.takim.get(ay + '|' + sicil); if (t) return t; const v = D.vardiya.get(ay); const x = v && v.get(String(sicil)); return x ? asUp(x.takim) : ''; }
+function kqKisiAd(D, sicil, yedek){ const p = PERSONNEL.find(x => x.sicil === String(sicil)); if (p) return asUp(p.adSoyad); for (const [, v] of D.vardiya){ const x = v.get(String(sicil)); if (x) return asUp(x.ad); } return asUp(yedek || sicil); }
+// Bir değerlendirmenin kesintileri: [{baslik, kisa, kayip, oz}] ve sıfırlama nedenleri
+function kqDed(D, k){
+  const S = D.soz.get(k.form) || [];
+  const sifNeden = [], kismi = [];
+  S.forEach((m, i) => { if (!m || !m.sif) return; const v = k.v[i]; if (v === null) return; if (v <= -100) sifNeden.push(m.kisa); else if (v < 0) kismi.push(m.kisa); });
+  const normal = S.map((m, i) => m && !m.sif ? k.v[i] : null).filter(v => v !== null);
+  const elle = k.skor === 0 && !sifNeden.length && normal.length && normal.every(v => v <= 0);
+  const kes = []; let fazla = 0, oz = 0;
+  if (!elle) S.forEach((m, i) => {
+    if (!m || m.sif) return; const v = k.v[i]; if (v === null) return;
+    if (m.ozDeger !== null && v === m.ozDeger){ kes.push({ baslik: m.ozBaslik || m.baslik, kisa: m.ozKisa || m.kisa, kayip: m.tam - v, oz: true }); oz++; return; }
+    if (m.tam > 0 && v < m.tam){ kes.push({ baslik: m.baslik, kisa: m.kisa, kayip: Math.min(m.tam - v, m.tam) }); if (v < 0) fazla++; }
+    else if (m.tam === 0 && v < 0) kes.push({ baslik: m.baslik, kisa: m.kisa, kayip: -v });
+  });
+  return { kes, sifNeden, kismi, elle, fazla, oz };
+}
+// KKO dilim rengi (PUANLAMA ÖLÇEĞİ'ndeki KKO puan dilimleri sırasıyla: en üst yeşil, ikinci mavi, üçüncü turuncu, altı kırmızı)
+function kqPuanRenk(D, puan, ay){
+  if (puan === null || puan === undefined || isNaN(puan)) return '';
+  const renk = ['rgba(61,220,151,.24)', 'rgba(91,156,246,.22)', 'rgba(245,158,11,.26)', 'rgba(232,93,93,.26)'];
+  let b = D.olcek ? asBandsFor(D.olcek, 'KKO', ay) : [];
+  if (!b.length) b = [{ lo: 97 }, { lo: 91 }, { lo: 85 }, { lo: -Infinity }];
+  const i = b.findIndex(x => puan >= x.lo);
+  return `background:${renk[Math.min(i === -1 ? 3 : i, 3)]};`;
+}
+const kqKesRenk = v => v >= 10 ? 'background:rgba(232,93,93,.26);' : v >= 5 ? 'background:rgba(245,158,11,.26);' : v > 0 ? 'background:rgba(245,196,81,.28);' : '';
+const kqOrt = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+function kqAralik(D){
+  const A = D.aylar; if (!A.length) return [];
+  let bit = KQ.bit !== null && A.includes(KQ.bit) ? KQ.bit : A[A.length - 1];
+  let bas = KQ.bas !== null && A.includes(KQ.bas) ? KQ.bas : A[Math.max(0, A.indexOf(bit) - 2)];
+  if (bas > bit) [bas, bit] = [bit, bas];
+  KQ.bas = bas; KQ.bit = bit;
+  return A.filter(a => a >= bas && a <= bit);
+}
+function kqSecici(D){
+  const opt = sel => D.aylar.slice().reverse().map(a => `<option value="${a}" ${a === sel ? 'selected' : ''}>${asLabelOf(a)}</option>`).join('');
+  return `<div><div class="search-label">Başlangıç ayı</div><select class="search" id="kqBas">${opt(KQ.bas)}</select></div>
+    <div><div class="search-label">Bitiş ayı</div><select class="search" id="kqBit">${opt(KQ.bit)}</select></div>`;
+}
+const KQ_CSS = `<style>
+.kq-tb{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12.5px;}
+.kq-tb th,.kq-tb td{border:1px solid var(--line);padding:6px 7px;vertical-align:middle;}
+.kq-tb th{background:var(--panel2);font-weight:700;text-align:center;}
+.kq-tb .m{border-left:2px solid var(--dim2);}
+.kq-tb .n{text-align:center;}
+.kq-tb th.kq-ev{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
+.kq-tb th.kq-ev.on,.kq-tb th.kq-ev:hover{background:var(--blue-soft);color:var(--blue);}
+.kq-tb tr.kq-bas{cursor:pointer;}
+.kq-tb tr.kq-bas td:first-child{font-weight:700;}
+.kq-tb tr.kq-bas:hover td{background:var(--panel3);}
+.kq-tb tr.kq-mad td:first-child{padding-left:26px;color:var(--dim);}
+.kq-tb .kq-alt{display:block;font-size:11px;color:var(--dim);}
+.kq-tag{font-size:11px;padding:2px 7px;border-radius:6px;background:rgba(139,127,216,.25);font-weight:700;white-space:nowrap;}
+.kq-chip{display:inline-block;margin:3px 8px 3px 0;padding:4px 9px;border-radius:7px;border:1px solid var(--line);font-size:12px;}
+.kq-chip b{margin-left:6px;padding:0 6px;border-radius:4px;}
+.kq-kaydir{overflow-x:auto;}
+.kq-ust{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;}
+.kq-lej{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--dim);margin-top:10px;align-items:center;}
+.kq-lej span{padding:2px 8px;border-radius:6px;}
+.kq-sif{border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-top:8px;font-size:12.5px;}
+.kq-sif .kq-not{margin-top:5px;color:var(--dim);font-style:italic;}
+</style>`;
+function kqLejant(D, deg){
+  const p = s => `<span style="${s}">`;
+  return `<div class="kq-lej">${deg ? `Oran = kesinti olan çağrı yüzdesi · ${p('background:rgba(232,93,93,.26)')}karşılaştırmadan ${kqF(D.sapma)}+ puan sık</span>${p('background:rgba(91,156,246,.22)')}${kqF(D.sapma)}+ puan seyrek</span>`
+    : `Puan: ${p(kqPuanRenk(D, 100, KQ.bit))}en üst dilim</span>${p(kqPuanRenk(D, 93, KQ.bit))}ikinci</span>${p(kqPuanRenk(D, 87, KQ.bit))}üçüncü</span>${p(kqPuanRenk(D, 50, KQ.bit))}altı</span>
+    · Kesinti: ${p(kqKesRenk(1))}1–4</span>${p(kqKesRenk(5))}5–9</span>${p(kqKesRenk(10))}10+</span> · <span class="kq-tag">Sistematik</span> = en az ${kqF(D.sisAy)} ayda ve en az ${kqF(D.sisN)} kesintide`}</div>`;
+}
+function kqSistemMetin(D, hucre){ // Excel için: aynı kural, düz metin
+  const ayN = hucre.length / 2; let ayS = 0, n = 0;
+  for (let a = 0; a < ayN; a++){ const x = (hucre[2*a] ? hucre[2*a].n : 0) + (hucre[2*a+1] ? hucre[2*a+1].n : 0); if (x) ayS++; n += x; }
+  return ayS >= D.sisAy && n >= D.sisN ? 'Sistematik' : `${ayS} ay · ${n}`;
+}
+function kqSistematik(D, hucre){ // hucre: [{n}] ay×tip düz dizisi, ay sayısı = hucre.length/2
+  const ayN = hucre.length / 2; let ayS = 0, n = 0;
+  for (let a = 0; a < ayN; a++){ const x = (hucre[2*a] ? hucre[2*a].n : 0) + (hucre[2*a+1] ? hucre[2*a+1].n : 0); if (x) ayS++; n += x; }
+  return ayS >= D.sisAy && n >= D.sisN ? '<span class="kq-tag">Sistematik</span>' : `<span style="font-size:11px;color:var(--dim);">${ayS} ay · ${n}</span>`;
+}
+function kqYuklemeDugme(){ return islemAuthorized ? `<button class="refresh-btn" id="kqYukleBtn">⇧ Rapor Yükle</button><input type="file" id="kqDosya" accept=".xlsx" style="display:none;">` : ''; }
+
+// ---------- Personel kalite kartı (sol menü > Çağrı Kalitesi > Personel Kalite Kartı) ----------
+function kqKisiHesap(D, sicil, aylar){
+  const R = D.kayit.filter(k => k.sicil === String(sicil) && aylar.includes(k.ay));
+  const ay = aylar.map(a => {
+    const A = R.filter(k => k.ay === a), T = A.filter(k => k.tl), K = A.filter(k => !k.tl);
+    const grup = L => { const m = new Map(); L.forEach(k => { if (!m.has(k.ev)) m.set(k.ev, []); m.get(k.ev).push(k.skor); }); return [...m.entries()]; };
+    return { a, kko: A.length ? Math.round(kqOrt(A.map(k => k.skor)) + 1e-9) : null, T, K, evT: grup(T), evK: grup(K) };
+  });
+  const bas = new Map(); // baslik -> Map(kisa -> hucre[2*ay])
+  ay.forEach((x, ai) => [x.T, x.K].forEach((L, ti) => L.forEach(k => k.ded.kes.forEach(d => {
+    if (!bas.has(d.baslik)) bas.set(d.baslik, new Map());
+    const mm = bas.get(d.baslik); if (!mm.has(d.kisa)) mm.set(d.kisa, new Array(aylar.length * 2).fill(null));
+    const h = mm.get(d.kisa); const j = 2 * ai + ti; if (!h[j]) h[j] = { kayip: 0, n: 0, ev: new Set() };
+    h[j].kayip += d.kayip; h[j].n++; h[j].ev.add(k.ev);
+  }))));
+  const sif = R.filter(k => k.skor === 0).sort((x, y) => x.ay - y.ay || x.cz.localeCompare(y.cz));
+  return { R, ay, bas, sif };
+}
+function kqKart(D, sicil, aylar){
+  const H = kqKisiHesap(D, sicil, aylar);
+  if (!H.R.length) return `<div class="anz-bos">Seçilen aylarda bu personel için değerlendirme yok.</div>`;
+  const AN = aylar.length;
+  const tp = Array.from({ length: AN }, () => ['TL', 'Kalite']).flat();
+  const m = i => i % 2 === 0 ? ' m' : '';
+  let h = `<div class="kq-kaydir"><table class="kq-tb" id="kqTablo"><colgroup><col style="width:${AN > 3 ? 220 : 26 + '%'}${AN > 3 ? 'px' : ''}">${'<col>'.repeat(AN * 2)}<col style="width:80px"><col style="width:100px"></colgroup>`;
+  h += `<tr><th rowspan="2" style="text-align:left;">Özet</th>${aylar.map(a => `<th colspan="2" class="m">${asLabelOf(a)}</th>`).join('')}<th rowspan="2" class="m">Toplam</th><th rowspan="2">Tekrar</th></tr>`;
+  h += `<tr>${tp.map((t, i) => `<th class="kq-ev${m(i)}" data-kq-ev="${i}" title="Değerlendirenleri göster">${t}</th>`).join('')}</tr>`;
+  h += `<tr id="kqEvSatir" style="display:none;"><td colspan="${AN * 2 + 3}" style="background:var(--panel2);"><div id="kqEvKutu"></div></td></tr>`;
+  h += `<tr><td style="font-weight:700;">KKO</td>${H.ay.map(x => `<td colspan="2" class="n m" style="${kqPuanRenk(D, x.kko, x.a)}font-weight:700;">${x.kko === null ? '' : x.kko}</td>`).join('')}<td class="m"></td><td></td></tr>`;
+  const ortH = L => L.length ? kqOrt(L.map(k => k.skor)) : null;
+  h += `<tr><td>Ortalama</td>${H.ay.map(x => [x.T, x.K].map((L, ti) => { const o = ortH(L); return `<td class="n${ti ? '' : ' m'}" style="${kqPuanRenk(D, o, x.a)}">${kqF(o)}</td>`; }).join('')).join('')}<td class="m"></td><td></td></tr>`;
+  h += `<tr><td>Değerlendirme sayısı</td>${H.ay.map(x => `<td class="n m">${x.T.length || ''}</td><td class="n">${x.K.length || ''}</td>`).join('')}<td class="n m">${H.R.length}</td><td></td></tr>`;
+  h += `<tr><td>Sıfırlanan çağrı</td>${H.ay.map(x => [x.T, x.K].map((L, ti) => { const z = L.filter(k => k.skor === 0).length; return `<td class="n${ti ? '' : ' m'}" style="${z ? 'background:rgba(232,93,93,.26);font-weight:700;' : ''}">${z || ''}</td>`; }).join('')).join('')}<td class="n m">${H.sif.length || ''}</td><td></td></tr>`;
+  h += `<tr><th style="text-align:left;">Kesinti başlığı</th>${tp.map((t, i) => `<th class="${m(i).trim()}">${t}</th>`).join('')}<th class="m">Puan</th><th></th></tr>`;
+  const basSira = [...H.bas.entries()].map(([b, mm]) => { const top = [...mm.values()].flat().reduce((s, c) => s + (c ? c.kayip : 0), 0); return [b, mm, top]; }).sort((x, y) => y[2] - x[2]);
+  basSira.forEach(([b, mm, top], bi) => {
+    const hucre = new Array(AN * 2).fill(null).map((_, j) => { let kay = 0, n = 0; mm.forEach(hh => { if (hh[j]){ kay += hh[j].kayip; n += hh[j].n; } }); return n ? { kayip: kay, n } : null; });
+    h += `<tr class="kq-bas" data-kq-bas="${bi}"><td><span class="kq-ok">▸</span> ${kqEsc(b)}</td>${hucre.map((c, j) => `<td class="n${m(j)}" style="${c ? kqKesRenk(c.kayip) : ''}">${c ? '−' + kqF(c.kayip) : ''}</td>`).join('')}<td class="n m" style="font-weight:700;">−${kqF(top)}</td><td class="n">${kqSistematik(D, hucre)}</td></tr>`;
+    [...mm.entries()].sort((x, y) => y[1].reduce((s, c) => s + (c ? c.kayip : 0), 0) - x[1].reduce((s, c) => s + (c ? c.kayip : 0), 0)).forEach(([kisa, hh]) => {
+      const t = hh.reduce((s, c) => s + (c ? c.kayip : 0), 0);
+      h += `<tr class="kq-mad" data-kq-grup="${bi}" style="display:none;"><td>${kqEsc(kisa)}</td>${hh.map((c, j) => c ? `<td class="n${m(j)}" style="${kqKesRenk(c.kayip)}">−${kqF(c.kayip)}<span class="kq-alt">${kqEsc([...c.ev].join(', '))}</span></td>` : `<td class="${m(j).trim()}"></td>`).join('')}<td class="n m" style="color:var(--dim);">−${kqF(t)}</td><td class="n">${kqSistematik(D, hh)}</td></tr>`;
+    });
+  });
+  if (!basSira.length) h += `<tr><td colspan="${AN * 2 + 3}" class="n" style="color:var(--dim);">Seçilen aylarda puan kesintisi yok.</td></tr>`;
+  h += `</table></div>`;
+  // Sıfırlanan çağrılar
+  const notGor = yetkiAuthorized || D.notHerkes;
+  if (H.sif.length){
+    h += `<div style="margin-top:14px;font-weight:700;">Sıfırlanan çağrılar (${H.sif.length})</div>` + H.sif.map(k => {
+      const neden = k.ded.sifNeden.length ? k.ded.sifNeden.join(', ') : (k.ded.kismi.length ? 'Kısmi: ' + k.ded.kismi.join(', ') : 'Formda neden işaretlenmemiş');
+      return `<div class="kq-sif"><b>${kqEsc(k.cz.slice(0, 10))}</b> · ${kqEsc(k.ev)} (${k.tl ? 'takım lideri' : 'kalite'}) · Neden: ${kqEsc(neden)}${notGor && k.not ? `<div class="kq-not">"${kqEsc(k.not)}"</div>` : ''}</div>`;
+    }).join('');
+  }
+  return h;
+}
+function kqKartBagla(D, sicil, aylar){
+  const H = kqKisiHesap(D, sicil, aylar);
+  const tablo = document.getElementById('kqTablo'); if (!tablo) return;
+  tablo.querySelectorAll('tr.kq-bas').forEach(tr => tr.onclick = () => {
+    const g = tr.dataset.kqBas; const ac = tablo.querySelector(`tr[data-kq-grup="${g}"]`).style.display === 'none';
+    tablo.querySelectorAll(`tr[data-kq-grup="${g}"]`).forEach(x => x.style.display = ac ? '' : 'none'); tr.querySelector('.kq-ok').textContent = ac ? '▾' : '▸';
+  });
+  let secili = null;
+  tablo.querySelectorAll('th.kq-ev').forEach(th => th.onclick = () => {
+    const i = +th.dataset.kqEv; const satir = document.getElementById('kqEvSatir'), kutu = document.getElementById('kqEvKutu');
+    tablo.querySelectorAll('th.kq-ev').forEach(x => x.classList.remove('on'));
+    if (secili === i && satir.style.display !== 'none'){ satir.style.display = 'none'; secili = null; return; }
+    secili = i; th.classList.add('on');
+    const x = H.ay[Math.floor(i / 2)], L = i % 2 ? x.evK : x.evT;
+    kutu.innerHTML = `<div style="font-size:12px;color:var(--dim);margin-bottom:4px;">${asLabelOf(x.a)} · ${i % 2 ? 'Kalite ekibi' : 'Takım lideri'}</div>` +
+      (L.length ? L.map(([ev, s]) => { const o = kqOrt(s); return `<span class="kq-chip">${kqEsc(ev)}<b style="${kqPuanRenk(D, o, x.a)}">${s.length > 1 ? s.map(v => kqF(v, 0)).join(' · ') : kqF(s[0], 0)}${s.length > 1 ? ` (ort. ${kqF(o)})` : ''}</b></span>`; }).join('') : '<span style="color:var(--dim);">Değerlendirme yok.</span>');
+    satir.style.display = '';
+  });
+  const tumu = document.getElementById('kqTumu');
+  if (tumu) tumu.onclick = () => { const ac = tumu.dataset.o !== '1'; tumu.dataset.o = ac ? '1' : '0'; tumu.textContent = ac ? 'Tümünü kapat' : 'Tümünü aç';
+    tablo.querySelectorAll('tr.kq-mad').forEach(x => x.style.display = ac ? '' : 'none'); tablo.querySelectorAll('.kq-ok').forEach(x => x.textContent = ac ? '▾' : '▸'); };
+  const xl = document.getElementById('kqExcel'); if (xl) xl.onclick = () => kqKisiExcel(D, sicil, aylar, H).catch(e => alert('Excel oluşturulamadı: ' + e.message));
+}
+function renderKaliteKisiTab(p){
+  return KQ_CSS + `<div class="analiz-card" style="padding:18px;">
+    <div class="kq-ust" id="kqUst"><div style="flex:1;min-width:200px;"><div class="eyebrow">ÇAĞRI KALİTESİ</div><div style="font-weight:700;font-size:16px;">${kqEsc(asUp(p.adSoyad))} <span style="font-weight:400;color:var(--dim);font-size:13px;">· ${kqEsc(p.sicil)}</span></div><div id="kqTakimBilgi" style="font-size:12.5px;color:var(--dim);"></div></div>
+      <span id="kqSeciciAlan"></span>
+      <button class="refresh-btn" id="kqTumu">Tümünü aç</button><button class="refresh-btn" id="kqExcel">⇩ Excel'e aktar</button>${kqYuklemeDugme()}</div>
+    <div id="kqYuklemeAlan"></div>
+    <div id="kqIcerik"><div class="anz-bos">Veriler yükleniyor…</div></div>
+    <div id="kqLejant"></div></div>`;
+}
+function wireKaliteKisiTab(p){
+  kqYuklemeBagla();
+  kqVeriAl().then(D => {
+    if (selectedLeftTab !== 'kalite') return;
+    if (!D.aylar.length){ document.getElementById('kqIcerik').innerHTML = '<div class="anz-bos">ÇAĞRI KALİTE tablosunda değerlendirme yok.</div>'; return; }
+    const ciz = () => {
+      const aylar = kqAralik(D);
+      document.getElementById('kqSeciciAlan').innerHTML = `<span style="display:inline-flex;gap:10px;">${kqSecici(D)}</span>`;
+      ['kqBas', 'kqBit'].forEach(id => document.getElementById(id).onchange = e => { KQ[id === 'kqBas' ? 'bas' : 'bit'] = +e.target.value; ciz(); });
+      const tk = [...new Set(aylar.map(a => kqTakim(D, a, p.sicil)).filter(Boolean))];
+      document.getElementById('kqTakimBilgi').textContent = tk.length ? 'Takım lideri (değerlendirmeye göre): ' + tk.join(' → ') : '';
+      document.getElementById('kqIcerik').innerHTML = kqKart(D, p.sicil, aylar);
+      document.getElementById('kqLejant').innerHTML = kqLejant(D, false);
+      const tumu = document.getElementById('kqTumu'); tumu.dataset.o = '0'; tumu.textContent = 'Tümünü aç';
+      kqKartBagla(D, p.sicil, aylar);
+    };
+    ciz();
+  }).catch(e => { const el = document.getElementById('kqIcerik'); if (el) el.innerHTML = `<div class="error-box">${kqEsc(e.message)}</div>`; });
+}
+
+// ---------- Değerlendirici kartı (sol menü > Çağrı Kalitesi > Değerlendirici Kartı) ----------
+function kqDegHesap(D, ev, aylar){
+  const tl = D.evTip.get(ev) === 'TL';
+  const ay = aylar.map(a => {
+    const own = D.kayit.filter(k => k.ay === a && k.ev === ev);
+    const cmp = tl ? D.kayit.filter(k => k.ay === a && !k.tl && kqTakim(D, a, k.sicil) === ev) : D.kayit.filter(k => k.ay === a && !k.tl && k.ev !== ev);
+    const st = L => { if (!L.length) return null; const s = L.map(k => k.skor); const kes = s.filter(x => x > 0 && x < 100).map(x => 100 - x);
+      return { n: L.length, kisi: new Set(L.map(k => k.sicil)).size, ort: kqOrt(s), p100: 100 * s.filter(x => x === 100).length / s.length, sif: s.filter(x => x === 0).length, kes: kqOrt(kes) }; };
+    return { a, own, cmp, so: st(own), sc: st(cmp) };
+  });
+  const bas = new Map(); // baslik -> {oran:[[o,c]...], mad: Map(kisa -> [[o,c]...])}
+  const oran = (L, f) => L.length ? 100 * L.filter(f).length / L.length : 0;
+  const tumBas = new Set(), tumMad = new Map();
+  ay.forEach(x => [x.own, x.cmp].forEach(L => L.forEach(k => k.ded.kes.forEach(d => { tumBas.add(d.baslik); if (!tumMad.has(d.baslik)) tumMad.set(d.baslik, new Set()); tumMad.get(d.baslik).add(d.kisa); }))));
+  tumBas.forEach(b => {
+    const o = ay.map(x => [oran(x.own, k => k.ded.kes.some(d => d.baslik === b)), oran(x.cmp, k => k.ded.kes.some(d => d.baslik === b))]);
+    const mad = new Map(); tumMad.get(b).forEach(kisa => mad.set(kisa, ay.map(x => [oran(x.own, k => k.ded.kes.some(d => d.baslik === b && d.kisa === kisa)), oran(x.cmp, k => k.ded.kes.some(d => d.baslik === b && d.kisa === kisa))])));
+    bas.set(b, { o, mad });
+  });
+  const own = ay.flatMap(x => x.own);
+  const form = { fazla: own.reduce((s, k) => s + k.ded.fazla, 0), kismi: own.filter(k => k.ded.kismi.length).length, elle: own.filter(k => k.ded.elle).length, oz: own.reduce((s, k) => s + k.ded.oz, 0) };
+  return { tl, ay, bas, form };
+}
+function kqDegKart(D, ev, aylar){
+  const H = kqDegHesap(D, ev, aylar), AN = aylar.length;
+  const m = i => i % 2 === 0 ? ' m' : '';
+  const sap = (o, c) => { const d = o - c; return d >= D.sapma ? 'background:rgba(232,93,93,.26);' : d <= -D.sapma ? 'background:rgba(91,156,246,.22);' : ''; };
+  const yz = v => v ? '%' + kqF(v) : '';
+  let h = `<div style="font-size:12.5px;color:var(--dim);margin-bottom:8px;">Karşılaştırma: ${H.tl ? 'bu takım liderinin o ayki ekibini dinleyen kalite ekibi' : 'diğer kalite değerlendiricileri'}</div>`;
+  h += `<div class="kq-kaydir"><table class="kq-tb" id="kqDegTablo"><colgroup><col style="width:${AN > 3 ? '220px' : '28%'}">${'<col>'.repeat(AN * 2)}</colgroup>`;
+  h += `<tr><th rowspan="2" style="text-align:left;">Özet</th>${aylar.map(a => `<th colspan="2" class="m">${asLabelOf(a)}</th>`).join('')}</tr><tr>${aylar.map(() => `<th class="m">Kendisi</th><th>Karşılaştırma</th>`).join('')}</tr>`;
+  [['Değerlendirme sayısı', 'n', 0, ''], ['Dinlenen kişi', 'kisi', 0, ''], ['Ortalama puan', 'ort', 1, ''], ['100 verme oranı', 'p100', 0, '%'], ['Sıfırlanan çağrı', 'sif', 0, ''], ['Kesintili çağrıda ort. kesinti', 'kes', 1, '']].forEach(([l, key, d, u]) => {
+    h += `<tr><td>${l}</td>${H.ay.map(x => `<td class="n m" style="font-weight:700;">${x.so ? u + kqF(x.so[key], d) : ''}</td><td class="n" style="color:var(--dim);">${x.sc ? u + kqF(x.sc[key], d) : ''}</td>`).join('')}</tr>`;
+  });
+  h += `<tr><th style="text-align:left;">Kesinti başlığı (çağrı %)</th>${aylar.map(() => `<th class="m">Kendisi</th><th>Karşılaştırma</th>`).join('')}</tr>`;
+  const sira = [...H.bas.entries()].sort((x, y) => y[1].o.reduce((s, z) => s + z[0], 0) - x[1].o.reduce((s, z) => s + z[0], 0));
+  sira.forEach(([b, v], bi) => {
+    h += `<tr class="kq-bas" data-kq-bas="${bi}"><td><span class="kq-ok">▸</span> ${kqEsc(b)}</td>${v.o.map(([o, c]) => `<td class="n m" style="${sap(o, c)}font-weight:700;">${yz(o)}</td><td class="n" style="color:var(--dim);">${yz(c)}</td>`).join('')}</tr>`;
+    [...v.mad.entries()].sort((x, y) => y[1].reduce((s, z) => s + z[0] + z[1] / 100, 0) - x[1].reduce((s, z) => s + z[0] + z[1] / 100, 0)).forEach(([kisa, oo]) => {
+      h += `<tr class="kq-mad" data-kq-grup="${bi}" style="display:none;"><td>${kqEsc(kisa)}</td>${oo.map(([o, c]) => `<td class="n m" style="${sap(o, c)}">${yz(o)}</td><td class="n" style="color:var(--dim);">${yz(c)}</td>`).join('')}</tr>`;
+    });
+  });
+  h += `</table></div>`;
+  h += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12.5px;">${[['Madde değerinden fazla kesinti', H.form.fazla], ['Neden seçilmeden sıfırlama', H.form.elle], ['Sıfırlama maddesine kısmi değer', H.form.kismi]].concat(H.tl ? [['Güncelleme anonsu cezası', H.form.oz]] : []).map(([l, v]) => `<span class="kq-chip">${l}<b>${v}</b></span>`).join('')}</div>`;
+  return h;
+}
+function renderKaliteDegTab(){
+  return `<div class="topbar"><div class="topbar-left"><div><div class="eyebrow">ALO 144 · ÇAĞRI KALİTESİ</div><h1>Değerlendirici Kartı</h1></div></div></div>` + KQ_CSS +
+    `<div class="analiz-card" style="padding:18px;"><div class="kq-ust"><div><div class="search-label">Değerlendiren</div><select class="search" id="kqEvSec"><option>Yükleniyor…</option></select></div><span id="kqSeciciAlan"></span>
+      <button class="refresh-btn" id="kqTumu">Tümünü aç</button><button class="refresh-btn" id="kqExcel">⇩ Excel'e aktar</button>${kqYuklemeDugme()}</div>
+    <div id="kqYuklemeAlan"></div><div id="kqIcerik"><div class="anz-bos">Veriler yükleniyor…</div></div><div id="kqLejant"></div></div>`;
+}
+function wireKaliteDegTab(){
+  kqYuklemeBagla();
+  kqVeriAl().then(D => {
+    if (selectedLeftTab !== 'kalitedeg') return;
+    const ciz = () => {
+      const aylar = kqAralik(D);
+      document.getElementById('kqSeciciAlan').innerHTML = `<span style="display:inline-flex;gap:10px;">${kqSecici(D)}</span>`;
+      ['kqBas', 'kqBit'].forEach(id => document.getElementById(id).onchange = e => { KQ[id === 'kqBas' ? 'bas' : 'bit'] = +e.target.value; ciz(); });
+      const say = new Map(); D.kayit.forEach(k => { if (aylar.includes(k.ay)) say.set(k.ev, (say.get(k.ev) || 0) + 1); });
+      const liste = [...say.entries()].filter(([, n]) => n >= D.minDeg).sort((x, y) => (D.evTip.get(x[0]) === 'TL' ? 0 : 1) - (D.evTip.get(y[0]) === 'TL' ? 0 : 1) || x[0].localeCompare(y[0], 'tr'));
+      if (!liste.length){ document.getElementById('kqIcerik').innerHTML = '<div class="anz-bos">Seçilen aylarda yeterli değerlendirmesi olan değerlendirici yok.</div>'; return; }
+      if (!KQ.ev || !liste.some(([e]) => e === KQ.ev)) KQ.ev = liste[0][0];
+      const sel = document.getElementById('kqEvSec');
+      sel.innerHTML = ['TL', 'KALİTE'].map(t => { const g = liste.filter(([e]) => (D.evTip.get(e) === 'TL' ? 'TL' : 'KALİTE') === t); return g.length ? `<optgroup label="${t === 'TL' ? 'Takım liderleri' : 'Kalite ekibi'}">${g.map(([e, n]) => `<option value="${kqEsc(e)}" ${e === KQ.ev ? 'selected' : ''}>${kqEsc(e)} (${n})</option>`).join('')}</optgroup>` : ''; }).join('');
+      sel.onchange = e => { KQ.ev = e.target.value; ciz(); };
+      document.getElementById('kqIcerik').innerHTML = kqDegKart(D, KQ.ev, aylar);
+      document.getElementById('kqLejant').innerHTML = kqLejant(D, true);
+      const tablo = document.getElementById('kqDegTablo');
+      tablo.querySelectorAll('tr.kq-bas').forEach(tr => tr.onclick = () => { const g = tr.dataset.kqBas; const ac = tablo.querySelector(`tr[data-kq-grup="${g}"]`).style.display === 'none'; tablo.querySelectorAll(`tr[data-kq-grup="${g}"]`).forEach(x => x.style.display = ac ? '' : 'none'); tr.querySelector('.kq-ok').textContent = ac ? '▾' : '▸'; });
+      const tumu = document.getElementById('kqTumu'); tumu.dataset.o = '0'; tumu.textContent = 'Tümünü aç';
+      tumu.onclick = () => { const ac = tumu.dataset.o !== '1'; tumu.dataset.o = ac ? '1' : '0'; tumu.textContent = ac ? 'Tümünü kapat' : 'Tümünü aç'; tablo.querySelectorAll('tr.kq-mad').forEach(x => x.style.display = ac ? '' : 'none'); tablo.querySelectorAll('.kq-ok').forEach(x => x.textContent = ac ? '▾' : '▸'); };
+      document.getElementById('kqExcel').onclick = () => kqDegExcel(D, KQ.ev, aylar).catch(e => alert('Excel oluşturulamadı: ' + e.message));
+    };
+    ciz();
+  }).catch(e => { const el = document.getElementById('kqIcerik'); if (el) el.innerHTML = `<div class="error-box">${kqEsc(e.message)}</div>`; });
+}
+
+// ---------- Excel'e aktar (başlık + tablo; ızgara kapalı, siyah kenarlık, toplamlar formülle) ----------
+const KQ_XL_RENK = { yesil: 'FFC6EFCE', mavi: 'FFDDEBF7', turuncu: 'FFFCE4D6', kirmizi: 'FFFFC7CE', sari: 'FFFFF2CC', gri: 'FFD9D9D9', acik: 'FFF2F2F2', mor: 'FFE4DFEC' };
+function kqXlStil(c, o){ o = o || {}; c.font = { name: 'Arial', size: 10, bold: !!o.bold, color: o.renk ? { argb: o.renk } : undefined };
+  c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+  c.alignment = { horizontal: o.al || 'center', vertical: 'middle', wrapText: true };
+  if (o.dolgu) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: o.dolgu } }; if (o.fmt) c.numFmt = o.fmt; }
+function kqXlKkoKosul(ws, ref, D, ay){
+  let b = D.olcek ? asBandsFor(D.olcek, 'KKO', ay) : []; if (!b.length) b = [{ lo: 97 }, { lo: 91 }, { lo: 85 }];
+  const r = [KQ_XL_RENK.yesil, KQ_XL_RENK.mavi, KQ_XL_RENK.turuncu];
+  const kurallar = b.slice(0, 3).map((x, i) => ({ type: 'cellIs', operator: 'greaterThanOrEqual', formulae: [String(x.lo)], priority: i + 1, stopIfTrue: true, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: r[i] } } } }));
+  kurallar.push({ type: 'cellIs', operator: 'lessThan', formulae: [String(b[Math.min(2, b.length - 1)].lo)], priority: 4, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.kirmizi } } } });
+  ws.addConditionalFormatting({ ref, rules: kurallar });
+}
+async function kqKisiExcel(D, sicil, aylar, H){
+  const wb = new ExcelJS.Workbook(); const ad = kqKisiAd(D, sicil);
+  const ws = wb.addWorksheet(ad.slice(0, 31), { views: [{ showGridLines: false, state: 'frozen', xSplit: 1, ySplit: 5 }], pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const AN = aylar.length, son = 2 + AN * 2; // A + 2*AN ay sütunu, sonra Toplam, Tekrar
+  const L = n => ws.getColumn(n).letter;
+  ws.getCell(1, 1).value = `${ad} (${sicil}) – ÇAĞRI KALİTE KARTI – ${asLabelOf(aylar[0]).toLocaleUpperCase('tr-TR')}${AN > 1 ? '–' + asLabelOf(aylar[AN - 1]).toLocaleUpperCase('tr-TR') : ''}`; ws.getCell(1, 1).font = { name: 'Arial', size: 12, bold: true };
+  const tk = [...new Set(aylar.map(a => kqTakim(D, a, sicil)).filter(Boolean))]; ws.getCell(2, 1).value = tk.length ? 'TAKIM LİDERİ: ' + tk.join(' → ') : ''; ws.getCell(2, 1).font = { name: 'Arial', size: 10 };
+  let r = 4;
+  ws.getCell(r, 1).value = 'ÖZET'; ws.mergeCells(r, 1, r + 1, 1); kqXlStil(ws.getCell(r, 1), { bold: true, dolgu: KQ_XL_RENK.gri });
+  aylar.forEach((a, i) => { const c = 2 + 2 * i; ws.getCell(r, c).value = asLabelOf(a).toLocaleUpperCase('tr-TR'); ws.mergeCells(r, c, r, c + 1); kqXlStil(ws.getCell(r, c), { bold: true, dolgu: KQ_XL_RENK.gri });
+    ws.getCell(r + 1, c).value = 'TL'; ws.getCell(r + 1, c + 1).value = 'KALİTE'; kqXlStil(ws.getCell(r + 1, c), { bold: true, dolgu: KQ_XL_RENK.gri }); kqXlStil(ws.getCell(r + 1, c + 1), { bold: true, dolgu: KQ_XL_RENK.gri }); });
+  [['TOPLAM', son], ['TEKRAR', son + 1]].forEach(([t, c]) => { ws.getCell(r, c).value = t; ws.mergeCells(r, c, r + 1, c); kqXlStil(ws.getCell(r, c), { bold: true, dolgu: KQ_XL_RENK.gri }); });
+  const rk = r + 2, ro = r + 3, rs = r + 4, rz = r + 5;
+  [[rk, 'KKO', true], [ro, 'Ortalama'], [rs, 'Değerlendirme sayısı'], [rz, 'Sıfırlanan çağrı']].forEach(([rr, t, b]) => { ws.getCell(rr, 1).value = t; kqXlStil(ws.getCell(rr, 1), { bold: !!b, al: 'left' }); for (let c = 2; c <= son + 1; c++) kqXlStil(ws.getCell(rr, c)); });
+  H.ay.forEach((x, i) => { const c = 2 + 2 * i;
+    [x.T, x.K].forEach((LL, ti) => { const cc = c + ti; const o = kqOrt(LL.map(k => k.skor)); ws.getCell(ro, cc).value = o; /* tam değer: 0.0 biçimiyle görünür, KKO yuvarlanmamış ortalamadan hesaplanır */ ws.getCell(ro, cc).numFmt = '0.0'; ws.getCell(rs, cc).value = LL.length || null; const z = LL.filter(k => k.skor === 0).length; ws.getCell(rz, cc).value = z || null; });
+    const a = L(c), b = L(c + 1);
+    ws.getCell(rk, c).value = { formula: `IF(${a}${rs}+${b}${rs}=0,"",ROUND((N(${a}${ro})*N(${a}${rs})+N(${b}${ro})*N(${b}${rs}))/(N(${a}${rs})+N(${b}${rs})),0))` };
+    ws.mergeCells(rk, c, rk, c + 1); kqXlStil(ws.getCell(rk, c), { bold: true });
+    kqXlKkoKosul(ws, `${a}${rk}:${b}${rk}`, D, x.a); kqXlKkoKosul(ws, `${a}${ro}:${b}${ro}`, D, x.a);
+  });
+  ws.getCell(rs, son).value = { formula: `SUM(B${rs}:${L(son - 1)}${rs})` }; ws.getCell(rz, son).value = { formula: `SUM(B${rz}:${L(son - 1)}${rz})` };
+  ws.addConditionalFormatting({ ref: `B${rz}:${L(son - 1)}${rz}`, rules: [{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], priority: 1, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.kirmizi } } } }] });
+  r = rz + 2;
+  ws.getCell(r, 1).value = 'KESİNTİ BAŞLIĞI / MADDE'; kqXlStil(ws.getCell(r, 1), { bold: true, dolgu: KQ_XL_RENK.gri });
+  aylar.forEach((a, i) => ['TL', 'KALİTE'].forEach((t, ti) => { const c = 2 + 2 * i + ti; ws.getCell(r, c).value = `${asLabelOf(a).split(' ')[0].slice(0, 3).toLocaleUpperCase('tr-TR')} ${t}`; kqXlStil(ws.getCell(r, c), { bold: true, dolgu: KQ_XL_RENK.gri }); }));
+  ws.getCell(r, son).value = 'TOPLAM'; ws.getCell(r, son + 1).value = 'TEKRAR'; kqXlStil(ws.getCell(r, son), { bold: true, dolgu: KQ_XL_RENK.gri }); kqXlStil(ws.getCell(r, son + 1), { bold: true, dolgu: KQ_XL_RENK.gri });
+  const ilk = r + 1;
+  [...H.bas.entries()].map(([b, mm]) => [b, mm, [...mm.values()].flat().reduce((s, c) => s + (c ? c.kayip : 0), 0)]).sort((x, y) => y[2] - x[2]).forEach(([b, mm]) => {
+    r++; const hr = r; const s = hr + 1, e = hr + mm.size;
+    ws.getCell(hr, 1).value = b; kqXlStil(ws.getCell(hr, 1), { bold: true, al: 'left', dolgu: KQ_XL_RENK.acik });
+    for (let c = 2; c < son; c++){ ws.getCell(hr, c).value = { formula: `IF(SUM(${L(c)}${s}:${L(c)}${e})=0,"",SUM(${L(c)}${s}:${L(c)}${e}))` }; kqXlStil(ws.getCell(hr, c), { bold: true, dolgu: KQ_XL_RENK.acik, fmt: '0;-0;""' }); }
+    ws.getCell(hr, son).value = { formula: `SUM(B${hr}:${L(son - 1)}${hr})` }; kqXlStil(ws.getCell(hr, son), { bold: true, dolgu: KQ_XL_RENK.acik, fmt: '0' });
+    ws.getCell(hr, son + 1).value = kqSistemMetin(D, new Array(AN * 2).fill(null).map((_, j) => { let n = 0; mm.forEach(hh => { if (hh[j]) n += hh[j].n; }); return n ? { n } : null; })); kqXlStil(ws.getCell(hr, son + 1), { bold: true, dolgu: KQ_XL_RENK.acik });
+    [...mm.entries()].forEach(([kisa, hh]) => { r++;
+      ws.getCell(r, 1).value = '   ' + kisa; kqXlStil(ws.getCell(r, 1), { al: 'left' });
+      hh.forEach((c, j) => { const cell = ws.getCell(r, 2 + j); cell.value = c ? -c.kayip : null; kqXlStil(cell, { fmt: '0' }); });
+      ws.getCell(r, son).value = { formula: `SUM(B${r}:${L(son - 1)}${r})` }; kqXlStil(ws.getCell(r, son), { fmt: '0' });
+      ws.getCell(r, son + 1).value = kqSistemMetin(D, hh); kqXlStil(ws.getCell(r, son + 1));
+    });
+  });
+  if (r >= ilk){
+    const ref = `B${ilk}:${L(son - 1)}${r}`;
+    ws.addConditionalFormatting({ ref, rules: [
+      { type: 'cellIs', operator: 'lessThanOrEqual', formulae: ['-10'], priority: 1, stopIfTrue: true, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.kirmizi } } } },
+      { type: 'cellIs', operator: 'between', formulae: ['-9.99', '-5'], priority: 2, stopIfTrue: true, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.turuncu } } } },
+      { type: 'cellIs', operator: 'between', formulae: ['-4.99', '-0.01'], priority: 3, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.sari } } } }] });
+    ws.addConditionalFormatting({ ref: `${L(son + 1)}${ilk}:${L(son + 1)}${r}`, rules: [{ type: 'containsText', operator: 'containsText', text: 'Sistematik', priority: 1, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.mor } }, font: { bold: true } } }] });
+  }
+  ws.getColumn(1).width = 42; for (let c = 2; c <= son + 1; c++) ws.getColumn(c).width = 11;
+  // Değerlendiriciler sayfası
+  const w2 = wb.addWorksheet('DEĞERLENDİRİCİLER', { views: [{ showGridLines: false }] });
+  w2.getCell(1, 1).value = `${ad} – DEĞERLENDİRİCİLER`; w2.getCell(1, 1).font = { name: 'Arial', size: 12, bold: true };
+  const bas2 = ['AY', 'TİP', 'DEĞERLENDİREN', 'ÇAĞRI SAYISI', 'ORTALAMA'];
+  const maxN = Math.max(1, ...H.ay.flatMap(x => x.evT.concat(x.evK).map(([, s]) => s.length)));
+  bas2.forEach((t, i) => { const c = w2.getCell(3, i + 1); c.value = t; kqXlStil(c, { bold: true, dolgu: KQ_XL_RENK.gri }); });
+  w2.getCell(3, 7).value = 'ÇAĞRI PUANLARI'; if (maxN > 1) w2.mergeCells(3, 7, 3, 6 + maxN); kqXlStil(w2.getCell(3, 7), { bold: true, dolgu: KQ_XL_RENK.gri });
+  let rr = 3;
+  H.ay.forEach(x => [['TL', x.evT], ['Kalite', x.evK]].forEach(([tip, LL]) => LL.forEach(([ev, s]) => { rr++;
+    [asLabelOf(x.a), tip, ev].forEach((v, i) => { const c = w2.getCell(rr, i + 1); c.value = v; kqXlStil(c, { al: i === 2 ? 'left' : 'center' }); });
+    s.forEach((v, j) => { const c = w2.getCell(rr, 7 + j); c.value = v; kqXlStil(c); });
+    const lastC = w2.getColumn(6 + s.length).letter;
+    w2.getCell(rr, 4).value = { formula: `COUNT(G${rr}:${lastC}${rr})` }; kqXlStil(w2.getCell(rr, 4));
+    w2.getCell(rr, 5).value = { formula: `ROUND(AVERAGE(G${rr}:${lastC}${rr}),1)` }; kqXlStil(w2.getCell(rr, 5), { fmt: '0.0' });
+  })));
+  [12, 8, 26, 12, 10].forEach((w, i) => w2.getColumn(i + 1).width = w); w2.getColumn(6).width = 2; for (let j = 0; j < maxN; j++) w2.getColumn(7 + j).width = 7;
+  await kqXlIndir(wb, `${ad} Çağrı Kalite Kartı.xlsx`);
+}
+async function kqDegExcel(D, ev, aylar){
+  const H = kqDegHesap(D, ev, aylar), AN = aylar.length;
+  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('DEĞERLENDİRİCİ', { views: [{ showGridLines: false, state: 'frozen', xSplit: 1, ySplit: 4 }], pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  ws.getCell(1, 1).value = `${ev} – DEĞERLENDİRİCİ KARTI – ${asLabelOf(aylar[0]).toLocaleUpperCase('tr-TR')}${AN > 1 ? '–' + asLabelOf(aylar[AN - 1]).toLocaleUpperCase('tr-TR') : ''}`; ws.getCell(1, 1).font = { name: 'Arial', size: 12, bold: true };
+  ws.getCell(2, 1).value = 'KARŞILAŞTIRMA: ' + (H.tl ? 'EKİBİNİ DİNLEYEN KALİTE EKİBİ' : 'DİĞER KALİTE DEĞERLENDİRİCİLERİ'); ws.getCell(2, 1).font = { name: 'Arial', size: 10 };
+  // Oranlar sayılardan formülle: her ay için Kendisi/Karşılaştırma × (Sayı, Kesintili çağrı, %)
+  let r = 3;
+  const hdr = (t, c, c2) => { ws.getCell(r, c).value = t; if (c2 > c) ws.mergeCells(r, c, r, c2); kqXlStil(ws.getCell(r, c), { bold: true, dolgu: KQ_XL_RENK.gri }); };
+  hdr('BAŞLIK / MADDE', 1, 1); ws.mergeCells(r, 1, r + 1, 1);
+  aylar.forEach((a, i) => { const c = 2 + 4 * i; hdr(asLabelOf(a).toLocaleUpperCase('tr-TR'), c, c + 3); });
+  r++; aylar.forEach((a, i) => ['KENDİSİ %', 'KARŞ. %', 'KENDİSİ ADET', 'KARŞ. ADET'].forEach((t, j) => { const c = ws.getCell(r, 2 + 4 * i + j); c.value = t; kqXlStil(c, { bold: true, dolgu: KQ_XL_RENK.gri }); }));
+  r++; ws.getCell(r, 1).value = 'Değerlendirme sayısı'; kqXlStil(ws.getCell(r, 1), { bold: true, al: 'left' });
+  const nRow = r;
+  H.ay.forEach((x, i) => { const c = 2 + 4 * i; [null, null, x.own.length, x.cmp.length].forEach((v, j) => { const cell = ws.getCell(r, c + j); cell.value = v; kqXlStil(cell, { bold: true }); }); });
+  const satir = (etiket, kalin, sayac) => { r++; ws.getCell(r, 1).value = etiket; kqXlStil(ws.getCell(r, 1), { bold: kalin, al: 'left', dolgu: kalin ? KQ_XL_RENK.acik : undefined });
+    H.ay.forEach((x, i) => { const c = 2 + 4 * i; const [o, k] = sayac(x);
+      const a1 = ws.getColumn(c + 2).letter, a2 = ws.getColumn(c + 3).letter;
+      ws.getCell(r, c + 2).value = o; ws.getCell(r, c + 3).value = k;
+      ws.getCell(r, c).value = { formula: `IF(${a1}$${nRow}=0,"",${a1}${r}/${a1}$${nRow})` }; ws.getCell(r, c + 1).value = { formula: `IF(${a2}$${nRow}=0,"",${a2}${r}/${a2}$${nRow})` };
+      for (let j = 0; j < 4; j++) kqXlStil(ws.getCell(r, c + j), { bold: kalin && j < 2, fmt: j < 2 ? '0.0%;-0.0%;""' : '0;-0;""', dolgu: kalin ? KQ_XL_RENK.acik : undefined });
+      ws.addConditionalFormatting({ ref: `${ws.getColumn(c).letter}${r}`, rules: [
+        { type: 'expression', formulae: [`AND(ISNUMBER(${ws.getColumn(c).letter}${r}),${ws.getColumn(c).letter}${r}-N(${ws.getColumn(c + 1).letter}${r})>=${D.sapma / 100})`], priority: 1, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.kirmizi } } } },
+        { type: 'expression', formulae: [`N(${ws.getColumn(c + 1).letter}${r})-N(${ws.getColumn(c).letter}${r})>=${D.sapma / 100}`], priority: 2, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: KQ_XL_RENK.mavi } } } }] });
+    }); };
+  const say = (L, f) => L.filter(f).length;
+  [...H.bas.keys()].forEach(b => {
+    satir(b, true, x => [say(x.own, k => k.ded.kes.some(d => d.baslik === b)), say(x.cmp, k => k.ded.kes.some(d => d.baslik === b))]);
+    [...H.bas.get(b).mad.keys()].forEach(kisa => satir('   ' + kisa, false, x => [say(x.own, k => k.ded.kes.some(d => d.baslik === b && d.kisa === kisa)), say(x.cmp, k => k.ded.kes.some(d => d.baslik === b && d.kisa === kisa))]));
+  });
+  ws.getColumn(1).width = 44; for (let c = 2; c < 2 + 4 * AN; c++) ws.getColumn(c).width = 11;
+  await kqXlIndir(wb, `${ev} Değerlendirici Kartı.xlsx`);
+}
+async function kqXlIndir(wb, ad){
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = ad; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+// ---------- Rapor yükleme (Detaylı Manuel Form Raporu / Değerlendirme Listesi) ----------
+const KQ_BOLUM_BASLIK = [['SELAMLAMA', 'Açılış'], ['AÇILIŞ', 'Açılış'], ['GÖRÜŞME SONLANDIRMA', 'Kapanış'], ['KAPANIŞ', 'Kapanış'], ['KONUŞMA', 'Konuşma ve hitap'], ['İLETİŞİM', 'Konuşma ve hitap'], ['ÇAĞRI SÜRECİ', 'Dinleme ve süreç'], ['BEKLETME', 'Dinleme ve süreç'], ['YAPILAN İŞLEM', 'Bilgi ve işlem doğruluğu'], ['İŞLEM KALİTESİ', 'Bilgi ve işlem doğruluğu'], ['PUANI SIFIRLAYAN', 'Sıfırlama']];
+function kqYuklemeBagla(){
+  const btn = document.getElementById('kqYukleBtn'), inp = document.getElementById('kqDosya');
+  if (btn && inp){ btn.onclick = () => inp.click(); inp.onchange = () => { const f = inp.files[0]; inp.value = ''; if (f) kqDosyaOku(f); }; }
+  kqYuklemeCiz();
+}
+async function kqDosyaOku(file){
+  KQ.yukleme = { dosya: file.name, durum: 'Dosya okunuyor…' }; kqYuklemeCiz();
+  try {
+    const D = await kqVeriAl();
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
+    const ws = wb.worksheets[0]; if (!ws) throw new Error('Dosyada sayfa yok.');
+    const T = uzmSayfaTablo(ws);
+    const h0 = (T[0] || []).map(asUp);
+    const liste = h0.includes('TEMSİLCİ ID'); // yeni "Değerlendirme Listesi" biçimi
+    const col = ad => h0.findIndex(x => x === ad);
+    const c = { tem: col('TEMSİLCİ'), id: col('CALLID'), cz: col('ÇAĞRI ZAMANI'), grup: col('ÇALIŞMA GRUBU'), ev: col('DEĞERLENDİREN'), tar: col('DEĞERLENDİRME ZAMANI'), skor: col('SKOR'), not: col('NOTLAR') };
+    if (c.tem === -1 || c.id === -1 || c.skor === -1 || c.ev === -1 || c.tar === -1) throw new Error('Rapor başlıkları tanınmadı (Temsilci, callId, Değerlendiren, Değerlendirme Zamanı, Skor gerekli).');
+    const maddeSatir = liste ? 2 : 1, bolumSatir = liste ? 1 : 0, veriBas = liste ? 3 : 2;
+    const ilkMadde = liste ? c.skor + 1 : c.not + 1;
+    // Form blokları: liste biçiminde üst satırda form adı; detaylı raporda tek blok
+    const bloklar = []; let bolum = '';
+    const genis = Math.max(...T.slice(0, 3).map(x => x.length));
+    for (let i = ilkMadde; i < genis; i++){
+      const madde = kqMetin((T[maddeSatir] || [])[i]); if (!madde) continue;
+      const fAd = liste ? kqMetin((T[0] || [])[i]) : ''; // birleştirilmiş hücre her sütunda aynı adı döndürür
+      if (fAd && (!bloklar.length || bloklar[bloklar.length - 1].ad !== fAd)) bloklar.push({ ad: fAd, sut: [] });
+      if (!bloklar.length) bloklar.push({ ad: '', sut: [] });
+      const b = kqMetin((T[bolumSatir] || [])[i]); if (b) bolum = b;
+      bloklar[bloklar.length - 1].sut.push({ i, madde, bolum });
+    }
+    if (!bloklar.length) throw new Error('Raporda form maddeleri bulunamadı.');
+    // Her blok için form kodu: sözlükteki bir formla madde adları birebir aynıysa o form, değilse yeni form
+    const yeniSoz = [];
+    let yeniNo = [...D.soz.keys()].filter(f => /^FORM-\d+$/.test(f)).length;
+    bloklar.forEach(b => { // madde adına göre eşleştirilir; sütun sırası formdan forma farklı olabilir
+      const adlar = b.sut.map(s => kqNorm(s.madde));
+      for (const [form, S] of D.soz){
+        const sa = S.map(m => m ? kqNorm(m.madde) : '');
+        const map = adlar.map(a => sa.indexOf(a));
+        if (sa.length === adlar.length && map.every(x => x !== -1) && new Set(map).size === map.length){ b.form = form; b.map = map; break; }
+      }
+      if (!b.form){ b.form = 'FORM-' + (++yeniNo); b.yeni = true; b.map = adlar.map((_, j) => j); }
+    });
+    // Satırlar
+    let tem = ''; const satirlar = [];
+    T.slice(veriBas).forEach(r => {
+      if (kqMetin(r[c.tem])) tem = kqMetin(r[c.tem]);
+      const id = kqMetin(r[c.id]); if (!id) return;
+      const blok = bloklar.length === 1 ? bloklar[0] : bloklar.find(b => b.sut.some(s => r[s.i] !== null && r[s.i] !== undefined && r[s.i] !== ''));
+      if (!blok) return;
+      const v = new Array(blok.sut.length).fill(null); blok.sut.forEach((s, j) => { v[blok.map[j]] = kqSayi(r[s.i]); });
+      const tar = kqMetin(r[c.tar]);
+      satirlar.push({ id, tem, cz: kqMetin(r[c.cz]), grup: c.grup === -1 ? '' : kqMetin(r[c.grup]), evHam: kqMetin(r[c.ev]), tar, ay: kqTarihAy(tar), skor: kqSayi(r[c.skor]), not: c.not === -1 ? '' : String(r[c.not] || '').trim(), form: blok.form, v });
+    });
+    if (!satirlar.length) throw new Error('Raporda değerlendirme satırı bulunamadı.');
+    // Yeni formların maddeleri sözlüğe
+    bloklar.filter(b => b.yeni).forEach(b => b.sut.forEach((s, j) => {
+      const deger = satirlar.filter(x => x.form === b.form).map(x => x.v[j]).filter(x => x !== null);
+      const say = new Map(); deger.forEach(x => say.set(x, (say.get(x) || 0) + 1)); const tam = [...say.entries()].sort((x, y) => y[1] - x[1])[0];
+      const bb = (KQ_BOLUM_BASLIK.find(([k]) => asUp(s.bolum).includes(k)) || [null, 'Diğer'])[1];
+      const kisa = (s.madde.match(/\(([^()]*)\)\s*$/) || [null, s.madde])[1].trim().slice(0, 60);
+      yeniSoz.push([b.form, 'M' + String(j + 1).padStart(2, '0'), s.bolum, s.madde, kisa, bb, bb === 'Sıfırlama' ? 0 : (tam ? tam[0] : 0), bb === 'Sıfırlama' ? 'EVET' : 'HAYIR', '', '', '']);
+    }));
+    // Personel eşleştirme: İSİM EŞLEME → o ayın VARDİYA'sı → Personel Listesi
+    const isimAdaylari = new Map();
+    D.vardiya.forEach(v => v.forEach((x, s) => isimAdaylari.set(kqNorm(x.ad), s)));
+    PERSONNEL.forEach(p => isimAdaylari.set(kqNorm(p.adSoyad), p.sicil));
+    const esle = ad => { const k = kqNorm(ad); if (D.isimAtla.has(k)) return '__ATLA__'; if (D.isim.has(k)) return D.isim.get(k); if (isimAdaylari.has(k)) return isimAdaylari.get(k); return null; };
+    const adlar = [...new Set(satirlar.map(x => x.tem))];
+    const isimSonuc = new Map(adlar.map(a => [a, esle(a)]));
+    // Değerlendiren eşleştirme
+    const evSonuc = new Map([...new Set(satirlar.map(x => x.evHam))].map(raw => { const k = kqNorm(raw); let ad = D.evAd.get(k); if (!ad){ const tam = [...D.evTip.keys()].find(a => kqNorm(a) === k); ad = tam || null; } return [raw, ad]; }));
+    KQ.yukleme = { dosya: file.name, satirlar, isimSonuc, evSonuc, evTipSecim: new Map(), yeniSoz, bloklar };
+  } catch (e){ KQ.yukleme = { dosya: file.name, hata: 'Dosya okunamadı: ' + e.message }; }
+  kqYuklemeCiz();
+}
+function kqYuklemeCiz(){
+  const el = document.getElementById('kqYuklemeAlan'); if (!el) return;
+  const Y = KQ.yukleme; if (!Y){ el.innerHTML = ''; return; }
+  const kapat = () => { KQ.yukleme = null; kqYuklemeCiz(); };
+  if (Y.hata){ el.innerHTML = `<div class="error-box" style="margin-bottom:12px;">${kqEsc(Y.hata)} <button class="refresh-btn" id="kqYukKapat" style="margin-left:8px;">Kapat</button></div>`; document.getElementById('kqYukKapat').onclick = kapat; return; }
+  if (!Y.satirlar){ el.innerHTML = `<div class="anz-bos">${kqEsc(Y.durum || 'Okunuyor…')}</div>`; return; }
+  const D = KQ.D;
+  const bizim = x => { const s = Y.isimSonuc.get(x.tem); return s && s !== '__ATLA__'; };
+  const yeni = Y.satirlar.filter(x => !D.callIds.has(x.id));
+  const tekrar = Y.satirlar.length - yeni.length;
+  const eslesmeyen = [...Y.isimSonuc.entries()].filter(([, s]) => !s);
+  const atlanan = yeni.filter(x => Y.isimSonuc.get(x.tem) === '__ATLA__').length;
+  const evBilinmeyen = [...Y.evSonuc.entries()].filter(([, a]) => !a);
+  const yazilacak = yeni.filter(bizim);
+  const ayS = new Map(); yazilacak.forEach(x => ayS.set(x.ay, (ayS.get(x.ay) || 0) + 1));
+  const kisiOpt = s => `<option value="">Seçin…</option><option value="__ATLA__" ${s === '__ATLA__' ? 'selected' : ''}>Bizim personel değil (atla)</option>` + PERSONNEL.slice().sort((a, b) => a.adSoyad.localeCompare(b.adSoyad, 'tr')).map(p => `<option value="${kqEsc(p.sicil)}" ${s === p.sicil ? 'selected' : ''}>${kqEsc(asUp(p.adSoyad))} (${kqEsc(p.sicil)})</option>`).join('');
+  const hazir = !eslesmeyen.length && evBilinmeyen.every(([raw]) => Y.evTipSecim.get(raw)) && yazilacak.length && yazilacak.every(x => x.ay !== null);
+  el.innerHTML = anzCard(`⇧ ${kqEsc(Y.dosya)}`,
+    `${Y.satirlar.length} değerlendirme okundu · <b>${yazilacak.length}</b> yeni kayıt yazılacak${tekrar ? ` · ${tekrar} zaten kayıtlı (atlanır)` : ''}${atlanan ? ` · ${atlanan} başka lokasyon (atlanır)` : ''}`,
+    `<div style="font-size:12.5px;margin-bottom:8px;">Form: ${Y.bloklar.map(b => `<b>${kqEsc(b.form)}</b>${b.ad ? ' (' + kqEsc(b.ad) + ')' : ''}${b.yeni ? ' — yeni form, maddeleri MADDE SÖZLÜĞÜ\'ne eklenecek' : ''}`).join(', ')}</div>` +
+    `<div style="font-size:12.5px;margin-bottom:8px;">Aylar (değerlendirme tarihine göre): ${[...ayS.entries()].sort((a, b) => a[0] - b[0]).map(([a, n]) => `${a === null ? 'Tarih okunamadı' : asLabelOf(a)}: ${n}`).join(' · ') || '—'}</div>` +
+    (eslesmeyen.length || (Y.elle && Y.elle.size) ? `<div style="font-weight:700;margin:10px 0 6px;">Eşleşmeyen isimler — Sicil seçin (seçim İSİM EŞLEME sekmesine kaydedilir)</div>` +
+      [...Y.isimSonuc.entries()].filter(([a, s]) => !s || (Y.elle && Y.elle.has(a))).map(([a, s]) => `<div style="display:flex;gap:8px;align-items:center;margin:4px 0;font-size:12.5px;"><span style="min-width:220px;">${kqEsc(a)} (${Y.satirlar.filter(x => x.tem === a).length})</span><select class="search kq-isim" data-ad="${kqEsc(a)}" style="max-width:320px;">${kisiOpt(s)}</select></div>`).join('') : '') +
+    (evBilinmeyen.length ? `<div style="font-weight:700;margin:10px 0 6px;">Yeni değerlendiriciler — tipini seçin (DEĞERLENDİRİCİLER sekmesine kaydedilir)</div>` +
+      evBilinmeyen.map(([raw]) => `<div style="display:flex;gap:8px;align-items:center;margin:4px 0;font-size:12.5px;"><span style="min-width:220px;">${kqEsc(raw)}</span><select class="search kq-evtip" data-raw="${kqEsc(raw)}"><option value="">Seçin…</option><option value="TAKIM LİDERİ" ${Y.evTipSecim.get(raw) === 'TAKIM LİDERİ' ? 'selected' : ''}>Takım lideri</option><option value="KALİTE" ${Y.evTipSecim.get(raw) === 'KALİTE' ? 'selected' : ''}>Kalite ekibi</option></select></div>`).join('') : '') +
+    `<div class="anz-secici" style="margin-top:12px;"><button class="refresh-btn" id="kqYukKaydet" ${hazir ? '' : 'disabled'}>💾 Tabloya Kaydet</button><button class="refresh-btn" id="kqYukKapat">Vazgeç</button><span class="hint" id="kqYukDurum">${hazir ? '' : (yazilacak.length ? 'Kaydetmek için eşleşmeyen isimleri ve yeni değerlendiricileri tamamlayın.' : 'Yazılacak yeni kayıt yok.')}</span></div>`, '', '');
+  el.querySelectorAll('.kq-isim').forEach(s => s.onchange = () => { Y.elle = Y.elle || new Set(); Y.elle.add(s.dataset.ad); Y.isimSonuc.set(s.dataset.ad, s.value || null); kqYuklemeCiz(); });
+  el.querySelectorAll('.kq-evtip').forEach(s => s.onchange = () => { Y.evTipSecim.set(s.dataset.raw, s.value); kqYuklemeCiz(); });
+  document.getElementById('kqYukKapat').onclick = kapat;
+  document.getElementById('kqYukKaydet').onclick = () => kqYuklemeKaydet();
+}
+async function kqYuklemeKaydet(){
+  const Y = KQ.yukleme, D = KQ.D; if (!Y || !D) return;
+  const durum = document.getElementById('kqYukDurum'), btn = document.getElementById('kqYukKaydet');
+  const yaz = t => { if (durum) durum.textContent = t; };
+  btn.disabled = true;
+  try {
+    yaz('Yazma izni isteniyor (bir pop-up açılabilir)…');
+    const token = await ensureWriteToken();
+    const enc = encodeURIComponent;
+    const ekle = async (tab, values) => { if (!values.length) return;
+      const res = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${KQ_SHEET_ID}/values/${enc(`'${tab}'!A1`)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ values }) })).json();
+      if (res.error) throw new Error(res.error.message); };
+    yaz('Kontrol ediliyor…');
+    // Son durum: arada başka biri aynı callId'leri yazmış olabilir
+    const mevcut = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${KQ_SHEET_ID}/values/${enc(`'${KQ_TAB.deg}'!D2:D60000`)}`, { headers: { Authorization: 'Bearer ' + token } })).json();
+    const varOlan = new Set((mevcut.values || []).map(r => String(r[0] || '')));
+    const evAd = raw => Y.evSonuc.get(raw) || asUp(raw);
+    const satir = Y.satirlar.filter(x => !varOlan.has(x.id) && Y.isimSonuc.get(x.tem) && Y.isimSonuc.get(x.tem) !== '__ATLA__').map(x => {
+      const v = x.v.slice(0, 33); while (v.length < 33) v.push('');
+      return [asKeyOf(x.ay), x.tar.slice(0, 10), x.cz, x.id, Number(Y.isimSonuc.get(x.tem)) || Y.isimSonuc.get(x.tem), asUp(x.tem), evAd(x.evHam), x.form, x.grup, x.skor, x.not].concat(v.map(z => z === null ? '' : z));
+    });
+    yaz('Kaydediliyor…');
+    await ekle(KQ_TAB.soz, Y.yeniSoz);
+    await ekle(KQ_TAB.ev, [...Y.evTipSecim.entries()].map(([raw, tip]) => [raw, asUp(raw), tip]));
+    await ekle(KQ_TAB.isim, [...(Y.elle || new Set())].filter(a => Y.isimSonuc.get(a)).map(a => { const s = Y.isimSonuc.get(a); return [asUp(a), s === '__ATLA__' ? '' : (Number(s) || s)]; }));
+    await ekle(KQ_TAB.deg, satir);
+    try { sendLog({ type: 'kaydet', dashboard: 'Personel Karnesi', page: 'Çağrı Kalitesi', target: `${KQ_TAB.deg} — ${Y.dosya}`, fields: `${satir.length} değerlendirme`, action: 'Yeni Kayıt' }); } catch(e){}
+    KQ.yukleme = null; KQ.D = null; asHafizaTemizle();
+    renderContentArea();
   } catch (e){ yaz('✗ ' + e.message); btn.disabled = false; }
 }
 
