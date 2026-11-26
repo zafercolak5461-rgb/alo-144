@@ -11490,12 +11490,12 @@ async function kqKisiExcel(D, sicil, aylar, H){
   let rr = 3;
   H.ay.forEach(x => [['TL', x.evT], ['Kalite', x.evK]].forEach(([tip, LL]) => LL.forEach(([ev, s]) => { rr++;
     [asLabelOf(x.a), tip, ev].forEach((v, i) => { const c = w2.getCell(rr, i + 1); c.value = v; kqXlStil(c, { al: i === 2 ? 'left' : 'center' }); });
-    s.forEach((v, j) => { const c = w2.getCell(rr, 7 + j); c.value = v; kqXlStil(c); });
+    for (let j = 0; j < maxN; j++){ const c = w2.getCell(rr, 7 + j); c.value = j < s.length ? s[j] : null; kqXlStil(c); } // boşlar da kenarlıklı: tam ızgara
     const lastC = w2.getColumn(6 + s.length).letter;
     w2.getCell(rr, 4).value = { formula: `COUNT(G${rr}:${lastC}${rr})` }; kqXlStil(w2.getCell(rr, 4));
     w2.getCell(rr, 5).value = { formula: `ROUND(AVERAGE(G${rr}:${lastC}${rr}),1)` }; kqXlStil(w2.getCell(rr, 5), { fmt: '0.0' });
   })));
-  [12, 8, 26, 12, 10].forEach((w, i) => w2.getColumn(i + 1).width = w); w2.getColumn(6).width = 2; for (let j = 0; j < maxN; j++) w2.getColumn(7 + j).width = 7;
+  [15, 8, 26, 12, 12].forEach((w, i) => w2.getColumn(i + 1).width = w); w2.getColumn(6).width = 2; for (let j = 0; j < maxN; j++) w2.getColumn(7 + j).width = 7;
   await kqXlIndir(wb, `${ad} Çağrı Kalite Kartı.xlsx`);
 }
 async function kqDegExcel(D, ev, aylar){
