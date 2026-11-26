@@ -401,9 +401,9 @@ html.gorunum-beyaz .nav-bolum::before, html.gorunum-beyaz .nav-bolum::after{ con
     <button class="sidebar-nav-item performans-only" data-lefttab="performans" data-ikon="grafik" data-grup="Analiz"><span class="nav-ikon"></span>Personel Performansı</button>
     <button class="sidebar-nav-item performans-only" data-lefttab="uzman" data-ikon="hedef" data-grup="Analiz"><span class="nav-ikon"></span>Uzman Performansı</button>
     <div class="nav-bolum">Çağrı Kalitesi</div>
-    <button class="sidebar-nav-item yetki-only" data-lefttab="kaliteozet" data-ikon="grafik" data-grup="Çağrı Kalitesi"><span class="nav-ikon"></span>Genel Bakış</button>
+    <button class="sidebar-nav-item analiz-only" data-lefttab="kaliteozet" data-ikon="grafik" data-grup="Çağrı Kalitesi"><span class="nav-ikon"></span>Genel Bakış</button>
     <button class="sidebar-nav-item analiz-only" data-lefttab="kalite" data-ikon="onay" data-grup="Çağrı Kalitesi"><span class="nav-ikon"></span>Personel Kalite Kartı</button>
-    <button class="sidebar-nav-item yetki-only" data-lefttab="kalitedeg" data-ikon="kisiler" data-grup="Çağrı Kalitesi"><span class="nav-ikon"></span>Değerlendirici Kartı</button>
+    <button class="sidebar-nav-item analiz-only" data-lefttab="kalitedeg" data-ikon="kisiler" data-grup="Çağrı Kalitesi"><span class="nav-ikon"></span>Değerlendirici Kartı</button>
     <div class="nav-bolum">Yönetim</div>
     <button class="sidebar-nav-item islem-only" data-lefttab="islem" id="islemNavBtn" data-ikon="yenile" data-grup="Yönetim"><span class="nav-ikon"></span>Güncelleme</button>
     <button class="sidebar-nav-item yetki-only" data-lefttab="yetki" data-ikon="kamera" data-grup="Yönetim"><span class="nav-ikon"></span>Fotoğraf ve Tema</button>
@@ -10789,8 +10789,7 @@ async function kqVeriAl(){
       (ayar || []).slice(1).forEach(r => { const k = asUp(r[0]); if (k) D.ayar[k] = r[1]; });
       const ay = (parca, vars) => { const k = Object.keys(D.ayar).find(x => x.includes(parca)); const v = k ? kqSayi(D.ayar[k]) : null; return v === null ? vars : v; };
       D.sisAy = ay('KAÇ AYDA', 2); D.sisN = ay('KAÇ KESİNTİ', 2); D.sapma = ay('SAPMA', 3); D.minDeg = ay('EN AZ DEĞERLENDİRME', 50);
-      const notK = Object.keys(D.ayar).find(x => x.includes('NOT')); D.notHerkes = notK ? asUp(D.ayar[notK]).includes('HERKES') : false;
-      try { D.olcek = asParseOlcek(olc); } catch(e){ D.olcek = null; }
+            try { D.olcek = asParseOlcek(olc); } catch(e){ D.olcek = null; }
       // Değerlendirmeler
       const h = deg[0].map(asUp), hi = n => h.indexOf(n);
       const c = { ay: hi('AY'), tar: hi('DEĞERLENDİRME TARİHİ'), cz: hi('ÇAĞRI ZAMANI'), id: hi('CALLID'), sic: hi('SİCİL'), ad: hi('PERSONEL (RAPORDAKİ)'), ev: hi('DEĞERLENDİREN'), form: hi('FORM'), grup: hi('ÇALIŞMA GRUBU'), skor: hi('SKOR'), not: hi('NOT'), m1: hi('M01') };
@@ -10945,11 +10944,10 @@ function kqKart(D, sicil, aylar){
   if (!basSira.length) h += `<tr><td colspan="${AN * 2 + 3}" class="n" style="color:var(--dim);">Seçilen aylarda puan kesintisi yok.</td></tr>`;
   h += `</table></div>`;
   // Sıfırlanan çağrılar
-  const notGor = yetkiAuthorized || D.notHerkes;
   if (H.sif.length){
     h += `<div style="margin-top:14px;font-weight:700;">Sıfırlanan çağrılar (${H.sif.length})</div>` + H.sif.map(k => {
       const neden = kqSifNeden(k);
-      return `<div class="kq-sif"><b>${kqEsc(k.cz.slice(0, 10))}</b> · ${kqEsc(k.ev)} (${k.tl ? 'takım lideri' : 'kalite'}) · Neden: ${kqEsc(neden)}${notGor && k.not ? `<div class="kq-not">"${kqEsc(k.not)}"</div>` : ''}</div>`;
+      return `<div class="kq-sif"><b>${kqEsc(k.cz.slice(0, 10))}</b> · ${kqEsc(k.ev)} (${k.tl ? 'takım lideri' : 'kalite'}) · Neden: ${kqEsc(neden)}${k.not ? `<div class="kq-not">"${kqEsc(k.not)}"</div>` : ''}</div>`;
     }).join('');
   }
   return h;
