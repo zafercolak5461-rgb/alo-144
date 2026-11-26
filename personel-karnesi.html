@@ -10891,6 +10891,11 @@ const KQ_CSS = `<style>
 .kq-lej span{padding:2px 8px;border-radius:6px;}
 .kq-sif{border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-top:8px;font-size:12.5px;}
 .kq-sif .kq-not{margin-top:5px;color:var(--dim);font-style:italic;}
+.kq-ac>summary{cursor:pointer;font-weight:700;list-style:none;padding:6px 0;user-select:none;}
+.kq-ac>summary::-webkit-details-marker{display:none;}
+.kq-ac>summary::before{content:'▸ ';color:var(--dim);}
+.kq-ac[open]>summary::before{content:'▾ ';}
+.kq-ac>summary:hover{color:var(--blue);}
 </style>`;
 function kqLejant(D, deg){
   const p = s => `<span style="${s}">`;
@@ -10959,10 +10964,10 @@ function kqKart(D, sicil, aylar){
   h += `</table></div>`;
   // Sıfırlanan çağrılar
   if (H.sif.length){
-    h += `<div style="margin-top:14px;font-weight:700;">Sıfırlanan çağrılar (${H.sif.length})</div>` + H.sif.map(k => {
+    h += `<details class="kq-ac" style="margin-top:10px;"><summary>Sıfırlanan çağrılar (${H.sif.length})</summary>` + H.sif.map(k => {
       const neden = kqSifNeden(k);
       return `<div class="kq-sif"><b>${kqEsc(k.cz.slice(0, 10))}</b> · ${kqEsc(k.ev)} (${k.tl ? 'takım lideri' : 'kalite'}) · Neden: ${kqEsc(neden)}${k.not ? `<div class="kq-not">"${kqEsc(k.not)}"</div>` : ''}</div>`;
-    }).join('');
+    }).join('') + `</details>`;
   }
   return h;
 }
@@ -11063,11 +11068,10 @@ function kqDegKart(D, ev, aylar){
   h += `</table></div>`;
   // Bu değerlendiricinin sıfırladığı çağrılar
   const sif = H.ay.flatMap(x => x.own).filter(k => k.skor === 0).sort((x, y) => x.ay - y.ay || kqTarihSira(x.cz) - kqTarihSira(y.cz));
-  h += `<div style="margin-top:16px;font-weight:700;">Sıfırladığı çağrılar (${sif.length})</div>`;
-  h += sif.length ? `<div class="kq-kaydir"><table class="kq-tb" style="margin-top:6px;"><colgroup><col style="width:95px"><col style="width:95px"><col style="width:210px"><col style="width:220px"><col></colgroup>
+  h += sif.length ? `<details class="kq-ac" style="margin-top:12px;"><summary>Sıfırladığı çağrılar (${sif.length})</summary><div class="kq-kaydir"><table class="kq-tb" style="margin-top:6px;"><colgroup><col style="width:95px"><col style="width:95px"><col style="width:210px"><col style="width:220px"><col></colgroup>
     <tr><th>Çağrı tarihi</th><th>Değ. tarihi</th><th style="text-align:left;">Personel</th><th style="text-align:left;">Neden</th><th style="text-align:left;">Not</th></tr>` +
-    sif.map(k => `<tr><td class="n">${kqEsc(k.cz.slice(0, 10))}</td><td class="n">${kqEsc(k.tar.slice(0, 10))}</td><td>${kqEsc(kqKisiAd(D, k.sicil, k.ad))} <span style="color:var(--dim);">· ${kqEsc(k.sicil)}</span></td><td>${kqEsc(kqSifNeden(k))}</td><td style="color:var(--dim);font-style:italic;">${kqEsc(k.not)}</td></tr>`).join('') + `</table></div>`
-    : `<div style="color:var(--dim);font-size:12.5px;margin-top:4px;">Seçilen aylarda sıfırladığı çağrı yok.</div>`;
+    sif.map(k => `<tr><td class="n">${kqEsc(k.cz.slice(0, 10))}</td><td class="n">${kqEsc(k.tar.slice(0, 10))}</td><td>${kqEsc(kqKisiAd(D, k.sicil, k.ad))} <span style="color:var(--dim);">· ${kqEsc(k.sicil)}</span></td><td>${kqEsc(kqSifNeden(k))}</td><td style="color:var(--dim);font-style:italic;">${kqEsc(k.not)}</td></tr>`).join('') + `</table></div></details>`
+    : `<div style="margin-top:16px;font-weight:700;">Sıfırladığı çağrılar (0)</div><div style="color:var(--dim);font-size:12.5px;margin-top:4px;">Seçilen aylarda sıfırladığı çağrı yok.</div>`;
   h += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12.5px;">${[['Madde değerinden fazla kesinti', H.form.fazla], ['Neden seçilmeden sıfırlama', H.form.elle], ['Sıfırlama maddesine kısmi değer', H.form.kismi]].concat(H.tl ? [['Güncelleme anonsu cezası', H.form.oz]] : []).map(([l, v]) => `<span class="kq-chip">${l}<b>${v}</b></span>`).join('')}</div>`;
   return h;
 }
@@ -11174,15 +11178,16 @@ function kqEgilimTablo(D, aylar, tl){
   h += `</table></div><div style="font-size:11.5px;color:var(--dim);margin-top:6px;">Yüzde = o değerlendiricinin dinlediği çağrıların kaçında bu başlıktan puan kırdığı. Renk, ${ekipAd.toLocaleLowerCase('tr-TR')} ortalamasından ${kqF(D.sapma)}+ puan sapma (kırmızı sık, mavi seyrek). En az ${G.esik} değerlendirmesi olanlar.</div>`;
   return h;
 }
+function kqSifAcBagla(){ const d = document.getElementById('kqSifAc'); if (d) d.ontoggle = () => { KQ.sifAcik = d.open; }; }
 function kqSifListe(D, aylar, filtre){
   const L = D.kayit.filter(k => k.biz && aylar.includes(k.ay) && k.skor === 0 && (filtre === 'TUM' || (filtre === 'KALITE' && !k.tl) || (filtre === 'TL' && k.tl) || filtre === 'EV:' + k.ev))
     .sort((x, y) => x.ay - y.ay || kqTarihSira(x.cz) - kqTarihSira(y.cz));
   const neden = new Map(); L.forEach(k => { const n = kqSifNeden(k); neden.set(n, (neden.get(n) || 0) + 1); });
   let h = `<div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;font-size:12.5px;">${[...neden.entries()].sort((a, b) => b[1] - a[1]).map(([n, c]) => `<span class="kq-chip">${kqEsc(n)}<b>${c}</b></span>`).join('')}</div>`;
   if (!L.length) return h + `<div style="color:var(--dim);font-size:12.5px;">Seçilen aylarda sıfırlanan çağrı yok.</div>`;
-  h += `<div class="kq-kaydir"><table class="kq-tb"><colgroup><col style="width:92px"><col style="width:200px"><col style="width:170px"><col style="width:200px"><col></colgroup>
+  h += `<details class="kq-ac" id="kqSifAc" ${KQ.sifAcik ? 'open' : ''}><summary>Çağrıları göster (${L.length})</summary><div class="kq-kaydir"><table class="kq-tb"><colgroup><col style="width:92px"><col style="width:200px"><col style="width:170px"><col style="width:200px"><col></colgroup>
     <tr><th>Çağrı tarihi</th><th style="text-align:left;">Personel</th><th style="text-align:left;">Değerlendiren</th><th style="text-align:left;">Neden</th><th style="text-align:left;">Not</th></tr>` +
-    L.map(k => `<tr><td class="n">${kqEsc(k.cz.slice(0, 10))}</td><td>${kqEsc(kqKisiAd(D, k.sicil, k.ad))} <span style="color:var(--dim);">· ${kqEsc(k.sicil)}</span></td><td>${kqEsc(k.ev)} <span style="color:var(--dim);font-size:11px;">${k.tl ? 'TL' : 'Kalite'}</span></td><td>${kqEsc(kqSifNeden(k))}</td><td style="color:var(--dim);font-style:italic;">${kqEsc(k.not)}</td></tr>`).join('') + `</table></div>`;
+    L.map(k => `<tr><td class="n">${kqEsc(k.cz.slice(0, 10))}</td><td>${kqEsc(kqKisiAd(D, k.sicil, k.ad))} <span style="color:var(--dim);">· ${kqEsc(k.sicil)}</span></td><td>${kqEsc(k.ev)} <span style="color:var(--dim);font-size:11px;">${k.tl ? 'TL' : 'Kalite'}</span></td><td>${kqEsc(kqSifNeden(k))}</td><td style="color:var(--dim);font-style:italic;">${kqEsc(k.not)}</td></tr>`).join('') + `</table></div></details>`;
   return h;
 }
 function renderKaliteOzetTab(){
@@ -11215,8 +11220,8 @@ function wireKaliteOzetTab(){
       const sel = document.getElementById('kqSifFiltre');
       sel.innerHTML = [['TUM', 'Tümü'], ['KALITE', 'Kalite ekibi'], ['TL', 'Takım liderleri']].map(([v, l]) => `<option value="${v}" ${KQ.sifFiltre === v ? 'selected' : ''}>${l}</option>`).join('') +
         `<optgroup label="Değerlendiren">${evs.map(e => `<option value="EV:${kqEsc(e)}" ${KQ.sifFiltre === 'EV:' + e ? 'selected' : ''}>${kqEsc(e)} (${D.evTip.get(e) === 'TL' ? 'TL' : 'Kalite'})</option>`).join('')}</optgroup>`;
-      sel.onchange = e => { KQ.sifFiltre = e.target.value; document.getElementById('kqSif').innerHTML = kqSifListe(D, aylar, KQ.sifFiltre); };
-      document.getElementById('kqSif').innerHTML = kqSifListe(D, aylar, KQ.sifFiltre);
+      sel.onchange = e => { KQ.sifFiltre = e.target.value; document.getElementById('kqSif').innerHTML = kqSifListe(D, aylar, KQ.sifFiltre); kqSifAcBagla(); };
+      document.getElementById('kqSif').innerHTML = kqSifListe(D, aylar, KQ.sifFiltre); kqSifAcBagla();
     };
     const ciz = () => {
       const aylar = kqAralik(D);
