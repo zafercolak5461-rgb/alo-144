@@ -10878,6 +10878,8 @@ function kqLejant(D, deg){
     : `Puan: ${p(kqPuanRenk(D, 100, KQ.bit))}en üst dilim</span>${p(kqPuanRenk(D, 93, KQ.bit))}ikinci</span>${p(kqPuanRenk(D, 87, KQ.bit))}üçüncü</span>${p(kqPuanRenk(D, 50, KQ.bit))}altı</span>
     · Kesinti: ${p(kqKesRenk(1))}1–4</span>${p(kqKesRenk(5))}5–9</span>${p(kqKesRenk(10))}10+</span> · <span class="kq-tag">Sistematik</span> = en az ${kqF(D.sisAy)} ayda ve en az ${kqF(D.sisN)} kesintide`}</div>`;
 }
+const kqSifNeden = k => k.ded.sifNeden.length ? k.ded.sifNeden.join(', ') : (k.ded.kismi.length ? 'Kısmi: ' + k.ded.kismi.join(', ') : 'Formda neden işaretlenmemiş');
+const kqTarihSira = t => { const m = String(t || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/); return m ? (+m[3]) * 1e8 + (+m[2]) * 1e6 + (+m[1]) * 1e4 + (+(m[4] || 0)) * 100 + (+(m[5] || 0)) : 0; };
 function kqSistemMetin(D, hucre){ // Excel için: aynı kural, düz metin
   const ayN = hucre.length / 2; let ayS = 0, n = 0;
   for (let a = 0; a < ayN; a++){ const x = (hucre[2*a] ? hucre[2*a].n : 0) + (hucre[2*a+1] ? hucre[2*a+1].n : 0); if (x) ayS++; n += x; }
@@ -10939,7 +10941,7 @@ function kqKart(D, sicil, aylar){
   const notGor = yetkiAuthorized || D.notHerkes;
   if (H.sif.length){
     h += `<div style="margin-top:14px;font-weight:700;">Sıfırlanan çağrılar (${H.sif.length})</div>` + H.sif.map(k => {
-      const neden = k.ded.sifNeden.length ? k.ded.sifNeden.join(', ') : (k.ded.kismi.length ? 'Kısmi: ' + k.ded.kismi.join(', ') : 'Formda neden işaretlenmemiş');
+      const neden = kqSifNeden(k);
       return `<div class="kq-sif"><b>${kqEsc(k.cz.slice(0, 10))}</b> · ${kqEsc(k.ev)} (${k.tl ? 'takım lideri' : 'kalite'}) · Neden: ${kqEsc(neden)}${notGor && k.not ? `<div class="kq-not">"${kqEsc(k.not)}"</div>` : ''}</div>`;
     }).join('');
   }
@@ -11040,6 +11042,13 @@ function kqDegKart(D, ev, aylar){
     });
   });
   h += `</table></div>`;
+  // Bu değerlendiricinin sıfırladığı çağrılar
+  const sif = H.ay.flatMap(x => x.own).filter(k => k.skor === 0).sort((x, y) => x.ay - y.ay || kqTarihSira(x.cz) - kqTarihSira(y.cz));
+  h += `<div style="margin-top:16px;font-weight:700;">Sıfırladığı çağrılar (${sif.length})</div>`;
+  h += sif.length ? `<div class="kq-kaydir"><table class="kq-tb" style="margin-top:6px;"><colgroup><col style="width:95px"><col style="width:95px"><col style="width:210px"><col style="width:220px"><col></colgroup>
+    <tr><th>Çağrı tarihi</th><th>Değ. tarihi</th><th style="text-align:left;">Personel</th><th style="text-align:left;">Neden</th><th style="text-align:left;">Not</th></tr>` +
+    sif.map(k => `<tr><td class="n">${kqEsc(k.cz.slice(0, 10))}</td><td class="n">${kqEsc(k.tar.slice(0, 10))}</td><td>${kqEsc(kqKisiAd(D, k.sicil, k.ad))} <span style="color:var(--dim);">· ${kqEsc(k.sicil)}</span></td><td>${kqEsc(kqSifNeden(k))}</td><td style="color:var(--dim);font-style:italic;">${kqEsc(k.not)}</td></tr>`).join('') + `</table></div>`
+    : `<div style="color:var(--dim);font-size:12.5px;margin-top:4px;">Seçilen aylarda sıfırladığı çağrı yok.</div>`;
   h += `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:12.5px;">${[['Madde değerinden fazla kesinti', H.form.fazla], ['Neden seçilmeden sıfırlama', H.form.elle], ['Sıfırlama maddesine kısmi değer', H.form.kismi]].concat(H.tl ? [['Güncelleme anonsu cezası', H.form.oz]] : []).map(([l, v]) => `<span class="kq-chip">${l}<b>${v}</b></span>`).join('')}</div>`;
   return h;
 }
@@ -11187,6 +11196,14 @@ async function kqDegExcel(D, ev, aylar){
     [...H.bas.get(b).mad.keys()].forEach(kisa => satir('   ' + kisa, false, x => [say(x.own, k => k.ded.kes.some(d => d.baslik === b && d.kisa === kisa)), say(x.cmp, k => k.ded.kes.some(d => d.baslik === b && d.kisa === kisa))]));
   });
   ws.getColumn(1).width = 44; for (let c = 2; c < 2 + 4 * AN; c++) ws.getColumn(c).width = 11;
+  // Sıfırladığı çağrılar
+  const w2 = wb.addWorksheet('SIFIRLANAN ÇAĞRILAR', { views: [{ showGridLines: false, state: 'frozen', ySplit: 3 }] });
+  w2.getCell(1, 1).value = `${ev} – SIFIRLADIĞI ÇAĞRILAR`; w2.getCell(1, 1).font = { name: 'Arial', size: 12, bold: true };
+  ['AY', 'ÇAĞRI TARİHİ', 'DEĞ. TARİHİ', 'PERSONEL', 'SİCİL', 'NEDEN', 'NOT'].forEach((t, i) => { const c = w2.getCell(3, i + 1); c.value = t; kqXlStil(c, { bold: true, dolgu: KQ_XL_RENK.gri }); });
+  H.ay.flatMap(x => x.own).filter(k => k.skor === 0).sort((x, y) => x.ay - y.ay || kqTarihSira(x.cz) - kqTarihSira(y.cz)).forEach((k, i) => {
+    [asLabelOf(k.ay).toLocaleUpperCase('tr-TR'), k.cz.slice(0, 10), k.tar.slice(0, 10), kqKisiAd(D, k.sicil, k.ad), Number(k.sicil) || k.sicil, kqSifNeden(k), k.not].forEach((v, j) => { const c = w2.getCell(4 + i, j + 1); c.value = v; kqXlStil(c, { al: j >= 3 && j !== 4 ? 'left' : 'center' }); });
+  });
+  [14, 13, 13, 28, 9, 34, 70].forEach((w, i) => w2.getColumn(i + 1).width = w);
   await kqXlIndir(wb, `${ev} Değerlendirici Kartı.xlsx`);
 }
 async function kqXlIndir(wb, ad){
