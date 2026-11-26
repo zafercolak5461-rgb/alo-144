@@ -7189,6 +7189,7 @@ function renderContentArea(){
   }
 
   const p = PERSONNEL.find(x => x.sicil === selectedSicil);
+  if (!p && selectedLeftTab === 'kalite'){ contentArea.innerHTML = renderKaliteKisiTab(null); wireKaliteKisiTab(null); return; } // Çalışmayanlar listesi personel seçmeden de açılır
   if (!p){
     contentArea.innerHTML = `<div class="empty-state" style="padding:60px;">Sağ üstteki aramadan bir personel seçin.</div>`;
     return;
@@ -10996,28 +10997,43 @@ function kqKartBagla(D, sicil, aylar){
 }
 function renderKaliteKisiTab(p){
   return KQ_CSS + `<div class="analiz-card" style="padding:18px;">
-    <div class="kq-ust" id="kqUst"><div style="flex:1;min-width:200px;"><div class="eyebrow">ÇAĞRI KALİTESİ</div><div style="font-weight:700;font-size:16px;">${kqEsc(asUp(p.adSoyad))} <span style="font-weight:400;color:var(--dim);font-size:13px;">· ${kqEsc(p.sicil)}</span></div><div id="kqTakimBilgi" style="font-size:12.5px;color:var(--dim);"></div></div>
+    <div class="kq-ust" id="kqUst"><div style="flex:1;min-width:200px;"><div class="eyebrow">ÇAĞRI KALİTESİ</div><div style="font-weight:700;font-size:16px;" id="kqKisiBaslik">${p ? `${kqEsc(asUp(p.adSoyad))} <span style="font-weight:400;color:var(--dim);font-size:13px;">· ${kqEsc(p.sicil)}</span>` : ''}</div><div id="kqTakimBilgi" style="font-size:12.5px;color:var(--dim);"></div></div>
+      <div><div class="search-label">Çalışmayanlar</div><select class="search" id="kqAyrSec" style="max-width:230px;"><option value="">—</option></select></div>
       <span id="kqSeciciAlan"></span>
       <button class="refresh-btn" id="kqTumu">Tümünü aç</button><button class="refresh-btn" id="kqExcel">⇩ Excel'e aktar</button>${kqYuklemeDugme()}</div>
     <div id="kqYuklemeAlan"></div>
     <div id="kqIcerik"><div class="anz-bos">Veriler yükleniyor…</div></div>
     <div id="kqLejant"></div></div>`;
 }
+// Çalışmayanlar: tablodaki sicili artık Personel Listesi'nde olmayanlar (sicili bilinmeyenler "AYR-…" anahtarıyla)
+function kqAyrilanlar(D){
+  const m = new Map(); D.kayit.forEach(k => { if (!k.sicil || kqCalisiyor(k.sicil)) return; if (!m.has(k.sicil)) m.set(k.sicil, { sicil: k.sicil, ad: kqKisiAd(D, k.sicil, k.ad), n: 0 }); m.get(k.sicil).n++; });
+  return [...m.values()].sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+}
 function wireKaliteKisiTab(p){
   kqYuklemeBagla();
+  // Üstteki aramadan başka biri seçilirse çalışmayan seçimi bırakılır
+  if (KQ.ayr && KQ.ayr.onceki !== selectedSicil) KQ.ayr = null;
   kqVeriAl().then(D => {
     if (selectedLeftTab !== 'kalite') return;
     if (!D.aylar.length){ document.getElementById('kqIcerik').innerHTML = '<div class="anz-bos">ÇAĞRI KALİTE tablosunda değerlendirme yok.</div>'; return; }
+    const ayr = kqAyrilanlar(D), sel = document.getElementById('kqAyrSec');
+    sel.innerHTML = `<option value="">— ${ayr.length} kişi —</option>` + ayr.map(x => `<option value="${kqEsc(x.sicil)}" ${KQ.ayr && KQ.ayr.sicil === x.sicil ? 'selected' : ''}>${kqEsc(x.ad)}${kqSicilGoster(x.sicil) ? ' (' + kqEsc(x.sicil) + ')' : ''}</option>`).join('');
+    sel.onchange = () => { KQ.ayr = sel.value ? { sicil: sel.value, onceki: selectedSicil } : null; ciz(); };
     const ciz = () => {
+      const kisi = KQ.ayr ? { sicil: KQ.ayr.sicil, adSoyad: (ayr.find(x => x.sicil === KQ.ayr.sicil) || {}).ad || KQ.ayr.sicil, ayr: true } : p;
       const aylar = kqAralik(D);
       document.getElementById('kqSeciciAlan').innerHTML = `<span style="display:inline-flex;gap:10px;">${kqSecici(D)}</span>`;
       ['kqBas', 'kqBit'].forEach(id => document.getElementById(id).onchange = e => { KQ[id === 'kqBas' ? 'bas' : 'bit'] = +e.target.value; ciz(); });
-      const tk = [...new Set(aylar.map(a => kqTakim(D, a, p.sicil)).filter(Boolean))];
+      if (!kisi){ document.getElementById('kqKisiBaslik').innerHTML = ''; document.getElementById('kqTakimBilgi').textContent = ''; document.getElementById('kqLejant').innerHTML = '';
+        document.getElementById('kqIcerik').innerHTML = '<div class="anz-bos">Sağ üstteki aramadan bir personel seçin ya da Çalışmayanlar listesinden birini seçin.</div>'; return; }
+      document.getElementById('kqKisiBaslik').innerHTML = `${kqEsc(asUp(kisi.adSoyad))}${kqSicilGoster(kisi.sicil) ? ` <span style="font-weight:400;color:var(--dim);font-size:13px;">· ${kqEsc(kisi.sicil)}</span>` : ''}${kisi.ayr ? ' <span style="font-size:11px;font-weight:600;color:var(--orange,#d97706);">çalışmıyor</span>' : ''}`;
+      const tk = [...new Set(aylar.map(a => kqTakim(D, a, kisi.sicil)).filter(Boolean))];
       document.getElementById('kqTakimBilgi').textContent = tk.length ? 'Takım lideri (değerlendirmeye göre): ' + tk.join(' → ') : '';
-      document.getElementById('kqIcerik').innerHTML = kqKart(D, p.sicil, aylar);
+      document.getElementById('kqIcerik').innerHTML = kqKart(D, kisi.sicil, aylar);
       document.getElementById('kqLejant').innerHTML = kqLejant(D, false);
       const tumu = document.getElementById('kqTumu'); tumu.dataset.o = '0'; tumu.textContent = 'Tümünü aç';
-      kqKartBagla(D, p.sicil, aylar);
+      kqKartBagla(D, kisi.sicil, aylar);
     };
     ciz();
   }).catch(e => { const el = document.getElementById('kqIcerik'); if (el) el.innerHTML = `<div class="error-box">${kqEsc(e.message)}</div>`; });
@@ -11315,8 +11331,10 @@ async function kqSatirSil(tab, row){ const id = await kqSekmeId(tab); return kqA
 function kqEsleListe(D){
   const sayi = new Map(); D.kayit.forEach(k => { const n = kqNorm(k.ad); sayi.set(n, (sayi.get(n) || 0) + 1); });
   const L = D.isimSatir.filter(x => x.k).map(x => ({ row: x.row, ad: x.ad, k: x.k, sicil: x.sicil, bas: x.bas, n: sayi.get(x.k) || 0, oto: false }));
+  L.forEach(x => { x.ayr = !!x.sicil && !kqCalisiyor(x.sicil); });
   const var_ = new Set(L.map(x => x.k));
   const oto = new Map(); D.kayit.forEach(k => { const n = kqNorm(k.ad); if (!var_.has(n) && !oto.has(n) && k.sicil) oto.set(n, { row: null, ad: k.ad, k: n, sicil: k.sicil, bas: null, n: sayi.get(n) || 0, oto: true }); });
+  oto.forEach(x => { x.ayr = !kqCalisiyor(x.sicil); });
   return L.concat([...oto.values()]).sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
 }
 function kqAySecenek(sec){
@@ -11324,21 +11342,23 @@ function kqAySecenek(sec){
   const a = []; for (let x = son; x >= ilk; x--) a.push(x);
   return `<option value="">Baştan beri</option>` + a.map(x => `<option value="${x}" ${x === sec ? 'selected' : ''}>${asLabelOf(x)}</option>`).join('');
 }
-function kqKisiSecenek(D, sicil){
+const kqCalisiyor = sicil => PERSONNEL.some(p => p.sicil === String(sicil));
+const kqSicilGoster = s => String(s || '').startsWith('AYR-') ? '' : String(s || '');
+function kqKisiSecenek(D, sicil, ad){
   const kisi = PERSONNEL.slice().sort((a, b) => a.adSoyad.localeCompare(b.adSoyad, 'tr'));
-  let h = `<option value="" ${!sicil ? 'selected' : ''}>— Bizim personel değil —</option>`;
-  if (sicil && !kisi.some(p => p.sicil === sicil)) h += `<option value="${kqEsc(sicil)}" selected>${kqEsc(kqKisiAd(D, sicil))} (${kqEsc(sicil)}) · listede yok</option>`;
+  let h = `<option value="" ${!sicil ? 'selected' : ''}>— Bizim personel değil —</option><option value="__AYR__">Çalışmıyor (ayrıldı)…</option>`;
+  if (sicil && !kqCalisiyor(sicil)) h += `<option value="${kqEsc(sicil)}" selected>${kqEsc(kqKisiAd(D, sicil, ad))}${kqSicilGoster(sicil) ? ' (' + kqEsc(sicil) + ')' : ''} · çalışmıyor</option>`;
   return h + kisi.map(p => `<option value="${kqEsc(p.sicil)}" ${p.sicil === sicil ? 'selected' : ''}>${kqEsc(asUp(p.adSoyad))} (${kqEsc(p.sicil)})</option>`).join('');
 }
 function renderKaliteEsleTab(){
   return `<div class="topbar"><div class="topbar-left"><div><div class="eyebrow">ALO 144 · ÇAĞRI KALİTESİ</div><h1>Eşleştirme</h1></div></div></div>` + KQ_CSS +
     `<div class="analiz-card" style="padding:18px;">
       <div style="font-weight:700;margin-bottom:4px;">1) Personel eşleştirme</div>
-      <div style="font-size:12.5px;color:var(--dim);margin-bottom:10px;">Raporlardaki isimlerin hangi personele ait olduğu. "Bizim personel değil" olanlar yüklemede atlanır. <b>Bizde başlangıç ayı</b> dolu olan kişinin o aydan önceki değerlendirmeleri kişi kartında "önceki lokasyon" olarak görünür, ekip istatistiklerine girmez. <i>Otomatik</i> satırlar personel listesinden kendiliğinden eşleşmiştir; değiştirince tabloya kaydedilir.</div>
+      <div style="font-size:12.5px;color:var(--dim);margin-bottom:10px;">Raporlardaki isimlerin hangi personele ait olduğu. "Bizim personel değil" olanlar yüklemede atlanır ve bu listede yalnız arama ya da süzgeçle görünür. <b>Çalışmıyor</b> seçilenler ekip istatistiklerine girer; kartlarına Personel Kalite Kartı'ndaki Çalışmayanlar listesinden ulaşılır. <b>Bizde başlangıç ayı</b> dolu olan kişinin o aydan önceki değerlendirmeleri kişi kartında "önceki lokasyon" olarak görünür, ekip istatistiklerine girmez. <i>Otomatik</i> satırlar personel listesinden kendiliğinden eşleşmiştir; değiştirince tabloya kaydedilir.</div>
       <div class="kq-ust"><div><div class="search-label">Ara</div><input class="search" id="kqEsAra" placeholder="İsim veya sicil" style="width:220px;"></div>
-        <div><div class="search-label">Durum</div><select class="search" id="kqEsDurum"><option value="">Tümü</option><option value="BIZ">Bizim personel</option><option value="DEGIL">Bizim personel değil</option><option value="BAS">Başlangıç ayı olan</option><option value="OTO">Otomatik</option></select></div>
+        <div><div class="search-label">Durum</div><select class="search" id="kqEsDurum"><option value="">Bizim + çalışmayanlar</option><option value="BIZ">Çalışan personel</option><option value="AYR">Çalışmayanlar</option><option value="DEGIL">Bizim personel değil</option><option value="BAS">Başlangıç ayı olan</option><option value="OTO">Otomatik</option><option value="TUM">Tümü</option></select></div>
         <span style="flex:1"></span><span class="hint" id="kqEsDurumYazi"></span></div>
-      <div class="kq-kaydir"><table class="kq-tb" id="kqEsTablo"><colgroup><col style="width:23%"><col style="width:30%"><col style="width:9%"><col style="width:15%"><col style="width:7%"><col style="width:16%"></colgroup>
+      <div class="kq-kaydir"><table class="kq-tb" id="kqEsTablo"><colgroup><col style="width:24%"><col style="width:30%"><col style="width:10%"><col style="width:16%"><col style="width:8%"><col style="width:12%"></colgroup>
         <thead><tr><th style="text-align:left;">Rapordaki isim</th><th style="text-align:left;">Personel</th><th>Sicil</th><th>Bizde başlangıç ayı</th><th>Değ.</th><th></th></tr>
         <tr><td><input class="search" id="kqEsYeniAd" placeholder="Yeni isim (rapordaki gibi)" style="width:100%;"></td><td><select class="search" id="kqEsYeniSicil" style="width:100%;"></select></td><td></td><td><select class="search" id="kqEsYeniBas" style="width:100%;"></select></td><td></td><td class="n"><button class="refresh-btn" id="kqEsYeniBtn">+ Ekle</button></td></tr></thead>
         <tbody id="kqEsGovde"><tr><td colspan="6" class="n">Yükleniyor…</td></tr></tbody></table></div>
@@ -11362,20 +11382,28 @@ function wireKaliteEsleTab(){
     document.getElementById('kqEsYeniBas').innerHTML = kqAySecenek(null);
     const ciz = () => {
       const q = kqNorm(KQ.esle.ara), f = KQ.esle.durum;
+      // Varsayılan: bizim personel + çalışmayanlar; "bizim değil" satırları arama ya da süzgeçle görünür
       const G = L.filter(x => (!q || x.k.includes(q) || x.sicil.includes(q) || kqNorm(kqKisiAd(D, x.sicil, '')).includes(q)) &&
-        (!f || (f === 'BIZ' && x.sicil) || (f === 'DEGIL' && !x.sicil) || (f === 'BAS' && x.bas !== null) || (f === 'OTO' && x.oto)));
+        (f === 'TUM' || (!f && (x.sicil || q)) || (f === 'BIZ' && x.sicil && !x.ayr) || (f === 'AYR' && x.ayr) || (f === 'DEGIL' && !x.sicil) || (f === 'BAS' && x.bas !== null) || (f === 'OTO' && x.oto)));
       document.getElementById('kqEsGovde').innerHTML = G.map((x, i) => `<tr data-i="${L.indexOf(x)}">
-        <td>${kqEsc(x.ad)}${x.oto ? ' <span style="font-size:10.5px;color:var(--dim);">otomatik</span>' : ''}</td>
-        <td><select class="search kq-es-sicil" style="width:100%;${x.sicil ? '' : 'color:var(--dim);'}">${kqKisiSecenek(D, x.sicil)}</select></td>
-        <td class="n kq-es-sic">${kqEsc(x.sicil)}</td>
+        <td>${kqEsc(x.ad)}${x.oto ? ' <span style="font-size:10.5px;color:var(--dim);">otomatik</span>' : ''}${x.ayr ? ' <span style="font-size:10.5px;color:var(--orange,#d97706);">çalışmıyor</span>' : ''}</td>
+        <td><select class="search kq-es-sicil" style="width:100%;${x.sicil ? '' : 'color:var(--dim);'}">${kqKisiSecenek(D, x.sicil, x.ad)}</select></td>
+        <td class="n kq-es-sic">${kqEsc(kqSicilGoster(x.sicil))}</td>
         <td><select class="search kq-es-bas" style="width:100%;">${kqAySecenek(x.bas)}</select></td>
         <td class="n">${x.n || ''}</td>
         <td class="n" style="white-space:nowrap;"><button class="refresh-btn kq-es-kaydet" disabled>Kaydet</button>${x.row ? ' <button class="refresh-btn kq-es-sil" title="Eşleştirmeyi sil">✕</button>' : ''}</td></tr>`).join('') || `<tr><td colspan="6" class="n" style="color:var(--dim);">Kayıt yok.</td></tr>`;
       document.querySelectorAll('#kqEsGovde tr[data-i]').forEach(tr => {
         const x = L[+tr.dataset.i], s = tr.querySelector('.kq-es-sicil'), b = tr.querySelector('.kq-es-bas'), k = tr.querySelector('.kq-es-kaydet');
-        const degisti = () => { tr.querySelector('.kq-es-sic').textContent = s.value; k.disabled = s.value === x.sicil && (b.value === '' ? null : +b.value) === x.bas; };
+        const hucre = tr.querySelector('.kq-es-sic');
+        const yeniSicil = () => { if (s.value !== '__AYR__') return s.value; const v = (hucre.querySelector('input') || {}).value; return String(v || '').trim() || 'AYR-' + x.k.replace(/ /g, '-'); };
+        const degisti = () => {
+          if (s.value === '__AYR__'){ if (!hucre.querySelector('input')){ hucre.innerHTML = `<input class="search" placeholder="Sicil (bilmiyorsanız boş)" style="width:100%;font-size:12px;">`; hucre.querySelector('input').oninput = degisti; } }
+          else hucre.textContent = kqSicilGoster(s.value);
+          const ayni = yeniSicil() === x.sicil && (b.value === '' ? null : +b.value) === x.bas;
+          k.disabled = ayni; tr.style.background = ayni ? '' : 'rgba(245,196,81,.22)';
+        };
         s.onchange = degisti; b.onchange = degisti;
-        k.onclick = () => kqEsleKaydet(D, x, s.value, b.value === '' ? null : +b.value).then(yenile).catch(e => durumYaz('✗ ' + e.message, true));
+        k.onclick = () => kqEsleKaydet(D, x, yeniSicil(), b.value === '' ? null : +b.value).then(r => { if (r !== false) yenile(); }).catch(e => durumYaz('✗ ' + e.message, true));
         const sil = tr.querySelector('.kq-es-sil');
         if (sil) sil.onclick = () => { if (!confirm(`"${x.ad}" eşleştirmesi silinsin mi? Bir sonraki yüklemede bu isim yeniden sorulur. Tablodaki değerlendirmeler değişmez.`)) return;
           durumYaz('Siliniyor…'); kqSatirSil(KQ_TAB.isim, x.row).then(yenile).catch(e => durumYaz('✗ ' + e.message, true)); };
@@ -11387,7 +11415,8 @@ function wireKaliteEsleTab(){
     document.getElementById('kqEsYeniBtn').onclick = () => {
       const ad = kqMetin(document.getElementById('kqEsYeniAd').value); if (!ad){ durumYaz('İsim yazın.', true); return; }
       if (L.some(x => x.k === kqNorm(ad) && !x.oto)){ durumYaz('Bu isim zaten listede; satırından değiştirin.', true); return; }
-      const sic = document.getElementById('kqEsYeniSicil').value, bas = document.getElementById('kqEsYeniBas').value;
+      let sic = document.getElementById('kqEsYeniSicil').value; if (sic === '__AYR__'){ const v = prompt('Sicil (bilmiyorsanız boş bırakın):', ''); if (v === null) return; sic = String(v).trim() || 'AYR-' + kqNorm(ad).replace(/ /g, '-'); }
+      const bas = document.getElementById('kqEsYeniBas').value;
       durumYaz('Kaydediliyor…');
       kqSatirEkle(KQ_TAB.isim, [[asUp(ad), sic ? (Number(sic) || sic) : '', bas ? asKeyOf(+bas) : '']]).then(() => { kqLogEsle('Yeni eşleştirme', ad); yenile(); }).catch(e => durumYaz('✗ ' + e.message, true));
     };
@@ -11411,7 +11440,7 @@ async function kqEsleKaydet(D, x, sicil, bas){
   const durum = document.getElementById('kqEsDurumYazi');
   // Sicil değişiyorsa bu isimle yazılmış değerlendirmelerin sicili de güncellenir (onayla)
   const satirlar = sicil !== x.sicil ? D.kayit.filter(k => kqNorm(k.ad) === x.k) : [];
-  if (satirlar.length && !confirm(`"${x.ad}" adıyla tabloda ${satirlar.length} değerlendirme var. Bunların sicili de ${sicil ? sicil + ' olarak' : 'boşaltılarak (bizim personel değil)'} güncellensin mi?\n\nTamam: eşleştirme ve değerlendirmeler güncellenir.\nİptal: hiçbir şey kaydedilmez.`)) return;
+  if (satirlar.length && !confirm(`"${x.ad}" adıyla tabloda ${satirlar.length} değerlendirme var. Bunların sicili de ${sicil ? (kqSicilGoster(sicil) || 'çalışmıyor') + ' olarak' : 'boşaltılarak (bizim personel değil)'} güncellensin mi?\n\nTamam: eşleştirme ve değerlendirmeler güncellenir.\nİptal: hiçbir şey kaydedilmez.`)) return false;
   if (durum) durum.textContent = 'Kaydediliyor…';
   const deger = [asUp(x.ad), sicil ? (Number(sicil) || sicil) : '', bas !== null ? asKeyOf(bas) : ''];
   if (x.row) await kqHucreler([{ range: `'${KQ_TAB.isim}'!A${x.row}:C${x.row}`, values: [deger] }]);
@@ -11653,7 +11682,7 @@ function kqYuklemeCiz(){
   const evBilinmeyen = [...Y.evSonuc.entries()].filter(([, a]) => !a);
   const yazilacak = yeni.filter(bizim);
   const ayS = new Map(); yazilacak.forEach(x => ayS.set(x.ay, (ayS.get(x.ay) || 0) + 1));
-  const kisiOpt = s => `<option value="">Seçin…</option><option value="__ATLA__" ${s === '__ATLA__' ? 'selected' : ''}>Bizim personel değil (atla)</option>` + PERSONNEL.slice().sort((a, b) => a.adSoyad.localeCompare(b.adSoyad, 'tr')).map(p => `<option value="${kqEsc(p.sicil)}" ${s === p.sicil ? 'selected' : ''}>${kqEsc(asUp(p.adSoyad))} (${kqEsc(p.sicil)})</option>`).join('');
+  const kisiOpt = s => `<option value="">Seçin…</option><option value="__ATLA__" ${s === '__ATLA__' ? 'selected' : ''}>Bizim personel değil (atla)</option><option value="__AYR__" ${s === '__AYR__' ? 'selected' : ''}>Çalışmıyor (ayrıldı) – sicil sonra Eşleştirme'den</option>` + PERSONNEL.slice().sort((a, b) => a.adSoyad.localeCompare(b.adSoyad, 'tr')).map(p => `<option value="${kqEsc(p.sicil)}" ${s === p.sicil ? 'selected' : ''}>${kqEsc(asUp(p.adSoyad))} (${kqEsc(p.sicil)})</option>`).join('');
   const hazir = !eslesmeyen.length && evBilinmeyen.every(([raw]) => Y.evTipSecim.get(raw)) && yazilacak.length && yazilacak.every(x => x.ay !== null);
   el.innerHTML = anzCard(`⇧ ${kqEsc(Y.dosya)}`,
     `${Y.satirlar.length} değerlendirme okundu · <b>${yazilacak.length}</b> yeni kayıt yazılacak${tekrar ? ` · ${tekrar} zaten kayıtlı (atlanır)` : ''}${atlanan ? ` · ${atlanan} başka lokasyon (atlanır)` : ''}`,
@@ -11686,14 +11715,15 @@ async function kqYuklemeKaydet(){
     const mevcut = await (await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${KQ_SHEET_ID}/values/${enc(`'${KQ_TAB.deg}'!D2:D60000`)}`, { headers: { Authorization: 'Bearer ' + token } })).json();
     const varOlan = new Set((mevcut.values || []).map(r => String(r[0] || '')));
     const evAd = raw => Y.evSonuc.get(raw) || asUp(raw);
+    const kqYukSicil = tem => { const s = Y.isimSonuc.get(tem); return s === '__AYR__' ? 'AYR-' + kqNorm(tem).replace(/ /g, '-') : (Number(s) || s); };
     const satir = Y.satirlar.filter(x => !varOlan.has(x.id) && Y.isimSonuc.get(x.tem) && Y.isimSonuc.get(x.tem) !== '__ATLA__').map(x => {
       const v = x.v.slice(0, 33); while (v.length < 33) v.push('');
-      return [asKeyOf(x.ay), x.tar.slice(0, 10), x.cz, x.id, Number(Y.isimSonuc.get(x.tem)) || Y.isimSonuc.get(x.tem), asUp(x.tem), evAd(x.evHam), x.form, x.grup, x.skor, x.not].concat(v.map(z => z === null ? '' : z));
+      return [asKeyOf(x.ay), x.tar.slice(0, 10), x.cz, x.id, kqYukSicil(x.tem), asUp(x.tem), evAd(x.evHam), x.form, x.grup, x.skor, x.not].concat(v.map(z => z === null ? '' : z));
     });
     yaz('Kaydediliyor…');
     await ekle(KQ_TAB.soz, Y.yeniSoz);
     await ekle(KQ_TAB.ev, [...Y.evTipSecim.entries()].map(([raw, tip]) => [raw, asUp(raw), tip.split('|')[0], tip.split('|')[1] || '']));
-    await ekle(KQ_TAB.isim, [...(Y.elle || new Set())].filter(a => Y.isimSonuc.get(a)).map(a => { const s = Y.isimSonuc.get(a); return [asUp(a), s === '__ATLA__' ? '' : (Number(s) || s)]; }));
+    await ekle(KQ_TAB.isim, [...(Y.elle || new Set())].filter(a => Y.isimSonuc.get(a)).map(a => { const s = Y.isimSonuc.get(a); return [asUp(a), s === '__ATLA__' ? '' : kqYukSicil(a)]; }));
     await ekle(KQ_TAB.deg, satir);
     try { sendLog({ type: 'kaydet', dashboard: 'Personel Karnesi', page: 'Çağrı Kalitesi', target: `${KQ_TAB.deg} — ${Y.dosya}`, fields: `${satir.length} değerlendirme`, action: 'Yeni Kayıt' }); } catch(e){}
     KQ.yukleme = null; KQ.D = null; asHafizaTemizle();
