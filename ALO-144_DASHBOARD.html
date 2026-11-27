@@ -6705,7 +6705,7 @@ async function fetchVardiyaMonth(monthInfo){
     // 20.11.2026: personel adı her koşulda BÜYÜK harf (sekmeler arası yazım farkı görünmesin; eşleştirme zaten Sicil ile).
     const personel = (row[1] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
     // 20.11.2026: takım lideri adı büyük/küçük harf ve boşluk farkından bağımsız tek yazıma
-    // çevrilir ("Atilla Rana" ile "ATİLLA RANA" listede iki ayrı lider gibi görünmesin).
+    // çevrilir ("Ali Veli" ile "ALİ VELİ" listede iki ayrı lider gibi görünmesin).
     const takim = (row[2] || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('tr-TR');
     dayCols.forEach(dc => {
       const raw = row[dc.index];
